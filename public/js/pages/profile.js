@@ -1,5 +1,6 @@
 // Profiles: trainee (grid; owner sees public/private tabs) and coach (info + performances + analyses).
 import { h, clear, loading, empty, errorState, friendlyError, tabs, section, POLICY, STATUS, icon } from '../ui.js';
+import { plural } from '../ui.js';
 import { sb, state, q, rpc, sportName, isAdmin } from '../api.js';
 import { go } from '../app.js';
 
@@ -108,7 +109,7 @@ async function coachProfile(main, p, mine, approved, query) {
         info.append(h('dl', { class: 'kv' },
           h('dt', null, 'זמן תגובה'), h('dd', null, `עד ${c.response_hours} שעות`),
           h('dt', null, 'הודעות המשך'), h('dd', null, POLICY[c.followup_policy]),
-          h('dt', null, 'זמינות'), h('dd', null, c.available ? `פנוי לבקשות (${c.quota - c.active_count} מקומות)` : 'אין כרגע מקום פנוי')));
+          h('dt', null, 'זמינות'), h('dd', null, c.available ? 'פנוי לבקשות (' + plural(c.quota - c.active_count, 'מקום אחד', 'מקומות') + ')' : 'אין כרגע מקום פנוי')));
         if (!mine) info.append(c.available
           ? h('a', { class: 'btn block', href: '#/upload?coach=' + p.id }, 'שליחת סרטון לניתוח')
           : h('button', { class: 'btn block', disabled: true }, 'אין כרגע מקום פנוי'));

@@ -11,7 +11,7 @@ import { presign } from '../../functions/_lib/sigv4.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const env = {
   SUPABASE_URL: 'http://127.0.0.1:8000',
-  SUPABASE_ANON_KEY: process.env.ANON_KEY,
+  SUPABASE_PUBLISHABLE_KEY: process.env.ANON_KEY,
   R2_ACCOUNT_ID: 'local', R2_ACCESS_KEY_ID: 'TESTKEY', R2_SECRET_ACCESS_KEY: 'TESTSECRET', R2_BUCKET: 'media',
   R2_TEST_ENDPOINT: 'http://127.0.0.1:8001',
 };

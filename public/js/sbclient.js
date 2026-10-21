@@ -97,8 +97,8 @@ export function createClient(url, anonKey) {
     async signOut() {
       const t = session?.access_token;
       save(null);
-      if (t) await authFetch('logout', { token: t });
-      emit('SIGNED_OUT');
+      emit('SIGNED_OUT');                       // update the screen immediately
+      if (t) authFetch('logout', { token: t }); // revoke the session server-side in the background
       return { error: null };
     },
     async resetPasswordForEmail(email, { redirectTo } = {}) {
@@ -116,12 +116,12 @@ export function createClient(url, anonKey) {
   };
 
   async function restFetch(path, init = {}, retry = true) {
-    const token = (await currentToken()) || anonKey;
+    const token = await currentToken();
     let r;
     try {
       r = await fetch(`${url}/rest/v1/${path}`, {
         ...init,
-        headers: { apikey: anonKey, authorization: 'Bearer ' + token, 'content-type': 'application/json', ...(init.headers || {}) },
+        headers: { apikey: anonKey, ...(token ? { authorization: 'Bearer ' + token } : {}), 'content-type': 'application/json', ...(init.headers || {}) },
       });
     } catch { return { error: { message: 'Failed to fetch' } }; }
     if (r.status === 401 && retry && session) {

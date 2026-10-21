@@ -31,6 +31,7 @@ const NAV = [ // RTL: first = rightmost
 ];
 
 let cleanup = null;
+let routeSeq = 0;   // the latest navigation wins if two overlap
 
 export function go(path) {
   if (location.hash === '#' + path) route();
@@ -69,6 +70,7 @@ function layout(path, title) {
 }
 
 async function route() {
+  const seq = ++routeSeq;
   if (cleanup) { try { cleanup(); } catch {} cleanup = null; }
   const { path, query } = parseHash();
   if (path === '/' || path === '') return go(defaultRoute());
@@ -84,15 +86,18 @@ async function route() {
   const params = path.match(re).slice(1);
   try {
     const page = await import(mod);
+    if (seq !== routeSeq) return;   // a newer navigation started meanwhile
     if (!needsLogin || path === '/reset') {
       const main = h('main', { class: 'page' });
       clear(app).append(main);
-      cleanup = (await page[fn]({ main, params, query })) || null;
+      const c = (await page[fn]({ main, params, query })) || null;
+      if (seq === routeSeq) cleanup = c; else if (c) c();
     } else {
       const shell = layout(path);
-      cleanup = (await page[fn]({ main: shell.main, setTitle: shell.setTitle, params, query })) || null;
+      const c = (await page[fn]({ main: shell.main, setTitle: shell.setTitle, params, query })) || null;
+      if (seq === routeSeq) cleanup = c; else if (c) c();
     }
-    window.scrollTo(0, 0);
+    if (seq === routeSeq) window.scrollTo(0, 0);
   } catch (e) {
     console.error(e);
     clear(app).append(h('main', { class: 'page' }, errorState(friendlyError(e), () => route())));

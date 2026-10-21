@@ -1,5 +1,5 @@
 // Upload a video: choose destination → form → upload with progress → (optional) send to coach.
-import { h, clear, busy, friendlyError, successState, errorState, loading, POLICY, toast } from '../ui.js';
+import { h, clear, busy, friendlyError, successState, errorState, loading, POLICY, toast, filePicker, plural } from '../ui.js';
 import { sb, state, activeSports, sportName, rpc, uploadFile, fileType, LIMITS, isCoach } from '../api.js';
 
 export async function uploadPage({ main, setTitle, query }) {
@@ -49,7 +49,8 @@ export async function uploadPage({ main, setTitle, query }) {
   // ---------- Step 2: form ----------
   async function stepForm() {
     const toCoach = s.dest === 'coach';
-    const fileIn = h('input', { type: 'file', accept: 'video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.webm,.m4v', id: 'u_file' });
+    const picker = filePicker({ id: 'u_file', accept: 'video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.webm,.m4v', label: 'בחירת סרטון' });
+    const fileIn = picker.input;
     const fileInfo = h('div', { class: 'hint' });
     const fileErr = h('div', { class: 'error-text hidden', role: 'alert' });
     const sport = h('select', { id: 'u_sport' }, h('option', { value: '' }, 'בחירת ענף…'),
@@ -68,8 +69,8 @@ export async function uploadPage({ main, setTitle, query }) {
       s.file = null; fileInfo.textContent = '';
       if (!f) return;
       const t = fileType(f);
-      if (!LIMITS.videoTypes.includes(t)) { fileErr.textContent = `הפורמט אינו נתמך. אפשר להעלות ${LIMITS.videoFormats}.`; fileErr.classList.remove('hidden'); fileIn.value = ''; return; }
-      if (f.size > LIMITS.videoMaxMB * 1048576) { fileErr.textContent = `הקובץ גדול מ־${LIMITS.videoMaxMB}MB (${Math.round(f.size / 1048576)}MB). קצרו את הסרטון או צלמו באיכות נמוכה יותר.`; fileErr.classList.remove('hidden'); fileIn.value = ''; return; }
+      if (!LIMITS.videoTypes.includes(t)) { fileErr.textContent = `הפורמט אינו נתמך. אפשר להעלות ${LIMITS.videoFormats}.`; fileErr.classList.remove('hidden'); picker.reset(); return; }
+      if (f.size > LIMITS.videoMaxMB * 1048576) { fileErr.textContent = `הקובץ גדול מ־${LIMITS.videoMaxMB}MB (${Math.round(f.size / 1048576)}MB). קצרו את הסרטון או צלמו באיכות נמוכה יותר.`; fileErr.classList.remove('hidden'); picker.reset(); return; }
       s.file = f;
       fileInfo.textContent = `${f.name} · ${Math.round(f.size / 1048576 * 10) / 10}MB`;
     });
@@ -98,7 +99,7 @@ export async function uploadPage({ main, setTitle, query }) {
             h('input', { type: 'radio', name: 'coach', value: c.id, disabled: full, checked: s.coachId === c.id && !full, onchange: () => { s.coachId = c.id; } }),
             h('span', null,
               h('span', { class: 't' }, c.first_name + ' ' + c.last_name, ' ', c.is_sample && h('span', { class: 'tag' }, 'דוגמה'), ' ',
-                full ? h('span', { class: 'tag fill' }, 'אין מקום פנוי') : h('span', { class: 'tag soft' }, `פנוי · ${c.quota - c.active_count} מקומות`)),
+                full ? h('span', { class: 'tag fill' }, 'אין מקום פנוי') : h('span', { class: 'tag soft' }, 'פנוי · ' + plural(c.quota - c.active_count, 'מקום אחד', 'מקומות'))),
               h('span', { class: 'd' }, 'ענפים: ' + c.sport_ids.map(sportName).join(', ')),
               h('span', { class: 'd' }, `זמן תגובה: עד ${c.response_hours} שעות`),
               h('span', { class: 'd' }, 'הודעות המשך: ' + POLICY[c.followup_policy]),
@@ -111,7 +112,7 @@ export async function uploadPage({ main, setTitle, query }) {
       h('h1', null, toCoach ? 'שליחת סרטון לניתוח' : 'העלאה לפרופיל'),
       h('button', { type: 'button', class: 'btn ghost small', onclick: stepDest }, '→ שינוי יעד'),
       err,
-      h('div', { class: 'field' }, h('label', { for: 'u_file' }, 'קובץ וידאו'), fileIn, fileInfo, fileErr,
+      h('div', { class: 'field' }, h('div', { class: 'label' }, 'קובץ וידאו'), picker, fileInfo, fileErr,
         h('div', { class: 'hint' }, `עד ${LIMITS.videoMaxMB}MB · פורמטים: ${LIMITS.videoFormats}. מומלץ סרטון קצר (עד כדקה וחצי).`)),
       h('div', { class: 'field' }, h('label', { for: 'u_sport' }, 'ענף ספורט'), sport),
       h('div', { class: 'field' }, h('label', { for: 'u_title' }, 'שם התרגיל'), title),

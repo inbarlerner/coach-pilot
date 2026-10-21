@@ -18,13 +18,17 @@ export const json = (data, status = 200) =>
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
   });
 
+// Supabase "publishable" key (sb_publishable_...) — the older "anon" key name is also accepted.
+export const publicKey = (env) => env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY;
+
 export function config(env) {
-  const need = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'];
+  if (!publicKey(env)) throw new HttpError(500, 'SERVER_NOT_CONFIGURED: SUPABASE_PUBLISHABLE_KEY');
+  const need = ['SUPABASE_URL', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'];
   const missing = need.filter((k) => !env[k]);
   if (missing.length) throw new HttpError(500, 'SERVER_NOT_CONFIGURED: ' + missing.join(', '));
   return {
     supabaseUrl: env.SUPABASE_URL.replace(/\/$/, ''),
-    anonKey: env.SUPABASE_ANON_KEY,
+    anonKey: publicKey(env),
     r2: {
       // R2_TEST_ENDPOINT is only for local automated tests (e.g. http://127.0.0.1:8001). Never set it in production.
       protocol: env.R2_TEST_ENDPOINT ? new URL(env.R2_TEST_ENDPOINT).protocol.replace(':', '') : 'https',

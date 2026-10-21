@@ -1,5 +1,5 @@
 // Reusable components: protected video player with analysis tools, media items, recorder.
-import { h, clear, friendlyError, icon, fmtSize, toast } from './ui.js';
+import { h, clear, friendlyError, icon, fmtSize, toast, filePicker } from './ui.js';
 import { mediaUrl, uploadFile, LIMITS, fileType } from './api.js';
 
 /**
@@ -49,8 +49,8 @@ function playerTools(v) {
   return h('div', { class: 'player-bar', role: 'group', 'aria-label': 'כלי צפייה' },
     h('button', { type: 'button', onclick: () => (v.paused ? v.play() : v.pause()) }, 'ניגון / עצירה'),
     h('button', { type: 'button', onclick: () => { v.currentTime = 0; v.play(); } }, 'צפייה חוזרת'),
-    h('button', { type: 'button', onclick: () => step(-0.1), title: 'אחורה 0.1 שניות' }, '◀ 0.1 שנ׳'),
-    h('button', { type: 'button', onclick: () => step(0.1), title: 'קדימה 0.1 שניות' }, '0.1 שנ׳ ▶'),
+    h('button', { type: 'button', onclick: () => step(-0.1), title: 'אחורה 0.1 שניות' }, 'אחורה 0.1 שנ׳'),
+    h('button', { type: 'button', onclick: () => step(0.1), title: 'קדימה 0.1 שניות' }, 'קדימה 0.1 שנ׳'),
     ...speedBtns);
 }
 
@@ -109,16 +109,14 @@ export function recorder(kind, onSaved) {
   }
 
   function fileFallback() {
-    const input = h('input', { type: 'file', accept: kind === 'audio' ? 'audio/*' : 'video/*' });
-    input.addEventListener('change', () => {
-      const f = input.files[0];
+    const picker = filePicker({ id: 'rec_file_' + kind, accept: kind === 'audio' ? 'audio/*' : 'video/*', label: kind === 'audio' ? 'בחירת קובץ קול' : 'בחירת קובץ וידאו', onChange: (f) => {
       if (!f) return;
       const t = fileType(f);
       if (!allowed.includes(t)) return idle('סוג הקובץ אינו נתמך.');
       if (f.size > maxMB * 1048576) return idle(`הקובץ גדול מ־${maxMB}MB.`);
       upload(f);
-    });
-    return h('div', null, h('label', { class: 'small' }, 'או העלאת קובץ ' + (kind === 'audio' ? 'קול' : 'וידאו') + ` מוכן (עד ${maxMB}MB)`), input);
+    } });
+    return h('div', null, h('div', { class: 'small', style: { fontWeight: 600, marginBottom: '.3rem' } }, 'או העלאת קובץ ' + (kind === 'audio' ? 'קול' : 'וידאו') + ` מוכן (עד ${maxMB}MB)`), picker);
   }
 
   async function startRec() {

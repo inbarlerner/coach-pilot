@@ -285,12 +285,14 @@ with sync_playwright() as p:
     trainee.wait_for_url(re.compile(r'#/login'))
     login(trainee, 'yoav@pilot.test')
     ok('#/home' in trainee.url, 'P1 returning trainee lands on home (not upload)')
-    goto(trainee, '/inbox'); trainee.get_by_role('tab', name='הושלמו', exact=True).click()
+    goto(trainee, '/inbox')
+    trainee.get_by_role('tab', name='הושלמו', exact=True).click()
     expect(trainee.locator('a.card', has_text='ג׳יבינג לשמאל')).to_be_visible()
     ok(True, 'P2 data persists after refresh, logout and login')
 
     # ---- password recovery through real auth server + email ----
     goto(trainee, '/settings'); trainee.get_by_role('button', name='יציאה').click()
+    trainee.wait_for_url(re.compile(r'#/login'))
     goto(trainee, '/forgot'); trainee.get_by_label('מייל').fill('yoav@pilot.test')
     before = set(os.listdir('/var/tmp/e2e/mail'))
     trainee.get_by_role('button', name='שליחת קישור לאיפוס').click()

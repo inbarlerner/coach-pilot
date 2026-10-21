@@ -4,7 +4,7 @@ import { onRequestPost as mediaUrl } from '../functions/api/media-url.js';
 import { onRequestPost as action } from '../functions/api/action.js';
 
 const env = {
-  SUPABASE_URL: 'https://proj.supabase.co', SUPABASE_ANON_KEY: 'anon',
+  SUPABASE_URL: 'https://proj.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
   R2_ACCOUNT_ID: 'acc', R2_ACCESS_KEY_ID: 'AK', R2_SECRET_ACCESS_KEY: 'SK', R2_BUCKET: 'media',
 };
 const USER = '11111111-1111-1111-1111-111111111111';

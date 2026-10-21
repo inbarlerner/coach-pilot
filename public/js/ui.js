@@ -195,3 +195,20 @@ export function tabs(names, active, onChange) {
   }
   return bar;
 }
+
+// Hebrew file picker (the native control shows browser-language text such as "Choose File").
+export function filePicker({ id, accept, label = 'בחירת קובץ', onChange }) {
+  const input = h('input', { type: 'file', id, accept, class: 'visually-hidden' });
+  const name = h('span', { class: 'muted' }, 'לא נבחר קובץ');
+  input.addEventListener('change', () => {
+    name.textContent = input.files[0] ? input.files[0].name : 'לא נבחר קובץ';
+    onChange && onChange(input.files[0] || null, input);
+  });
+  const btn = h('label', { for: id, class: 'btn secondary', role: 'button', tabindex: '0',
+    onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } } }, label);
+  const wrap = h('div', { class: 'file-pick' }, input, btn, name);
+  wrap.input = input;
+  wrap.reset = () => { input.value = ''; name.textContent = 'לא נבחר קובץ'; };
+  return wrap;
+}
+export const plural = (n, one, many) => (n === 1 ? one : `${n} ${many}`);
