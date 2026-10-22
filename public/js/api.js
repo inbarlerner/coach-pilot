@@ -100,10 +100,21 @@ export async function uploadFile(file, purpose, onProgress, signal) {
   if (file.size > MAX_MB * 1048576) throw new Error('TOO_LARGE');
   const folder = purpose === 'video' ? 'videos' : 'responses';
   const key = `${folder}/${state.user.id}/${crypto.randomUUID()}.${EXT[contentType] || 'bin'}`;
+  await makeRoom(file.size);
   const { error } = await sb.storage.from(BUCKET).upload(key, file, { contentType, onProgress, signal });
   if (error) throw new Error(error.message || 'UPLOAD_FAILED');
   return { key, contentType, size: file.size };
 }
+// Free up space if storage is near its cap: the database picks the oldest videos without an
+// open request (005_auto_cleanup.sql) and releases their files; we remove them from storage.
+// If that setup file has not been run yet, uploads simply continue.
+async function makeRoom(bytes) {
+  try {
+    const keys = await rpc('make_room', { p_bytes: bytes });
+    if (Array.isArray(keys) && keys.length) await sb.storage.from(BUCKET).remove(keys);
+  } catch (e) { console.warn('make_room skipped', e); }
+}
+
 // Best-effort removal of a file that was uploaded but could not be saved in the app.
 export const discardUpload = (key) => sb.storage.from(BUCKET).remove([key]).catch(() => {});
 
@@ -116,8 +127,9 @@ export async function mediaUrl(kind, id) {
   const c = mediaCache.get(k);
   if (c && c.until > Date.now()) return c.url;
   const table = kind === 'video' ? 'videos' : 'analysis_items';
-  const row = await q(sb.from(table).select('storage_key').eq('id', id).maybeSingle());
+  const row = await q(sb.from(table).select('*').eq('id', id).maybeSingle());
   if (!row || !row.storage_key) throw new Error('NOT_FOUND');
+  if (row.file_deleted_at) throw new Error('FILE_REMOVED');
   const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(row.storage_key, LINK_SECONDS);
   if (error) throw new Error(/not.?found|404/i.test(error.message + error.code) ? 'NOT_FOUND' : error.message);
   mediaCache.set(k, { url: data.signedUrl, until: Date.now() + (LINK_SECONDS - 300) * 1000 });

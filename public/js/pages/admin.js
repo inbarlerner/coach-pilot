@@ -8,7 +8,14 @@ export function adminPage({ main, setTitle, query }) {
   let tab = query.get('tab') || 'coaches';
   const body = h('div');
   const render = () => {
-    clear(main).append(h('h1', null, 'ניהול'),
+    const usage = h('p', { class: 'meta' });
+    rpc('admin_storage_usage').then((r) => {
+      const u = Array.isArray(r) ? r[0] : r;
+      if (!u) return;
+      const mb = (b) => Math.round(b / 1048576);
+      usage.textContent = `אחסון קבצים: ${mb(u.used_bytes)}MB מתוך ${mb(u.cap_bytes)}MB (${u.file_count} קבצים). כשמגיעים לגבול, הסרטונים הישנים ביותר נמחקים אוטומטית, חוץ מבקשות פתוחות.`;
+    }).catch(() => {});
+    clear(main).append(h('h1', null, 'ניהול'), usage,
       tabs([['coaches', 'בקשות מאמנים'], ['users', 'משתמשים'], ['reports', 'דיווחים'], ['sports', 'ענפים']], tab, (k) => { tab = k; render(); }), body);
     ({ coaches, users, reports, sports })[tab](clear(body));
   };

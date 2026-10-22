@@ -335,8 +335,37 @@ with sync_playwright() as p:
     expect(trainee.get_by_text('הסיסמה עודכנה')).to_be_visible()
     ok(True, 'R1 password recovery email → reset page → new password saved')
 
-    # admin disable
-    goto(admin, '/admin'); admin.get_by_role('tab', name='משתמשים').click()
+    # ---- automatic cleanup when storage is full (005_auto_cleanup.sql) ----
+    sql("update app_settings set value = storage_used_bytes() where key = 'storage_cap_bytes'")   # storage is "full"
+    oldest = sql(f"select video_id from analysis_requests where id='{r1}'")
+    goto(trainee, '/upload')
+    trainee.locator('label.choice', has_text='פרסום / שמירה בפרופיל שלי').click()
+    trainee.get_by_role('button', name='המשך').click()
+    expect(trainee.get_by_text('הסרטונים הישנים ביותר נמחקים אוטומטית')).to_be_visible()
+    trainee.set_input_files('#u_file', VIDEO)
+    trainee.select_option('#u_sport', label='קייטסרפינג')
+    trainee.get_by_label('שם התרגיל').fill('סרטון חדש כשהאחסון מלא')
+    trainee.get_by_role('button', name='העלאה ושמירה').click()
+    expect(trainee.get_by_text('הסרטון נשמר')).to_be_visible(timeout=20000)
+    ok(sql(f"select file_deleted_at is not null from videos where id='{oldest}'") == 't'
+       and sql(f"select count(*) from videos where file_deleted_at is not null") == '1', 'U1 storage full → only the oldest video without an open request was cleaned up')
+    ok(sql(f"select count(*) from storage.objects o join videos v on v.storage_key = o.name where v.id='{oldest}'") == '0', 'U2 its file is really gone from storage')
+    goto(trainee, '/v/' + oldest)
+    expect(trainee.get_by_text('הסרטון נמחק אוטומטית כדי לפנות מקום באחסון')).to_be_visible()
+    expect(trainee.get_by_text('הכתף הקדמית נפתחת מוקדם מדי')).to_be_visible()
+    expect(trainee.get_by_text('ההקלטה נמחקה אוטומטית')).to_be_visible()
+    shot(trainee, '17-cleaned-up-video')
+    ok(trainee.get_by_role('button', name='שליחה למאמן לניתוח').count() == 0 and trainee.get_by_role('button', name='מחיקת הסרטון').count() == 1,
+       'U3 the video page explains the removal, keeps the analysis text, and offers only "delete"')
+    goto(trainee, '/notifications')
+    expect(trainee.get_by_text('נמחק אוטומטית כדי לפנות מקום')).to_be_visible()
+    ok(True, 'U4 owner notified')
+    sql("update app_settings set value = 943718400 where key = 'storage_cap_bytes'")
+
+    goto(admin, '/admin')
+    expect(admin.get_by_text(re.compile(r'אחסון קבצים: \d+MB מתוך 900MB'))).to_be_visible()
+    ok(True, 'A0 admin sees storage usage')
+    admin.get_by_role('tab', name='משתמשים').click()
     admin.locator('.card', has_text='נועה צד').get_by_role('button', name='השבתת חשבון').click()
     admin.locator('.modal').get_by_role('button', name='אישור').click()
     expect(admin.locator('.card', has_text='נועה צד').get_by_text('מושבת')).to_be_visible()

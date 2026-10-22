@@ -64,6 +64,7 @@ function videoGrid(videos, extra) {
     h('span', { class: 'meta' }, sportName(v.sport_id)),
     h('span', { class: 'row' },
       v.visibility === 'private' && h('span', { class: 'tag soft' }, 'פרטי'),
+      v.file_deleted_at && h('span', { class: 'tag soft' }, 'הקובץ נמחק'),
       v.is_sample && h('span', { class: 'tag' }, 'דוגמה'),
       extra && extra(v)))));
 }
@@ -86,7 +87,7 @@ function traineeProfile(main, p, mine, query) {
     body.append(grid);
     section(grid, async () => {
       const vis = mine ? tab : 'public';
-      const vids = await q(sb.from('videos').select('id,title,sport_id,visibility,is_sample,created_at').eq('owner_id', p.id).eq('visibility', vis).order('created_at', { ascending: false }));
+      const vids = await q(sb.from('videos').select('*').eq('owner_id', p.id).eq('visibility', vis).order('created_at', { ascending: false }));
       const st = mine ? await latestStatusMap(vids.map((v) => v.id)) : {};
       return { vids, st, vis };
     }, ({ vids, st, vis }) => videoGrid(vids, (v) => st[v.id] && h('span', { class: 'tag soft' }, STATUS[st[v.id]]))
@@ -128,14 +129,14 @@ async function coachProfile(main, p, mine, approved, query) {
     const box = h('div');
     body.append(box);
     if (tab === 'perf' || tab === 'private') {
-      section(box, () => q(sb.from('videos').select('id,title,sport_id,visibility,is_sample').eq('owner_id', p.id)
+      section(box, () => q(sb.from('videos').select('*').eq('owner_id', p.id)
         .eq('visibility', tab === 'perf' ? 'public' : 'private').order('created_at', { ascending: false })),
       (vids) => videoGrid(vids) || empty(tab === 'perf' ? 'אין עדיין סרטוני ביצועים ציבוריים' : 'אין סרטונים פרטיים', null,
         mine && h('a', { class: 'btn', href: '#/upload' }, 'העלאת סרטון')));
     } else {
       // Portfolio: completed analyses on videos that are public right now
       section(box, () => q(sb.from('analysis_requests')
-        .select('id,completed_at,video:videos!inner(id,title,sport_id,visibility,is_sample,removed)')
+        .select('id,completed_at,video:videos!inner(*)')
         .eq('coach_id', p.id).eq('status', 'completed').eq('video.visibility', 'public').eq('video.removed', false)
         .order('completed_at', { ascending: false })),
       (rows) => videoGrid(rows.map((r) => r.video)) || empty('אין עדיין ניתוחים ציבוריים',

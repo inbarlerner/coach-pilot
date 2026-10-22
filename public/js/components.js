@@ -24,6 +24,9 @@ export function protectedVideo(kind, id, opts = {}) {
       if (opts.tools) wrap.append(playerTools(v));
       if (opts.autoplay) v.play().catch(() => {});
     } catch (e) {
+      if (e.message === 'FILE_REMOVED') {
+        return clear(wrap).append(h('div', { class: 'player-placeholder' }, REMOVED_TEXT));
+      }
       clear(wrap).append(h('div', { class: 'player-placeholder' }, friendlyError(e),
         h('button', { class: 'btn small', onclick: start }, 'ניסיון חוזר')));
     }
@@ -54,10 +57,13 @@ function playerTools(v) {
     ...speedBtns);
 }
 
+export const REMOVED_TEXT = 'הסרטון נמחק אוטומטית כדי לפנות מקום באחסון. טקסט הניתוח וההודעות נשמרו.';
+
 // One analysis item (text / audio / video)
 export function analysisItem(item) {
   if (item.kind === 'text') return h('div', { class: 'card' }, h('div', { class: 'label' }, 'טקסט'), h('div', { class: 'pre' }, item.body));
   const box = h('div', { class: 'card' }, h('div', { class: 'label' }, item.kind === 'audio' ? 'הקלטת קול' : 'הקלטת וידאו'));
+  if (item.file_deleted_at) { box.append(h('p', { class: 'muted' }, 'ההקלטה נמחקה אוטומטית כדי לפנות מקום באחסון.')); return box; }
   const slot = h('div', null, h('button', { class: 'btn secondary small', onclick: load }, item.kind === 'audio' ? 'האזנה' : 'צפייה'));
   async function load() {
     clear(slot).append(h('span', { class: 'spinner sm' }));

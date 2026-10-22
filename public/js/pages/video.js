@@ -94,7 +94,8 @@ export async function videoPage({ main, setTitle, params, query }) {
         catch (e) { toast(friendlyError(e), 'err'); }
       });
     };
-    box.append(h('div', { class: 'stack' }, toggle, send, del));
+    // A video whose file was removed to free space can only be deleted.
+    box.append(h('div', { class: 'stack' }, ...(v.file_deleted_at ? [del] : [toggle, send, del])));
     return box;
   }
 
