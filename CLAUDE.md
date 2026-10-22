@@ -48,11 +48,12 @@ supabase/            להריץ לפי הסדר ב־SQL Editor:
   003_storage.sql    דלי media + מדיניות גישה לקבצים
   004_first_admin.sql הגדרת המנהלת הראשונה (ידני)
   005_auto_cleanup.sql פינוי אוטומטי כשהאחסון מתמלא
+  006_request_coach.sql בקשת הצטרפות כמאמן מחשבון קיים (מסך הגדרות)
 tests/               בדיקות SQL (stubs ל־Supabase), פונקציות, ו־e2e בדפדפן
 ```
 
 ## מודל הנתונים (עיקרי)
-- `profiles` — role: `trainee` / `coach` / `admin`; למאמן `coach_status`: `pending` → `approved`/`rejected` (מאשרת המנהלת). משתמש יכול רק לבקש להיות מאמן, לעולם לא admin. פרטים פרטיים (מייל/טלפון) ב־`profile_private`.
+- `profiles` — role: `trainee` / `coach` / `admin`; למאמן `coach_status`: `pending` → `approved`/`rejected` (מאשרת המנהלת). משתמש יכול רק לבקש להיות מאמן (בהרשמה, או מההגדרות דרך `request_coach`), לעולם לא admin. שימו לב: הרשמה שנייה עם מייל שעוד לא אומת נבלעת ב־Supabase Auth בלי שגיאה, ולכן ההרשמה מזהה את זה ומפנה לבקשה מההגדרות. פרטים פרטיים (מייל/טלפון) ב־`profile_private`.
 - `sports`, `user_sports` (תחומי עניין), `coach_sports` (מה המאמן מאמן).
 - `coach_settings` — `quota` (בקשות פתוחות במקביל, ברירת מחדל 3), `response_hours` (48), `followup_policy`: `none` / `one` / `chat24` / `unlimited`.
 - `videos` — `visibility` private/public, `storage_key`, `removed` (הוסר ע״י מנהלת).
@@ -77,6 +78,7 @@ tests/               בדיקות SQL (stubs ל־Supabase), פונקציות, ו
 node tests/functions.test.mjs
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f tests/acceptance.sql
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f tests/cleanup.sql
+psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f tests/request_coach.sql
 python3 tests/e2e/acceptance_ui.py   # Supabase Auth + PostgREST מקומיים + אמולטור אחסון (tests/e2e/server.mjs)
 ```
 להריץ את כל הבדיקות לפני כל commit.

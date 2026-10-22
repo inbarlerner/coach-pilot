@@ -1,6 +1,6 @@
 // Profile editing for everyone + coach settings (quota, response time, follow-up policy, sports, bio).
 import { h, clear, loading, errorState, friendlyError, busy, toast, POLICY } from '../ui.js';
-import { sb, state, q, activeSports, loadProfile, isCoach } from '../api.js';
+import { sb, state, q, rpc, activeSports, loadProfile, isCoach } from '../api.js';
 
 export async function settingsPage({ main, setTitle }) {
   setTitle('הגדרות');
@@ -66,6 +66,32 @@ export async function settingsPage({ main, setTitle }) {
         await q(sb.from('profiles').update({ bio: bio.value.trim() }).eq('id', p.id));
         await loadProfile();
         toast('הגדרות המאמן נשמרו');
+      } catch (e) { toast(friendlyError(e), 'err'); }
+    });
+    main.append(form);
+  }
+
+  // ---------- Ask to become a coach (trainees, or after a rejection) ----------
+  if (p.role === 'trainee' || (p.role === 'coach' && p.coach_status === 'rejected')) {
+    const sportsBox = chips('apply_sports', (coachSports || []).map((r) => r.sport_id));
+    const bio = h('textarea', { id: 'ap_bio', maxlength: 1000 });
+    bio.value = p.bio || '';
+    const send = h('button', { class: 'btn block' }, 'שליחת בקשת הצטרפות כמאמן');
+    const form = h('div', { class: 'card', style: { marginTop: '1rem' } },
+      h('h2', { style: { marginTop: 0 } }, p.role === 'coach' ? 'בקשה חוזרת להצטרף כמאמן' : 'הצטרפות כמאמן'),
+      h('p', { class: 'hint' }, 'הבקשה תגיע למנהל לאישור. עד לאישור לא תופיע/י בחיפוש ולא יגיעו אליך בקשות.'),
+      h('div', { class: 'field' }, h('div', { class: 'label' }, 'ענפים שבהם אני מאמן/ת'), sportsBox),
+      h('div', { class: 'field' }, h('label', { for: 'ap_bio' }, 'תיאור מקצועי'), bio),
+      send);
+    send.onclick = () => busy(send, async () => {
+      const cs = picked(form, 'apply_sports');
+      if (!cs.length) return toast('יש לבחור לפחות ענף אחד', 'err');
+      if (bio.value.trim().length < 10) return toast('יש לכתוב תיאור מקצועי קצר (לפחות 10 תווים).', 'err');
+      try {
+        await rpc('request_coach', { p_bio: bio.value.trim(), p_sports: cs });
+        await loadProfile();
+        toast('הבקשה נשלחה למנהל');
+        settingsPage({ main, setTitle });
       } catch (e) { toast(friendlyError(e), 'err'); }
     });
     main.append(form);

@@ -15,7 +15,7 @@ export function notificationsPage({ main, setTitle }) {
   const load = () => section(list,
     () => q(sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100)),
     (rows) => rows.length ? h('div', null, rows.map((n) => {
-      const href = n.request_id ? '#/r/' + n.request_id : (n.type === 'coach_status' ? '#/me' : null);
+      const href = n.request_id ? '#/r/' + n.request_id : (n.type === 'coach_status' ? '#/me' : n.type === 'coach_request' ? '#/admin' : null);
       const open = async (e) => {
         if (!n.read) { e.preventDefault(); await sb.from('notifications').update({ read: true }).eq('id', n.id); await refreshBadge(); location.hash = href || '#/notifications'; }
       };
