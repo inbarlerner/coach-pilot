@@ -1,6 +1,6 @@
 // Reusable components: protected video player with analysis tools, media items, recorder.
 import { h, clear, friendlyError, icon, fmtSize, toast, filePicker } from './ui.js';
-import { mediaUrl, uploadFile, LIMITS, fileType } from './api.js';
+import { mediaUrl, uploadFile, discardUpload, LIMITS, fileType, sizeMB } from './api.js';
 
 /**
  * Video player for a protected file.
@@ -84,6 +84,10 @@ export function recorder(kind, onSaved) {
   const purpose = kind === 'audio' ? 'responseAudio' : 'responseVideo';
   const maxMB = kind === 'audio' ? LIMITS.responseAudioMaxMB : LIMITS.responseVideoMaxMB;
   const allowed = kind === 'audio' ? LIMITS.audioTypes : LIMITS.videoTypes;
+  // Keep recordings under the 50MB file limit: modest bitrate + automatic stop.
+  const MAX_SEC = kind === 'audio' ? 15 * 60 : 5 * 60;
+  const BITRATE = kind === 'audio' ? { audioBitsPerSecond: 64000 } : { videoBitsPerSecond: 1000000, audioBitsPerSecond: 64000 };
+  const fmtTime = (t) => Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
   const box = h('div', { class: 'rec stack' });
   const supported = !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
   let stream = null, rec = null, chunks = [], timer = null;
@@ -103,7 +107,8 @@ export function recorder(kind, onSaved) {
       h('div', { class: 'label' }, kind === 'audio' ? 'הקלטת קול' : 'הקלטת וידאו'),
       msg && h('p', { class: 'error-text', role: 'alert' }, msg),
       supported
-        ? h('button', { class: 'btn', type: 'button', onclick: startRec }, kind === 'audio' ? 'התחלת הקלטת קול' : 'התחלת הקלטת וידאו')
+        ? [h('button', { class: 'btn', type: 'button', onclick: startRec }, kind === 'audio' ? 'התחלת הקלטת קול' : 'התחלת הקלטת וידאו'),
+           h('div', { class: 'hint' }, `עד ${MAX_SEC / 60} דקות להקלטה. ההקלטה נעצרת אוטומטית בסוף הזמן.`)]
         : h('p', { class: 'muted' }, 'הקלטה בדפדפן אינה זמינה במכשיר הזה. אפשר להעלות קובץ מוכן.'),
       fileFallback());
   }
@@ -113,7 +118,7 @@ export function recorder(kind, onSaved) {
       if (!f) return;
       const t = fileType(f);
       if (!allowed.includes(t)) return idle('סוג הקובץ אינו נתמך.');
-      if (f.size > maxMB * 1048576) return idle(`הקובץ גדול מ־${maxMB}MB.`);
+      if (f.size > maxMB * 1048576) return idle(`הקובץ גדול מדי: ${sizeMB(f.size)}MB. המקסימום הוא ${maxMB}MB לקובץ. קצרו אותו או הקליטו ישירות כאן.`);
       upload(f);
     } });
     return h('div', null, h('div', { class: 'small', style: { fontWeight: 600, marginBottom: '.3rem' } }, 'או העלאת קובץ ' + (kind === 'audio' ? 'קול' : 'וידאו') + ` מוכן (עד ${maxMB}MB)`), picker);
@@ -129,7 +134,7 @@ export function recorder(kind, onSaved) {
         : 'לא נמצא ' + (kind === 'audio' ? 'מיקרופון' : 'מצלמה') + ' זמין. אפשר להעלות קובץ מוכן.');
     }
     const mime = pickMime();
-    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined); }
+    try { rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), ...BITRATE }); }
     catch { return idle('לא ניתן להקליט במכשיר הזה. אפשר להעלות קובץ מוכן.'); }
     chunks = [];
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -141,8 +146,12 @@ export function recorder(kind, onSaved) {
     };
     rec.start(1000);
     let sec = 0;
-    const clock = h('span', null, '0:00');
-    timer = setInterval(() => { sec++; clock.textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); }, 1000);
+    const clock = h('span', null, '0:00 / ' + fmtTime(MAX_SEC));
+    timer = setInterval(() => {
+      sec++;
+      clock.textContent = fmtTime(sec) + ' / ' + fmtTime(MAX_SEC);
+      if (sec >= MAX_SEC && rec.state !== 'inactive') { rec.stop(); toast(`ההקלטה נעצרה אוטומטית אחרי ${MAX_SEC / 60} דקות.`); }
+    }, 1000);
     const live = kind === 'video' ? h('video', { muted: true, playsInline: true, autoplay: true }) : null;
     if (live) { live.srcObject = stream; live.muted = true; }
     clear(box).append(
@@ -158,7 +167,7 @@ export function recorder(kind, onSaved) {
     clear(box).append(
       h('div', { class: 'label' }, 'בדיקת ההקלטה (' + fmtSize(blob.size) + ')'),
       media,
-      tooBig && h('p', { class: 'error-text' }, `ההקלטה גדולה מ־${maxMB}MB. הקליטו הקלטה קצרה יותר.`),
+      tooBig && h('p', { class: 'error-text' }, `ההקלטה גדולה מדי: ${sizeMB(blob.size)}MB. המקסימום הוא ${maxMB}MB לקובץ. הקליטו הקלטה קצרה יותר.`),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', type: 'button', disabled: tooBig, onclick: () => {
           const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
@@ -178,7 +187,7 @@ export function recorder(kind, onSaved) {
         prog.setAttribute('aria-valuenow', String(Math.round(p * 100)));
         label.textContent = 'מעלה… ' + Math.round(p * 100) + '%';
       });
-      await onSaved(res);
+      try { await onSaved(res); } catch (e) { discardUpload(res.key); throw e; }
       idle();
       toast(kind === 'audio' ? 'הקלטת הקול נשמרה בטיוטה' : 'הקלטת הווידאו נשמרה בטיוטה');
     } catch (e) {

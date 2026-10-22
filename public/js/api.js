@@ -1,10 +1,13 @@
 // Data layer: Supabase client, current user, file uploads and protected media links.
 import { createClient } from './sbclient.js';
 
+// Supabase free plan: 50 MB per file. The same limit is set on the storage bucket (003_storage.sql).
+export const MAX_MB = 50;
+export const BUCKET = 'media';
 export const LIMITS = {
-  videoMaxMB: 200,
-  responseAudioMaxMB: 50,
-  responseVideoMaxMB: 200,
+  videoMaxMB: MAX_MB,
+  responseAudioMaxMB: MAX_MB,
+  responseVideoMaxMB: MAX_MB,
   videoFormats: 'MP4, MOV, WebM',
   videoTypes: ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'],
   audioTypes: ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/x-m4a', 'audio/m4a', 'audio/aac', 'audio/wav', 'audio/x-wav'],
@@ -55,23 +58,17 @@ export async function q(promise) {
 }
 export const rpc = (fn, args) => q(sb.rpc(fn, args));
 
-async function token() {
-  const { data } = await sb.auth.getSession();
-  if (!data.session) throw new Error('NOT_AUTHENTICATED');
-  return data.session.access_token;
+// Database actions that release stored files (delete video, discard draft, decline, remove item):
+// the database decides and returns the files to remove; then they are removed from storage.
+export async function action(fn, args) {
+  const result = await rpc(fn, args);
+  const keys = (Array.isArray(result) ? result : result ? [result] : []).filter(Boolean);
+  if (keys.length) {
+    const { error } = await sb.storage.from(BUCKET).remove(keys);
+    if (error) console.warn('storage cleanup failed', error);   // the app data is already updated
+  }
+  return { ok: true };
 }
-export async function api(path, body) {
-  const r = await fetch(path, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + (await token()) },
-    body: JSON.stringify(body),
-  });
-  const out = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(out.error || 'HTTP_' + r.status);
-  return out;
-}
-// Actions that may release stored files (delete video, discard draft, decline, remove item)
-export const action = (fn, args) => api('/api/action', { fn, args });
 
 // ---------- Files ----------
 const EXT_TYPES = { mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm',
@@ -85,37 +82,46 @@ export function fileType(file) {
   return t;
 }
 
+const EXT = {
+  'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'video/x-m4v': 'm4v',
+  'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/x-m4a': 'm4a',
+  'audio/m4a': 'm4a', 'audio/aac': 'aac', 'audio/wav': 'wav', 'audio/x-wav': 'wav',
+};
+export const sizeMB = (bytes) => Math.round((bytes / 1048576) * 10) / 10;
+
 /**
- * Upload a file straight to private storage with progress.
- * purpose: 'video' | 'responseAudio' | 'responseVideo'
- * Returns { key, contentType, size }. `onProgress(0..1)`. Supports abort via signal.
+ * Upload a file to the private bucket, into the user's own folder, with progress.
+ * purpose: 'video' | 'responseAudio' | 'responseVideo'. Returns { key, contentType, size }.
  */
 export async function uploadFile(file, purpose, onProgress, signal) {
   const contentType = fileType(file);
-  const { key, url } = await api('/api/upload-url', { purpose, contentType, size: file.size });
-  await new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url);
-    xhr.setRequestHeader('Content-Type', contentType);
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress && onProgress(e.loaded / e.total);
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('UPLOAD_FAILED_' + xhr.status)));
-    xhr.onerror = () => reject(new Error('Failed to fetch'));
-    xhr.onabort = () => reject(new Error('UPLOAD_ABORTED'));
-    if (signal) signal.addEventListener('abort', () => xhr.abort());
-    xhr.send(file);
-  });
+  const allowed = purpose === 'responseAudio' ? LIMITS.audioTypes : LIMITS.videoTypes;
+  if (!allowed.includes(contentType)) throw new Error('BAD_TYPE');
+  if (file.size > MAX_MB * 1048576) throw new Error('TOO_LARGE');
+  const folder = purpose === 'video' ? 'videos' : 'responses';
+  const key = `${folder}/${state.user.id}/${crypto.randomUUID()}.${EXT[contentType] || 'bin'}`;
+  const { error } = await sb.storage.from(BUCKET).upload(key, file, { contentType, onProgress, signal });
+  if (error) throw new Error(error.message || 'UPLOAD_FAILED');
   return { key, contentType, size: file.size };
 }
+// Best-effort removal of a file that was uploaded but could not be saved in the app.
+export const discardUpload = (key) => sb.storage.from(BUCKET).remove([key]).catch(() => {});
 
-// Signed, time-limited link to a protected file — only issued if the database lets this user see it.
+// Time-limited link to a protected file. The key is read through the database's permissions,
+// and storage issues the link only if its own access rules agree.
 const mediaCache = new Map();
+const LINK_SECONDS = 3600;
 export async function mediaUrl(kind, id) {
   const k = kind + ':' + id;
   const c = mediaCache.get(k);
   if (c && c.until > Date.now()) return c.url;
-  const { url, expiresIn } = await api('/api/media-url', { kind, id });
-  mediaCache.set(k, { url, until: Date.now() + (expiresIn - 300) * 1000 });
-  return url;
+  const table = kind === 'video' ? 'videos' : 'analysis_items';
+  const row = await q(sb.from(table).select('storage_key').eq('id', id).maybeSingle());
+  if (!row || !row.storage_key) throw new Error('NOT_FOUND');
+  const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(row.storage_key, LINK_SECONDS);
+  if (error) throw new Error(/not.?found|404/i.test(error.message + error.code) ? 'NOT_FOUND' : error.message);
+  mediaCache.set(k, { url: data.signedUrl, until: Date.now() + (LINK_SECONDS - 300) * 1000 });
+  return data.signedUrl;
 }
 
 export async function refreshUnread() {

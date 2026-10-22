@@ -174,8 +174,73 @@ export function createClient(url, anonKey) {
     then(resolve, reject) { return this.run().then(resolve, reject); }
   }
 
+  // ---------- Storage (Supabase Storage HTTP API: /storage/v1) ----------
+  // Every call carries the user's session, so the storage access rules decide what is allowed.
+  const encPath = (p) => p.split('/').map(encodeURIComponent).join('/');
+  async function storageJson(path, init) {
+    const token = await currentToken();
+    let r;
+    try {
+      r = await fetch(`${url}/storage/v1/${path}`, {
+        ...init,
+        headers: { apikey: anonKey, ...(token ? { authorization: 'Bearer ' + token } : {}), 'content-type': 'application/json' },
+      });
+    } catch { return { data: null, error: { message: 'Failed to fetch' } }; }
+    let data = null;
+    try { data = await r.json(); } catch {}
+    if (!r.ok) return { data: null, error: storageError(r.status, data) };
+    return { data, error: null };
+  }
+  function storageError(status, body) {
+    const code = String(body?.statusCode || status);
+    return { status, code, message: [body?.error, body?.message].filter(Boolean).join(': ') || 'STORAGE_ERROR_' + code };
+  }
+  const storage = {
+    from(bucket) {
+      return {
+        // Upload with progress. Never overwrites (x-upsert: false).
+        async upload(path, file, { contentType, onProgress, signal } = {}) {
+          const token = await currentToken();
+          if (!token) return { data: null, error: { message: 'NOT_AUTHENTICATED' } };
+          return new Promise((resolve) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${url}/storage/v1/object/${bucket}/${encPath(path)}`);
+            xhr.setRequestHeader('apikey', anonKey);
+            xhr.setRequestHeader('authorization', 'Bearer ' + token);
+            xhr.setRequestHeader('content-type', contentType || file.type || 'application/octet-stream');
+            xhr.setRequestHeader('x-upsert', 'false');
+            xhr.setRequestHeader('cache-control', 'max-age=3600');
+            xhr.upload.onprogress = (e) => e.lengthComputable && onProgress && onProgress(e.loaded / e.total);
+            xhr.onload = () => {
+              let body = null;
+              try { body = JSON.parse(xhr.responseText); } catch {}
+              if (xhr.status >= 200 && xhr.status < 300) resolve({ data: { path }, error: null });
+              else resolve({ data: null, error: storageError(xhr.status, body) });
+            };
+            xhr.onerror = () => resolve({ data: null, error: { message: 'Failed to fetch' } });
+            xhr.onabort = () => resolve({ data: null, error: { message: 'UPLOAD_ABORTED' } });
+            if (signal) signal.addEventListener('abort', () => xhr.abort());
+            xhr.send(file);
+          });
+        },
+        // Time-limited link; issued only if the access rules let this user read the file.
+        async createSignedUrl(path, expiresIn) {
+          const { data, error } = await storageJson(`object/sign/${bucket}/${encPath(path)}`, { method: 'POST', body: JSON.stringify({ expiresIn }) });
+          if (error) return { data: null, error };
+          const signed = data.signedURL || data.signedUrl;
+          return { data: { signedUrl: signed.startsWith('http') ? signed : `${url}/storage/v1${signed}` }, error: null };
+        },
+        // Removes files; files the user may not delete are skipped by the access rules.
+        async remove(paths) {
+          return storageJson(`object/${bucket}`, { method: 'DELETE', body: JSON.stringify({ prefixes: paths }) });
+        },
+      };
+    },
+  };
+
   return {
     auth,
+    storage,
     from: (table) => new Query(table),
     rpc: (fn, args = {}) => ({
       then(resolve, reject) {

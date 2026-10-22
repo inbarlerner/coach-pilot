@@ -7,6 +7,7 @@ from playwright.sync_api import sync_playwright, expect
 
 SITE = 'http://127.0.0.1:8788'
 VIDEO = '/var/tmp/e2e/test.webm'  # open-source Chromium has no H.264; real browsers play MP4/MOV
+BIG = '/var/tmp/e2e/big.mp4'   # 52MB dummy file for the size-limit check
 SHOTS = os.environ.get('SHOTS', '/var/tmp/e2e/shots')
 os.makedirs(SHOTS, exist_ok=True)
 PW = 'Passw0rd!x'
@@ -121,6 +122,21 @@ with sync_playwright() as p:
     expect(trainee.get_by_role('link', name='דילוג לעמוד הבית')).to_be_visible()
     shot(trainee, '04-first-upload-welcome')
     ok(True, '3a first login opens upload screen with "skip to home"')
+    # 50MB limit: clear message before anything is uploaded
+    goto(trainee, '/upload')
+    trainee.locator('label.choice', has_text='פרסום / שמירה בפרופיל שלי').click()
+    trainee.get_by_role('button', name='המשך').click()
+    expect(trainee.get_by_text('עד 50MB לסרטון')).to_be_visible()
+    trainee.set_input_files('#u_file', BIG)
+    expect(trainee.get_by_text('הקובץ גדול מדי: 52MB. המקסימום הוא 50MB לסרטון')).to_be_visible()
+    shot(trainee, '04b-too-large')
+    ok(trainee.get_by_text('לא נבחר קובץ').count() == 1, 'L1 file over 50MB rejected with a clear message, before upload')
+    big_status = trainee.evaluate("""async () => { const t = JSON.parse(localStorage.getItem('pilot.session.v1')).access_token;
+      const uid = JSON.parse(atob(t.split('.')[1])).sub;
+      const r = await fetch('http://127.0.0.1:8000/storage/v1/object/media/videos/' + uid + '/' + crypto.randomUUID() + '.mp4',
+        {method:'POST', headers:{apikey:'x', authorization:'Bearer '+t, 'content-type':'video/mp4'}, body: new Uint8Array(51*1048576)});
+      return r.status; }""")
+    ok(big_status == 413, f'L2 storage itself refuses a file over 50MB even if the page is bypassed (HTTP {big_status})')
 
     # ===== 4. Trainee selects the coach and sends =====
     r1 = upload_to_coach(trainee, 'ג׳יבינג לשמאל', 'דנה כהן')
@@ -237,13 +253,19 @@ with sync_playwright() as p:
     expect(third.get_by_text('הסרטון לא נמצא, או שהוא פרטי')).to_be_visible()
     goto(third, '/r/' + r1)
     expect(third.get_by_text('הבקשה לא נמצאה')).to_be_visible()
-    st = third.evaluate(f"""async () => {{ const t = JSON.parse(localStorage.getItem('pilot.session.v1')).access_token;
-      const r = await fetch('/api/media-url', {{method:'POST', headers:{{authorization:'Bearer '+t,'content-type':'application/json'}}, body: JSON.stringify({{kind:'video', id:'{vid1}'}})}});
-      return r.status; }}""")
-    ok(st == 404, f'11a third account gets no file link for the private video (HTTP {st})')
     key = sql(f"select storage_key from videos where id='{vid1}'")
-    raw = third.evaluate(f"async () => (await fetch('http://127.0.0.1:8001/media/{key}')).status")
-    ok(raw == 403, f'11b raw storage URL without a valid signature is refused (HTTP {raw})')
+    res = third.evaluate(f"""async () => {{ const t = JSON.parse(localStorage.getItem('pilot.session.v1')).access_token;
+      const H = {{apikey:'x', authorization:'Bearer '+t, 'content-type':'application/json'}};
+      const sign = await fetch('http://127.0.0.1:8000/storage/v1/object/sign/media/{key}', {{method:'POST', headers:H, body: JSON.stringify({{expiresIn:60}})}});
+      const auth = await fetch('http://127.0.0.1:8000/storage/v1/object/authenticated/media/{key}', {{headers:H}});
+      const pub = await fetch('http://127.0.0.1:8000/storage/v1/object/public/media/{key}');
+      const forged = await fetch('http://127.0.0.1:8000/storage/v1/object/sign/media/{key}?token=9999999999.deadbeef');
+      return [sign.status, auth.status, pub.status, forged.status]; }}""")
+    ok(all(x >= 400 for x in res), f'11a third account gets no link and no file for the private video: sign/auth/public/forged = {res}')
+    gone = third.evaluate(f"""async () => {{ const t = JSON.parse(localStorage.getItem('pilot.session.v1')).access_token;
+      const r = await fetch('http://127.0.0.1:8000/storage/v1/object/media', {{method:'DELETE', headers:{{apikey:'x', authorization:'Bearer '+t, 'content-type':'application/json'}}, body: JSON.stringify({{prefixes:['{key}']}})}});
+      return (await r.json()).length; }}""")
+    ok(gone == 0 and sql(f"select count(*) from storage.objects where name='{key}'") == '1', '11b third account cannot delete the private video file')
     shot(third, '11-third-blocked')
 
     # ===== 12. Public → feed & portfolio; back to private → removed =====

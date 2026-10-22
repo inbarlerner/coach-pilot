@@ -27,6 +27,19 @@ begin
 end $$;
 grant execute on function pg_temp.fails(text, text, text) to authenticated;
 
+-- "Upload" a file as the current user: same row Supabase Storage writes, subject to the storage rules.
+create or replace function pg_temp.put(p_name text, p_mime text) returns void language sql as $$
+  insert into storage.objects (bucket_id, name, owner_id, metadata)
+  values ('media', p_name, auth.uid()::text, jsonb_build_object('size', 1000, 'mimetype', p_mime));
+$$;
+grant execute on function pg_temp.put(text, text) to authenticated;
+create or replace function pg_temp.stored(p_name text) returns boolean language sql security definer as $$
+  select exists (select 1 from storage.objects where bucket_id = 'media' and name = p_name);
+$$;
+grant execute on function pg_temp.stored(text) to authenticated;
+
+select pg_temp.ok((select not public and file_size_limit = 52428800 from storage.buckets where id = 'media'), 'S0 bucket "media" is private with a 50MB per-file limit');
+
 -- ---------- Signups (as Supabase Auth would) ----------
 insert into auth.users (id, email, raw_user_meta_data) values
  (:admin,   'admin@x.test',  '{"first_name":"מנהלת","last_name":"ראשית","username":"admin1","phone":"050","sports":["1"]}'),
@@ -70,10 +83,20 @@ select pg_temp.ok((select quota from coach_settings where coach_id=:coach2) = 3,
 select set_config('request.jwt.claims', json_build_object('sub', :trainee)::text, false); set role authenticated;
 select pg_temp.ok((select count(*) from profile_private) = 1, '3a trainee sees only own private contact info');
 select pg_temp.fails($$select create_video('videos/00000000-0000-0000-0000-00000000000c/x.mp4','video/mp4',10,1,'t','', 'private')$$, 'BAD_KEY', '3b cannot register someone else''s file');
-select create_video('videos/00000000-0000-0000-0000-00000000000b/v1.mp4','video/mp4',1000,1,'ג׳יבינג','נפילה ביציאה','private') as v1 \gset
-select create_video('videos/00000000-0000-0000-0000-00000000000b/v2.mp4','video/mp4',1000,1,'קפיצה','', 'private') as v2 \gset
-select create_video('videos/00000000-0000-0000-0000-00000000000b/v3.mp4','video/mp4',1000,1,'טאק','', 'private') as v3 \gset
-select create_video('videos/00000000-0000-0000-0000-00000000000b/v4.mp4','video/mp4',1000,1,'שיוט','', 'private') as v4 \gset
+select pg_temp.fails($$select create_video('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-0000000000ff.mp4','video/mp4',10,1,'t','','private')$$, 'FILE_NOT_FOUND', 'S1 cannot register a file that was never uploaded');
+select pg_temp.put('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-0000000000fa.webm','audio/webm');
+select pg_temp.fails($$select create_video('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-0000000000fa.webm','video/mp4',10,1,'t','','private')$$, 'BAD_TYPE', 'S2 an audio file cannot be registered as a video');
+select pg_temp.fails($$select pg_temp.put('videos/00000000-0000-0000-0000-00000000000c/10000000-0000-0000-0000-0000000000fb.mp4','video/mp4')$$, 'row-level security', 'S3 cannot upload into another user''s folder');
+select pg_temp.fails($$select pg_temp.put('responses/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-0000000000fc.webm','audio/webm')$$, 'row-level security', 'S4 a trainee cannot upload coach responses');
+select pg_temp.fails($$select pg_temp.put('videos/00000000-0000-0000-0000-00000000000b/../evil.mp4','video/mp4')$$, 'row-level security', 'S5 malformed file paths refused');
+select pg_temp.put('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4','video/mp4');
+select create_video('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4','video/mp4',1000,1,'ג׳יבינג','נפילה ביציאה','private') as v1 \gset
+select pg_temp.put('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000002.mp4','video/mp4');
+select create_video('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000002.mp4','video/mp4',1000,1,'קפיצה','', 'private') as v2 \gset
+select pg_temp.put('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000003.mp4','video/mp4');
+select create_video('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000003.mp4','video/mp4',1000,1,'טאק','', 'private') as v3 \gset
+select pg_temp.put('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000004.mp4','video/mp4');
+select create_video('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000004.mp4','video/mp4',1000,1,'שיוט','', 'private') as v4 \gset
 select pg_temp.ok((select visibility from videos where id=:'v1') = 'private', '3c video saved private by default choice');
 
 -- ======== 4. Trainee picks coach (approved, has room) and sends ========
@@ -93,6 +116,7 @@ update coach_settings set followup_policy='one', response_hours=24 where coach_i
 select pg_temp.ok((select count(*) from analysis_requests where coach_id=auth.uid() and status='pending' and not coach_read) = 1, '5a request in coach inbox, unread');
 select pg_temp.ok((select count(*) from notifications where type='new_request') = 1, '5b coach notified');
 select pg_temp.ok(can_view_video(:'v1'), '5c coach can view the private video sent to them');
+select pg_temp.ok((select count(*) from storage.objects where name = 'videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4') = 1, '5d coach can read the stored file of the private video sent to them');
 
 -- ======== 6. Coach saves draft, returns, sends ========
 select pg_temp.fails($$select send_analysis('$$ || :'r1' || $$')$$, 'EMPTY_ANALYSIS', '6a cannot send empty analysis');
@@ -112,8 +136,14 @@ select pg_temp.ok((select status='pending' and not coach_read and deadline_at = 
                and (select count(*) from analysis_items where request_id=:'r1') = 0, '6e X discards work, unread, deadline kept');
 -- redo and send, with text + audio
 select set_analysis_text(:'r1', 'שים לב לכתף הקדמית');
-select add_analysis_media(:'r1','audio','responses/00000000-0000-0000-0000-00000000000c/a1.webm','audio/webm');
+select pg_temp.put('responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm','audio/webm');
+select add_analysis_media(:'r1','audio','responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm','audio/webm');
 select save_draft(:'r1');
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', :trainee)::text, false); set role authenticated;
+select pg_temp.ok((select count(*) from storage.objects where name = 'responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm') = 0, 'S6 trainee cannot read the coach''s unsent recording');
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', :coach)::text, false); set role authenticated;
 select send_analysis(:'r1');
 select pg_temp.ok((select status from analysis_requests where id=:'r1') = 'completed', '6f analysis sent → completed');
 select pg_temp.ok(coach_active_count(:coach) = 0, '6g sending frees quota');
@@ -124,6 +154,7 @@ reset role;
 select set_config('request.jwt.claims', json_build_object('sub', :trainee)::text, false); set role authenticated;
 select pg_temp.ok((select count(*) from notifications where type='analysis_received') = 1, '7a trainee notified');
 select pg_temp.ok((select count(*) from analysis_items where request_id=:'r1') = 2, '7b trainee sees text + audio');
+select pg_temp.ok((select count(*) from storage.objects where name = 'responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm') = 1, 'S7 trainee can read the recording once the analysis is sent');
 select send_message(:'r1', 'תודה! ומה עם הרגליים?');
 reset role;
 
@@ -154,7 +185,8 @@ select pg_temp.ok((select count(*) from analysis_requests where id=:'r2') = 1, '
 select create_request(:'v3', :coach, '') as r3 \gset
 select create_request(:'v4', :coach, '') as r4 \gset
 select pg_temp.ok(not (select available from search_coaches('dana', null)), 'Q1 coach shows as full at quota');
-select create_video('videos/00000000-0000-0000-0000-00000000000b/v5.mp4','video/mp4',1000,1,'עוד','', 'private') as v5 \gset
+select pg_temp.put('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000005.mp4','video/mp4');
+select create_video('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000005.mp4','video/mp4',1000,1,'עוד','', 'private') as v5 \gset
 select pg_temp.fails($$select create_request('$$ || :'v5' || $$','00000000-0000-0000-0000-00000000000c','')$$, 'COACH_FULL', 'Q2 full coach rejects new request');
 select pg_temp.fails($$select create_request('$$ || :'v5' || $$','00000000-0000-0000-0000-00000000000d','')$$, 'COACH_NOT_AVAILABLE', 'Q3 cannot send to a non-coach');
 reset role;
@@ -184,6 +216,7 @@ select pg_temp.ok(not can_view_video(:'v1'), '11b file-URL permission check deni
 select pg_temp.ok((select count(*) from analysis_requests where id=:'r1') = 0, '11c third account cannot see the request');
 select pg_temp.ok((select count(*) from analysis_items where request_id=:'r1') = 0, '11d nor the analysis');
 select pg_temp.ok((select count(*) from get_feed(null, 50, 0)) = 0, '11e feed shows no private content');
+select pg_temp.ok((select count(*) from storage.objects where name in ('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4','responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm')) = 0, '11g third account cannot read the stored files (direct file access)');
 update videos set visibility='public' where id=:'v1';
 reset role;
 select pg_temp.ok((select visibility from videos where id=:'v1') = 'private', '11f non-owner cannot change visibility');
@@ -195,6 +228,7 @@ reset role;
 select set_config('request.jwt.claims', json_build_object('sub', :third)::text, false); set role authenticated;
 select pg_temp.ok((select count(*) from get_feed(null,50,0) f where f.video_id=:'v1' and f.coach_name is not null) = 1, '12a public video + coach analysis in feed');
 select pg_temp.ok((select count(*) from analysis_items where request_id=:'r1') = 2, '12b third account can view public analysis');
+select pg_temp.ok((select count(*) from storage.objects where name in ('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4','responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm')) = 2, 'S8 public video and analysis files readable by others');
 select pg_temp.ok((select count(*) from messages where request_id=:'r1') = 0, '12c follow-up messages stay private');
 -- coach portfolio query ("ניתוחים שלי") = completed requests by coach on public videos
 select pg_temp.ok((select count(*) from analysis_requests r join videos v on v.id=r.video_id
@@ -210,6 +244,7 @@ select pg_temp.ok((select count(*) from get_feed(null,50,0) where video_id=:'v1'
 select pg_temp.ok((select count(*) from analysis_requests r join videos v on v.id=r.video_id
                    where r.coach_id=:coach and r.status='completed' and v.visibility='public') = 0, '12g gone from coach portfolio');
 select pg_temp.ok((select count(*) from analysis_items where request_id=:'r1') = 0, '12h analysis no longer visible to others');
+select pg_temp.ok((select count(*) from storage.objects where name in ('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4','responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm')) = 0, 'S9 files private again for others');
 reset role;
 
 -- ======== Admin moderation & disabled accounts ========
@@ -227,6 +262,18 @@ select set_config('request.jwt.claims', json_build_object('sub', :coach)::text, 
 select pg_temp.fails($$select delete_video('$$ || :'v2' || $$')$$, 'NOT_FOUND', 'D1 non-owner cannot delete');
 reset role;
 select set_config('request.jwt.claims', json_build_object('sub', :trainee)::text, false); set role authenticated;
+delete from storage.objects where name = 'videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4';
+select pg_temp.ok(pg_temp.stored('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4'), 'S10 a file still in use cannot be deleted (would break the video)');
+update storage.objects set metadata = '{}' where name = 'videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4';
+select pg_temp.ok((select metadata->>'size' from storage.objects where name = 'videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4') = '1000', 'S11 stored files cannot be overwritten');
 select pg_temp.ok(array_length(delete_video(:'v1'), 1) = 2, 'D2 owner deletes video; returns files to remove (video + audio)');
 reset role;
+select set_config('request.jwt.claims', json_build_object('sub', :coach2)::text, false); set role authenticated;
+delete from storage.objects where name in ('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4','responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm');
+reset role;
+select pg_temp.ok(pg_temp.stored('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4') and pg_temp.stored('responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm'), 'S12 other users cannot remove the released files');
+select set_config('request.jwt.claims', json_build_object('sub', :trainee)::text, false); set role authenticated;
+delete from storage.objects where name in ('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4','responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm');
+reset role;
+select pg_temp.ok(not pg_temp.stored('videos/00000000-0000-0000-0000-00000000000b/10000000-0000-0000-0000-000000000001.mp4') and not pg_temp.stored('responses/00000000-0000-0000-0000-00000000000c/20000000-0000-0000-0000-000000000001.webm'), 'S13 owner removes the video file and the coach''s released recording');
 \echo ALL_ACCEPTANCE_CHECKS_PASSED

@@ -141,8 +141,10 @@ const ERR = {
   NOT_OPEN: 'הבקשה כבר אינה פתוחה לעבודה.',
   EMPTY_ANALYSIS: 'יש להוסיף לפחות רכיב תגובה אחד (טקסט, קול או וידאו).',
   NOT_FOUND: 'הפריט לא נמצא או שאין לך הרשאה לצפות בו.',
-  TOO_LARGE: 'הקובץ גדול מהמותר.',
-  BAD_TYPE: 'סוג הקובץ אינו נתמך.',
+  TOO_LARGE: 'הקובץ גדול מ־50MB, המגבלה לקובץ בגרסת הניסיון. אפשר לקצר את הסרטון בגלריה של הטלפון (עריכה ← חיתוך) ולנסות שוב.',
+  BAD_TYPE: 'סוג הקובץ אינו נתמך. אפשר להעלות סרטון MP4, MOV או WebM, או קובץ קול נפוץ.',
+  FILE_NOT_FOUND: 'הקובץ לא נמצא באחסון. נסו להעלות אותו שוב.',
+  UPLOAD_ABORTED: 'ההעלאה בוטלה.',
   BAD_SPORT: 'יש לבחור ענף ספורט.',
   TITLE_REQUIRED: 'יש למלא את שם התרגיל.',
   FORBIDDEN: 'אין לך הרשאה לפעולה זו.',
@@ -163,6 +165,12 @@ const ERR = {
 export function friendlyError(e) {
   const msg = (e && (e.message || e.error_description || e.error)) || String(e || '');
   if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return ERR.NETWORK;
+  // Supabase Storage responses
+  if (/exceeded the maximum allowed size|Payload too large|entity too large/i.test(msg)) return ERR.TOO_LARGE;
+  if (/mime type|invalid_mime_type/i.test(msg)) return ERR.BAD_TYPE;
+  if (/quota|exceed_storage_size/i.test(msg)) return 'נגמר מקום האחסון של גרסת הניסיון (1GB). יש לפנות למנהל הפיילוט.';
+  if (/row-level security|Unauthorized/i.test(msg)) return 'אין הרשאה לפעולה על הקובץ הזה.';
+  if (/Object not found|not_found/i.test(msg)) return ERR.NOT_FOUND;
   for (const [k, v] of Object.entries(ERR)) if (msg.includes(k)) return v;
   if (/Password should be at least/i.test(msg)) return 'הסיסמה קצרה מדי (לפחות 8 תווים).';
   if (/rate limit/i.test(msg)) return 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.';

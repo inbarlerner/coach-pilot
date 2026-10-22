@@ -1,6 +1,6 @@
 // Upload a video: choose destination → form → upload with progress → (optional) send to coach.
 import { h, clear, busy, friendlyError, successState, errorState, loading, POLICY, toast, filePicker, plural } from '../ui.js';
-import { sb, state, activeSports, sportName, rpc, uploadFile, fileType, LIMITS, isCoach } from '../api.js';
+import { sb, state, activeSports, sportName, rpc, uploadFile, discardUpload, fileType, LIMITS, MAX_MB, sizeMB, isCoach } from '../api.js';
 
 export async function uploadPage({ main, setTitle, query }) {
   setTitle('העלאת סרטון');
@@ -70,7 +70,10 @@ export async function uploadPage({ main, setTitle, query }) {
       if (!f) return;
       const t = fileType(f);
       if (!LIMITS.videoTypes.includes(t)) { fileErr.textContent = `הפורמט אינו נתמך. אפשר להעלות ${LIMITS.videoFormats}.`; fileErr.classList.remove('hidden'); picker.reset(); return; }
-      if (f.size > LIMITS.videoMaxMB * 1048576) { fileErr.textContent = `הקובץ גדול מ־${LIMITS.videoMaxMB}MB (${Math.round(f.size / 1048576)}MB). קצרו את הסרטון או צלמו באיכות נמוכה יותר.`; fileErr.classList.remove('hidden'); picker.reset(); return; }
+      if (f.size > MAX_MB * 1048576) {
+        fileErr.textContent = `הקובץ גדול מדי: ${sizeMB(f.size)}MB. המקסימום הוא ${MAX_MB}MB לסרטון. אפשר לקצר את הסרטון בגלריה של הטלפון (עריכה ← חיתוך), או לצלם באיכות נמוכה יותר, ולבחור אותו שוב.`;
+        fileErr.classList.remove('hidden'); picker.reset(); return;
+      }
       s.file = f;
       fileInfo.textContent = `${f.name} · ${Math.round(f.size / 1048576 * 10) / 10}MB`;
     });
@@ -113,7 +116,9 @@ export async function uploadPage({ main, setTitle, query }) {
       h('button', { type: 'button', class: 'btn ghost small', onclick: stepDest }, '→ שינוי יעד'),
       err,
       h('div', { class: 'field' }, h('div', { class: 'label' }, 'קובץ וידאו'), picker, fileInfo, fileErr,
-        h('div', { class: 'hint' }, `עד ${LIMITS.videoMaxMB}MB · פורמטים: ${LIMITS.videoFormats}. מומלץ סרטון קצר (עד כדקה וחצי).`)),
+        h('div', { class: 'banner', style: { marginTop: '.5rem', marginBottom: 0 } },
+          h('strong', null, `עד ${MAX_MB}MB לסרטון`), ` · ${LIMITS.videoFormats}. `,
+          'בצילום רגיל בטלפון זה בדרך כלל פחות מדקה. סרטון ארוך יותר אפשר לקצר בגלריה לפני ההעלאה.')),
       h('div', { class: 'field' }, h('label', { for: 'u_sport' }, 'ענף ספורט'), sport),
       h('div', { class: 'field' }, h('label', { for: 'u_title' }, 'שם התרגיל'), title),
       h('div', { class: 'field' }, h('label', { for: 'u_desc' }, 'תיאור (לא חובה)'), desc),
@@ -169,10 +174,12 @@ export async function uploadPage({ main, setTitle, query }) {
       if (!s.videoId) {
         const up = await uploadFile(s.file, 'video', (p) => { bar.style.width = Math.round(p * 100) + '%'; pct.textContent = Math.round(p * 100) + '%'; }, ctrl.signal);
         pct.textContent = 'שומר…';
-        s.videoId = await rpc('create_video', {
-          p_storage_key: up.key, p_content_type: up.contentType, p_size: up.size,
-          p_sport: meta.sport, p_title: meta.title, p_description: meta.description, p_visibility: meta.visibility,
-        });
+        try {
+          s.videoId = await rpc('create_video', {
+            p_storage_key: up.key, p_content_type: up.contentType, p_size: up.size,
+            p_sport: meta.sport, p_title: meta.title, p_description: meta.description, p_visibility: meta.visibility,
+          });
+        } catch (e) { discardUpload(up.key); throw e; }
       }
       if (meta.toCoach) {
         const rid = await rpc('create_request', { p_video: s.videoId, p_coach: s.coachId, p_question: meta.question });
