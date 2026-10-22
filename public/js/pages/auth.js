@@ -140,6 +140,14 @@ export function signupPage({ main, query }) {
         if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           return showFormError(err, 'כבר קיים חשבון עם המייל הזה. אפשר להתחבר או לשחזר סיסמה.');
         }
+        // Supabase ignores a second signup for an email that is not confirmed yet: it resends the
+        // first confirmation and keeps the first details (role, name), without any error.
+        const meta = data.user?.user_metadata;
+        if (!data.session && meta && (meta.username !== username || (meta.role || 'trainee') !== role)) {
+          return showFormError(err, role === 'coach'
+            ? 'כבר נרשמת עם המייל הזה כמתאמן/ת. שלחנו שוב את מייל האימות: אמתו אותו, התחברו, ובמסך ההגדרות בקשו להצטרף כמאמן/ת.'
+            : 'כבר נרשמת עם המייל הזה. שלחנו שוב את מייל האימות: אמתו אותו והתחברו.');
+        }
         if (!data.session) {
           clear(main).append(successState('נשלח אליך מייל לאימות',
             'פתחו את הקישור במייל כדי להשלים את ההרשמה, ואז התחברו.',
