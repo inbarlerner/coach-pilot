@@ -1,0 +1,91 @@
+# GetPro — פיילוט קואצ׳ינג בווידאו (coach-pilot)
+
+קובץ הקשר ל־Claude Code. עודכן: 22.10.2026 (commit אחרון: `ae08431` — פינוי אוטומטי של אחסון).
+
+## מה זה
+פלטפורמת ווב לאימון ספורט: מתאמן מעלה סרטון, בוחר מאמן מאושר ומקבל ממנו ניתוח בטקסט, קול או וידאו, ואחר כך הודעות המשך לפי מדיניות המאמן. בשלב הבא — ניתוח בעזרת AI. הפרויקט נבנה עם שותף.
+
+- **אתר חי:** https://coach-pilot-5jk.pages.dev/
+- **ריפו:** https://github.com/inbarlerner/coach-pilot (ענף ראשי, ציבורי)
+- **מנהלת הפלטפורמה:** ענבר (נרשמה בהתחלה כמאמנת, הוגדרה כ־admin דרך `004_first_admin.sql`)
+
+## עקרונות שלא משנים בלי לשאול
+- **בלי כרטיס אשראי** — כל השירותים במסלול חינמי. לכן האחסון עבר מ־Cloudflare R2 ל־Supabase Storage.
+- **בלי מפתח service role** — הדפדפן מדבר ישירות עם Supabase בשם המשתמש המחובר, וכל ההרשאות נאכפות במסד (RLS) ובאחסון (storage policies).
+- **בלי שלב build ובלי תלויות** — HTML/CSS/JS טהור. ה־client של Supabase כתוב בבית (`public/js/sbclient.js`) מעל ה־HTTP APIs, בלי CDN.
+- ממשק בעברית, RTL, שחור־לבן.
+- כל שינוי מצב בבקשות/ניתוחים/הודעות עובר דרך פונקציות `SECURITY DEFINER` במסד, שבודקות הרשאות בצד השרת.
+- כלל עסקי לתשלום עתידי: חיוב **רק** ב־`send_analysis` (לא בבקשה, טיוטה, סירוב או פקיעה). תנאי המאמן נשמרים כ־snapshot בכל בקשה (`terms`).
+
+## ארכיטקטורה
+| שכבה | שירות | הערות |
+|---|---|---|
+| אירוח | Cloudflare Pages | `public/` + שתי פונקציות ב־`functions/api/` |
+| Auth | Supabase Auth | מייל+סיסמה, שחזור סיסמה |
+| DB | Supabase Postgres | RLS, פונקציות RPC, pg_cron כל דקה לפקיעת בקשות |
+| קבצים | Supabase Storage | דלי פרטי `media`, עד 50MB לקובץ, וידאו/קול בלבד, קישור חתום לשעה |
+
+משתני סביבה ב־Cloudflare Pages: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (מקבל גם `SUPABASE_ANON_KEY` ישן). `/api/health` מראה אם חסר משהו.
+
+## מבנה הקוד
+```
+public/
+  index.html, app.css, _headers
+  js/app.js          ראוטר hash (#/home, #/r/<id> ...) + ניווט תחתון
+  js/sbclient.js     client מינימלי ל־Supabase (auth/rest/rpc/storage)
+  js/api.js          קריאות לפונקציות המסד
+  js/ui.js, components.js   עזרי DOM ורכיבים
+  js/pages/          auth, home (פיד), search (מאמנים), upload, inbox,
+                     request (מסך בקשה/ניתוח), video, profile, settings,
+                     notifications, admin
+functions/
+  api/config.js      מחזיר כתובת Supabase + מפתח ציבורי
+  api/health.js      בדיקת משתני סביבה
+  _lib/common.js
+supabase/            להריץ לפי הסדר ב־SQL Editor:
+  001_schema.sql     טבלאות, RLS, כל פונקציות ה־RPC
+  002_cron.sql       pg_cron → expire_requests() כל דקה
+  003_storage.sql    דלי media + מדיניות גישה לקבצים
+  004_first_admin.sql הגדרת המנהלת הראשונה (ידני)
+  005_auto_cleanup.sql פינוי אוטומטי כשהאחסון מתמלא
+tests/               בדיקות SQL (stubs ל־Supabase), פונקציות, ו־e2e בדפדפן
+```
+
+## מודל הנתונים (עיקרי)
+- `profiles` — role: `trainee` / `coach` / `admin`; למאמן `coach_status`: `pending` → `approved`/`rejected` (מאשרת המנהלת). משתמש יכול רק לבקש להיות מאמן, לעולם לא admin. פרטים פרטיים (מייל/טלפון) ב־`profile_private`.
+- `sports`, `user_sports` (תחומי עניין), `coach_sports` (מה המאמן מאמן).
+- `coach_settings` — `quota` (בקשות פתוחות במקביל, ברירת מחדל 3), `response_hours` (48), `followup_policy`: `none` / `one` / `chat24` / `unlimited`.
+- `videos` — `visibility` private/public, `storage_key`, `removed` (הוסר ע״י מנהלת).
+- `analysis_requests` — סטטוסים: `pending` → `draft` → `completed`, או `declined` (סיבות: unclear / not_my_field / video_problem), או `expired` כשעובר `deadline_at`. רק pending/draft נספרים במכסה. נעילת `FOR UPDATE` על הגדרות המאמן מונעת חריגה מהמכסה במקביל.
+- `analysis_items` — טקסט אחד + קבצי קול/וידאו של המאמן.
+- `messages` (הודעות המשך, פרטיות לשני הצדדים), `notifications`, `comments`, `reports`, `app_settings`.
+
+פונקציות מרכזיות: `create_video`, `delete_video`, `search_coaches`, `create_request`, `set_analysis_text`, `add_analysis_media`, `remove_analysis_item`, `save_draft`, `discard_draft`, `send_analysis`, `decline_request`, `followup_state`, `send_message`, `get_feed`, `expire_requests`.
+
+## אחסון ופינוי אוטומטי (`005`)
+- גבול 900MB (מתחת ל־1GB החינמי), ב־`app_settings.storage_cap_bytes`.
+- לפני העלאה: אם חורגים — נמחקות קודם העלאות שלא הושלמו, אחר כך קובצי הסרטונים הישנים ביותר.
+- נשמרים: הבקשה, טקסט הניתוח וההודעות. נמחקים: קובץ הסרטון והקלטות המאמן. סרטון בבקשה פתוחה לא נמחק לעולם. בעל הסרטון מקבל התראה.
+- המנהלת רואה את השימוש באחסון במסך הניהול.
+
+## מגבלות פיילוט
+- 50MB לקובץ (נאכף בדפדפן ובאחסון). הקלטת וידאו של מאמן עד 5 דק׳, קול עד 15 דק׳.
+- Supabase חינמי: 1GB אחסון, ופרויקט בלי פעילות שבוע נכנס להשהיה.
+
+## בדיקות
+```
+node tests/functions.test.mjs
+psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f tests/acceptance.sql
+psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f tests/cleanup.sql
+python3 tests/e2e/acceptance_ui.py   # Supabase Auth + PostgREST מקומיים + אמולטור אחסון (tests/e2e/server.mjs)
+```
+להריץ את כל הבדיקות לפני כל commit.
+
+## איך עובדים כאן
+- שינויי מסד: קובץ SQL חדש וממוספר ב־`supabase/` (006_..., 007_...) — לא לערוך קבצים שכבר הורצו בפרודקשן. אחרי push צריך להריץ אותו ידנית ב־Supabase → SQL Editor.
+- פריסה: push ל־main ב־GitHub → Cloudflare Pages בונה ומפרסם אוטומטית.
+- כל הרשאה חדשה נאכפת במסד/אחסון, לא רק בממשק.
+
+## השלבים הבאים (פתוח)
+- ניתוח סרטונים בעזרת AI.
+- תשלומים (לפי הכלל העסקי למעלה).
