@@ -36,13 +36,13 @@ export const clear = (el) => { el.replaceChildren(); return el; };
 export const $ = (sel, root = document) => root.querySelector(sel);
 
 // ---------- States ----------
-export const loading = (text = 'טוען…') =>
+export const loading = (text = 'Loading…') =>
   h('div', { class: 'state', role: 'status' }, h('div', { class: 'spinner', 'aria-hidden': 'true' }), h('p', null, text));
 export const empty = (title, text, action) =>
   h('div', { class: 'state empty' }, h('div', { class: 'big', 'aria-hidden': 'true' }, '○'), h('p', null, h('strong', null, title)), text && h('p', null, text), action);
 export const errorState = (text, retry) =>
   h('div', { class: 'state error', role: 'alert' }, h('div', { class: 'big', 'aria-hidden': 'true' }, '!'), h('p', null, text),
-    retry && h('button', { class: 'btn secondary', onclick: retry }, 'ניסיון חוזר'));
+    retry && h('button', { class: 'btn secondary', onclick: retry }, 'Try again'));
 export const successState = (title, text, ...actions) =>
   h('div', { class: 'state success', role: 'status' }, h('div', { class: 'big', 'aria-hidden': 'true' }, '✓'), h('p', null, h('strong', null, title)), text && h('p', null, text), h('div', { class: 'btn-row', style: { width: '100%' } }, ...actions));
 
@@ -83,7 +83,7 @@ export function modal(build) {
     f && f.focus();
   });
 }
-export const confirmDialog = (title, text, okText = 'אישור', cancelText = 'ביטול') =>
+export const confirmDialog = (title, text, okText = 'OK', cancelText = 'Cancel') =>
   modal((close) => [
     h('h2', null, title),
     text && h('p', null, text),
@@ -97,74 +97,76 @@ export async function busy(btn, fn) {
   if (btn.disabled) return;
   const old = [...btn.childNodes];
   btn.disabled = true;
-  btn.replaceChildren(h('span', { class: 'spinner sm', 'aria-hidden': 'true' }), ' רגע…');
+  btn.replaceChildren(h('span', { class: 'spinner sm', 'aria-hidden': 'true' }), ' One moment…');
   try { return await fn(); }
   finally { btn.disabled = false; btn.replaceChildren(...old); }
 }
 
 // ---------- Formatting ----------
-const dtf = new Intl.DateTimeFormat('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+const dtf = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 export const fmtDate = (d) => (d ? dtf.format(new Date(d)) : '');
 export function timeLeft(deadline) {
   const ms = new Date(deadline) - Date.now();
-  if (ms <= 0) return 'הזמן עבר';
+  if (ms <= 0) return 'time is up';
   const hrs = Math.floor(ms / 3600000), mins = Math.floor((ms % 3600000) / 60000);
-  if (hrs >= 48) return `נותרו ${Math.floor(hrs / 24)} ימים`;
-  if (hrs >= 1) return `נותרו ${hrs} שע׳ ו־${mins} דק׳`;
-  return `נותרו ${mins} דק׳`;
+  if (hrs >= 48) return `${Math.floor(hrs / 24)} days left`;
+  if (hrs >= 1) return `${hrs}h ${mins}m left`;
+  return `${mins}m left`;
 }
 export const fmtSize = (b) => (b >= 1048576 ? (b / 1048576).toFixed(0) + 'MB' : Math.ceil(b / 1024) + 'KB');
 
 export const STATUS = {
-  pending: 'ממתינה לניתוח',
-  draft: 'בעבודה / טיוטה',
-  completed: 'הושלמה',
-  declined: 'סורבה',
-  expired: 'זמן התגובה עבר',
+  pending: 'Waiting for analysis',
+  draft: 'In progress / draft',
+  completed: 'Completed',
+  declined: 'Declined',
+  expired: 'Response time passed',
 };
-export const DECLINE = { unclear: 'סרטון לא ברור', not_my_field: 'לא התחום שלי', video_problem: 'בעיה בסרטון' };
+export const DECLINE = { unclear: 'Video is unclear', not_my_field: 'Not my field', video_problem: 'Problem with the video' };
 export const POLICY = {
-  none: 'ללא הודעות המשך',
-  one: 'הודעת המשך אחת מהמתאמן, עם אפשרות תשובה',
-  chat24: 'צ׳אט למשך 24 שעות משליחת הניתוח',
-  unlimited: 'צ׳אט ללא הגבלת זמן',
+  none: 'No follow-up messages',
+  one: 'One follow-up message from the trainee, with one reply',
+  chat24: 'Chat for 24 hours after the analysis is sent',
+  unlimited: 'Unlimited chat',
 };
 
-// ---------- Errors → Hebrew ----------
+// ---------- Errors → plain English ----------
 const ERR = {
-  NOT_AUTHENTICATED: 'צריך להתחבר מחדש.',
-  ACCOUNT_DISABLED: 'החשבון הושבת על ידי מנהל.',
-  COACH_FULL: 'למאמן אין כרגע מקום פנוי. בחרו מאמן אחר או נסו מאוחר יותר.',
-  COACH_NOT_AVAILABLE: 'המאמן אינו זמין לקבלת בקשות.',
-  SELF_REQUEST: 'אי אפשר לשלוח בקשה לעצמך.',
-  EXPIRED: 'זמן התגובה לבקשה עבר. אי אפשר לשלוח ניתוח.',
-  NOT_OPEN: 'הבקשה כבר אינה פתוחה לעבודה.',
-  EMPTY_ANALYSIS: 'יש להוסיף לפחות רכיב תגובה אחד (טקסט, קול או וידאו).',
-  NOT_FOUND: 'הפריט לא נמצא או שאין לך הרשאה לצפות בו.',
-  TOO_LARGE: 'הקובץ גדול מ־50MB, המגבלה לקובץ בגרסת הניסיון. אפשר לקצר את הסרטון בגלריה של הטלפון (עריכה ← חיתוך) ולנסות שוב.',
-  BAD_TYPE: 'סוג הקובץ אינו נתמך. אפשר להעלות סרטון MP4, MOV או WebM, או קובץ קול נפוץ.',
-  FILE_NOT_FOUND: 'הקובץ לא נמצא באחסון. נסו להעלות אותו שוב.',
-  UPLOAD_ABORTED: 'ההעלאה בוטלה.',
-  FILE_REMOVED: 'הסרטון נמחק אוטומטית כדי לפנות מקום באחסון, ולכן אי אפשר לשלוח אותו לניתוח.',
-  BAD_SPORT: 'יש לבחור ענף ספורט.',
-  TITLE_REQUIRED: 'יש למלא את שם התרגיל.',
-  FORBIDDEN: 'אין לך הרשאה לפעולה זו.',
-  FORBIDDEN_FIELD: 'אין לך הרשאה לשנות שדה זה.',
-  EMPTY_MESSAGE: 'ההודעה ריקה.',
-  CANNOT_DISABLE_SELF: 'אי אפשר להשבית את החשבון שלך.',
-  SERVER_NOT_CONFIGURED: 'השרת עדיין לא הוגדר במלואו (חסרים מפתחות). ראו מדריך ההקמה.',
-  ONE_USED: 'כבר שלחת את הודעת ההמשך היחידה בבקשה זו.',
-  ONE_REPLIED: 'כבר השבת להודעת ההמשך.',
-  WAIT_TRAINEE: 'אפשר להשיב רק אחרי שהמתאמן שולח הודעת המשך.',
-  POLICY_NONE: 'בבקשה זו אין הודעות המשך.',
-  CHAT24_ENDED: '24 השעות להתכתבות הסתיימו.',
-  ALREADY_COACH: 'החשבון כבר רשום כמאמן.',
-  BIO_REQUIRED: 'יש לכתוב תיאור מקצועי קצר (לפחות 10 תווים).',
-  SPORTS_REQUIRED: 'יש לבחור לפחות ענף אחד שבו את/ה מאמן/ת.',
-  NETWORK: 'אין חיבור לרשת. בדקו את החיבור ונסו שוב.',
-  'Invalid login credentials': 'מייל או סיסמה שגויים.',
-  'Email not confirmed': 'המייל עדיין לא אומת. בדקו את תיבת הדואר.',
-  'User already registered': 'כבר קיים חשבון עם המייל הזה.',
+  NOT_AUTHENTICATED: 'Please sign in again.',
+  ACCOUNT_DISABLED: 'This account was disabled by an admin.',
+  COACH_FULL: 'This coach has no free spot right now. Pick another coach or try later.',
+  COACH_NOT_AVAILABLE: 'This coach is not taking requests.',
+  SELF_REQUEST: 'You cannot send a request to yourself.',
+  EXPIRED: 'The response time for this request has passed. The analysis can no longer be sent.',
+  NOT_OPEN: 'This request is no longer open.',
+  EMPTY_ANALYSIS: 'Add at least one part to the analysis (text, voice or video).',
+  NOT_FOUND: 'Not found, or you do not have access to it.',
+  TOO_LARGE: 'The file is larger than the pilot limit (50MB per video, 2MB per image). You can trim the video in your phone\'s gallery and try again.',
+  BAD_TYPE: 'This file type is not supported. Upload an MP4, MOV or WebM video, a common audio file, or a JPEG/PNG image.',
+  BAD_IMAGE: 'This image could not be read. Try a JPEG or PNG.',
+  FILE_NOT_FOUND: 'The file was not found in storage. Try uploading it again.',
+  UPLOAD_ABORTED: 'Upload cancelled.',
+  FILE_REMOVED: 'This video was removed automatically to free up storage, so it cannot be sent for analysis.',
+  BAD_SPORT: 'Choose a sport.',
+  TITLE_REQUIRED: 'Enter a name for the drill.',
+  FORBIDDEN: 'You do not have permission to do this.',
+  FORBIDDEN_FIELD: 'You do not have permission to change this field.',
+  EMPTY_MESSAGE: 'The message is empty.',
+  CANNOT_DISABLE_SELF: 'You cannot disable your own account.',
+  SERVER_NOT_CONFIGURED: 'The server is not fully set up yet (missing keys). See the setup guide.',
+  ONE_USED: 'You already sent the one follow-up message for this request.',
+  ONE_REPLIED: 'You already replied to the follow-up message.',
+  WAIT_TRAINEE: 'You can reply only after the trainee sends a follow-up message.',
+  POLICY_NONE: 'This request has no follow-up messages.',
+  CHAT24_ENDED: 'The 24-hour chat window has ended.',
+  ALREADY_COACH: 'This account is already registered as a coach.',
+  BIO_REQUIRED: 'Write a short professional bio (at least 10 characters).',
+  SPORTS_REQUIRED: 'Choose at least one sport you coach.',
+  profiles_languages_check: 'Choose languages from the list.',
+  NETWORK: 'No network connection. Check your connection and try again.',
+  'Invalid login credentials': 'Wrong email or password.',
+  'Email not confirmed': 'Your email is not confirmed yet. Check your inbox.',
+  'User already registered': 'An account with this email already exists.',
 };
 export function friendlyError(e) {
   const msg = (e && (e.message || e.error_description || e.error)) || String(e || '');
@@ -172,14 +174,14 @@ export function friendlyError(e) {
   // Supabase Storage responses
   if (/exceeded the maximum allowed size|Payload too large|entity too large/i.test(msg)) return ERR.TOO_LARGE;
   if (/mime type|invalid_mime_type/i.test(msg)) return ERR.BAD_TYPE;
-  if (/quota|exceed_storage_size/i.test(msg)) return 'נגמר מקום האחסון של גרסת הניסיון (1GB). יש לפנות למנהל הפיילוט.';
-  if (/row-level security|Unauthorized/i.test(msg)) return 'אין הרשאה לפעולה על הקובץ הזה.';
+  if (/quota|exceed_storage_size/i.test(msg)) return 'The pilot storage (1GB) is full. Please contact the pilot admin.';
+  if (/row-level security|Unauthorized/i.test(msg)) return 'You do not have access to this file.';
   if (/Object not found|not_found/i.test(msg)) return ERR.NOT_FOUND;
   for (const [k, v] of Object.entries(ERR)) if (msg.includes(k)) return v;
-  if (/Password should be at least/i.test(msg)) return 'הסיסמה קצרה מדי (לפחות 8 תווים).';
-  if (/rate limit/i.test(msg)) return 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.';
-  if (/duplicate key.*username|profiles_username_key/i.test(msg)) return 'שם המשתמש תפוס.';
-  return 'משהו השתבש. נסו שוב. (' + msg.slice(0, 120) + ')';
+  if (/Password should be at least/i.test(msg)) return 'The password is too short (at least 8 characters).';
+  if (/rate limit/i.test(msg)) return 'Too many attempts. Try again in a few minutes.';
+  if (/duplicate key.*username|profiles_username_key/i.test(msg)) return 'This username is taken.';
+  return 'Something went wrong. Please try again. (' + msg.slice(0, 120) + ')';
 }
 
 // ---------- Icons (monochrome outline) ----------
@@ -191,7 +193,8 @@ const P = {
   home: '<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
   bell: '<path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   play: '<path d="M8 5v14l11-7z"/>',
-  back: '<path d="m9 6 6 6-6 6"/>',
+  back: '<path d="m15 6-6 6 6 6"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="4"/>',
 };
 export const icon = (name) => {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -208,19 +211,19 @@ export function tabs(names, active, onChange) {
   return bar;
 }
 
-// Hebrew file picker (the native control shows browser-language text such as "Choose File").
-export function filePicker({ id, accept, label = 'בחירת קובץ', onChange }) {
+// Styled file picker (the native control looks different in every browser).
+export function filePicker({ id, accept, label = 'Choose file', onChange }) {
   const input = h('input', { type: 'file', id, accept, class: 'visually-hidden' });
-  const name = h('span', { class: 'muted' }, 'לא נבחר קובץ');
+  const name = h('span', { class: 'muted' }, 'No file chosen');
   input.addEventListener('change', () => {
-    name.textContent = input.files[0] ? input.files[0].name : 'לא נבחר קובץ';
+    name.textContent = input.files[0] ? input.files[0].name : 'No file chosen';
     onChange && onChange(input.files[0] || null, input);
   });
   const btn = h('label', { for: id, class: 'btn secondary', role: 'button', tabindex: '0',
     onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } } }, label);
   const wrap = h('div', { class: 'file-pick' }, input, btn, name);
   wrap.input = input;
-  wrap.reset = () => { input.value = ''; name.textContent = 'לא נבחר קובץ'; };
+  wrap.reset = () => { input.value = ''; name.textContent = 'No file chosen'; };
   return wrap;
 }
 export const plural = (n, one, many) => (n === 1 ? one : `${n} ${many}`);

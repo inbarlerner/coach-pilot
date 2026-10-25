@@ -1,9 +1,11 @@
 // Minimal Supabase client (Auth + REST + RPC) — no third-party CDN needed.
 // Talks to Supabase's documented HTTP APIs: /auth/v1 (GoTrue) and /rest/v1 (PostgREST).
 
-const STORAGE_KEY = 'pilot.session.v1';
+const STORAGE_PREFIX = 'pilot.session.v1';
 
 export function createClient(url, anonKey) {
+  // One saved session per Supabase project, so a session from another setup (e.g. live vs. local) is never reused.
+  const STORAGE_KEY = STORAGE_PREFIX + ':' + new URL(url).host;
   url = url.replace(/\/$/, '');
   const listeners = new Set();
   let session = load();
@@ -229,6 +231,19 @@ export function createClient(url, anonKey) {
           if (error) return { data: null, error };
           const signed = data.signedURL || data.signedUrl;
           return { data: { signedUrl: signed.startsWith('http') ? signed : `${url}/storage/v1${signed}` }, error: null };
+        },
+        // Several time-limited links in one request (e.g. all covers on a page).
+        async createSignedUrls(paths, expiresIn) {
+          const { data, error } = await storageJson(`object/sign/${bucket}`, { method: 'POST', body: JSON.stringify({ expiresIn, paths }) });
+          if (error) return { data: null, error };
+          return { data: data.map((d) => {
+            const signed = d.signedURL || d.signedUrl;
+            return { path: d.path, error: d.error || null, signedUrl: signed ? (signed.startsWith('http') ? signed : `${url}/storage/v1${signed}`) : null };
+          }), error: null };
+        },
+        // Address of a file in a public bucket (profile photos).
+        getPublicUrl(path) {
+          return { data: { publicUrl: `${url}/storage/v1/object/public/${bucket}/${encPath(path)}` } };
         },
         // Removes files; files the user may not delete are skipped by the access rules.
         async remove(paths) {
