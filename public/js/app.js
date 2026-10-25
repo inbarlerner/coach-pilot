@@ -135,9 +135,15 @@ async function start() {
     return;
   }
   try {
-    await loadSports();
-    if (state.user) { await loadProfile(); await refreshUnread(); }
+    if (state.user) {
+      // A saved session whose account no longer exists here: sign out instead of showing broken pages.
+      if (!(await loadProfile())) { await sb.auth.signOut(); state.user = null; state.session = null; }
+      else await refreshUnread();
+    }
   } catch (e) { console.error(e); }
+  // The saved session may have been rejected while loading (e.g. it belongs to another setup).
+  if (state.user && !(await sb.auth.getSession()).data.session) { state.user = null; state.session = null; state.profile = null; }
+  await loadSports().catch((e) => console.error(e));
 
   // Arrived from an email link (password recovery / signup confirmation)
   if (sb.auth.detected.type === 'recovery') location.hash = '#/reset';
@@ -153,6 +159,7 @@ async function start() {
     if (event === 'SIGNED_IN' && !wasIn) {
       await loadProfile().catch(() => {});
       await refreshUnread().catch(() => {});
+      if (!state.sports.length) await loadSports().catch(() => {});
       if (!location.hash.startsWith('#/reset')) go(defaultRoute());
     }
   });

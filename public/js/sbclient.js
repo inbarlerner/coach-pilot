@@ -1,9 +1,11 @@
 // Minimal Supabase client (Auth + REST + RPC) — no third-party CDN needed.
 // Talks to Supabase's documented HTTP APIs: /auth/v1 (GoTrue) and /rest/v1 (PostgREST).
 
-const STORAGE_KEY = 'pilot.session.v1';
+const STORAGE_PREFIX = 'pilot.session.v1';
 
 export function createClient(url, anonKey) {
+  // One saved session per Supabase project, so a session from another setup (e.g. live vs. local) is never reused.
+  const STORAGE_KEY = STORAGE_PREFIX + ':' + new URL(url).host;
   url = url.replace(/\/$/, '');
   const listeners = new Set();
   let session = load();
