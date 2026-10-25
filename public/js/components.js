@@ -1,24 +1,27 @@
 // Reusable components: protected video player with analysis tools, media items, recorder.
 import { h, clear, friendlyError, icon, fmtSize, toast, filePicker } from './ui.js';
-import { mediaUrl, uploadFile, discardUpload, LIMITS, fileType, sizeMB } from './api.js';
+import { mediaUrl, coverUrl, uploadFile, discardUpload, LIMITS, fileType, sizeMB, LANGUAGES, languageNames } from './api.js';
+import { coverImg } from './images.js';
 
 /**
  * Video player for a protected file.
- * opts.tools: show speed / replay / step controls (coach analysis view).
+ * opts.tools: show speed / step controls (coach analysis view).
  * opts.lazy: show a "watch" button first (saves data in the feed).
+ * opts.cover: cover key; shown as the poster until the video plays.
  */
 export function protectedVideo(kind, id, opts = {}) {
   const wrap = h('div', { class: 'player' });
   const start = async () => {
-    clear(wrap).append(h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' }), 'טוען סרטון…'));
+    clear(wrap).append(h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' }), 'Loading video…'));
     try {
       const url = await mediaUrl(kind, id);
       const v = h('video', { src: url, controls: true, playsInline: true, preload: 'metadata' });
+      if (opts.cover) coverUrl(opts.cover).then((u) => { if (u) v.poster = u; });
       v.setAttribute('playsinline', '');
       v.addEventListener('error', () => {
         clear(wrap).append(h('div', { class: 'player-placeholder' },
-          'לא ניתן לנגן את הסרטון בדפדפן הזה (ייתכן שהפורמט אינו נתמך).',
-          h('a', { class: 'btn small', href: url, target: '_blank', rel: 'noopener' }, 'פתיחה בחלון חדש')));
+          'This video cannot play in this browser (the format may not be supported).',
+          h('a', { class: 'btn small', href: url, target: '_blank', rel: 'noopener' }, 'Open in a new window')));
       });
       clear(wrap).append(v);
       if (opts.tools) wrap.append(playerTools(v));
@@ -28,18 +31,19 @@ export function protectedVideo(kind, id, opts = {}) {
         return clear(wrap).append(h('div', { class: 'player-placeholder' }, REMOVED_TEXT));
       }
       clear(wrap).append(h('div', { class: 'player-placeholder' }, friendlyError(e),
-        h('button', { class: 'btn small', onclick: start }, 'ניסיון חוזר')));
+        h('button', { class: 'btn small', onclick: start }, 'Try again')));
     }
   };
   if (opts.lazy) {
-    wrap.append(h('div', { class: 'player-placeholder' },
-      h('button', { class: 'btn', onclick: () => { opts.autoplay = true; start(); } }, icon('play'), 'צפייה בסרטון')));
+    wrap.append(h('div', { class: 'player-placeholder' + (opts.cover ? ' has-cover' : '') },
+      opts.cover && coverImg(coverUrl(opts.cover)),
+      h('button', { class: 'btn', onclick: () => { opts.autoplay = true; start(); } }, icon('play'), 'Watch video')));
   } else start();
   return wrap;
 }
 
 function playerTools(v) {
-  const speeds = [[1, 'מהירות רגילה'], [0.5, 'חצי מהירות'], [0.25, 'רבע מהירות']];
+  const speeds = [[1, 'Normal speed'], [0.5, 'Half speed'], [0.25, 'Quarter speed']];
   const speedBtns = speeds.map(([s, label]) => {
     const b = h('button', { type: 'button', 'aria-pressed': String(s === 1), onclick: () => {
       v.playbackRate = s;
@@ -49,22 +53,21 @@ function playerTools(v) {
     return b;
   });
   const step = (d) => { v.pause(); v.currentTime = Math.max(0, Math.min(v.duration || 0, v.currentTime + d)); };
-  return h('div', { class: 'player-bar', role: 'group', 'aria-label': 'כלי צפייה' },
-    h('button', { type: 'button', onclick: () => (v.paused ? v.play() : v.pause()) }, 'ניגון / עצירה'),
-    h('button', { type: 'button', onclick: () => { v.currentTime = 0; v.play(); } }, 'צפייה חוזרת'),
-    h('button', { type: 'button', onclick: () => step(-0.1), title: 'אחורה 0.1 שניות' }, 'אחורה 0.1 שנ׳'),
-    h('button', { type: 'button', onclick: () => step(0.1), title: 'קדימה 0.1 שניות' }, 'קדימה 0.1 שנ׳'),
+  return h('div', { class: 'player-bar', role: 'group', 'aria-label': 'Viewing tools' },
+    h('button', { type: 'button', onclick: () => (v.paused ? v.play() : v.pause()) }, 'Play / pause'),
+    h('button', { type: 'button', onclick: () => step(-0.1), title: 'Back 0.1 seconds' }, '−0.1s'),
+    h('button', { type: 'button', onclick: () => step(0.1), title: 'Forward 0.1 seconds' }, '+0.1s'),
     ...speedBtns);
 }
 
-export const REMOVED_TEXT = 'הסרטון נמחק אוטומטית כדי לפנות מקום באחסון. טקסט הניתוח וההודעות נשמרו.';
+export const REMOVED_TEXT = 'This video was removed automatically to free up storage. The analysis text and messages were kept.';
 
 // One analysis item (text / audio / video)
 export function analysisItem(item) {
-  if (item.kind === 'text') return h('div', { class: 'card' }, h('div', { class: 'label' }, 'טקסט'), h('div', { class: 'pre' }, item.body));
-  const box = h('div', { class: 'card' }, h('div', { class: 'label' }, item.kind === 'audio' ? 'הקלטת קול' : 'הקלטת וידאו'));
-  if (item.file_deleted_at) { box.append(h('p', { class: 'muted' }, 'ההקלטה נמחקה אוטומטית כדי לפנות מקום באחסון.')); return box; }
-  const slot = h('div', null, h('button', { class: 'btn secondary small', onclick: load }, item.kind === 'audio' ? 'האזנה' : 'צפייה'));
+  if (item.kind === 'text') return h('div', { class: 'card' }, h('div', { class: 'label' }, 'Text'), h('div', { class: 'pre' }, item.body));
+  const box = h('div', { class: 'card' }, h('div', { class: 'label' }, item.kind === 'audio' ? 'Voice recording' : 'Video recording'));
+  if (item.file_deleted_at) { box.append(h('p', { class: 'muted' }, 'This recording was removed automatically to free up storage.')); return box; }
+  const slot = h('div', null, h('button', { class: 'btn secondary small', onclick: load }, item.kind === 'audio' ? 'Listen' : 'Watch'));
   async function load() {
     clear(slot).append(h('span', { class: 'spinner sm' }));
     try {
@@ -75,7 +78,7 @@ export function analysisItem(item) {
       clear(slot).append(el);
       el.play().catch(() => {});
     } catch (e) {
-      clear(slot).append(h('p', { class: 'error-text' }, friendlyError(e)), h('button', { class: 'btn secondary small', onclick: load }, 'ניסיון חוזר'));
+      clear(slot).append(h('p', { class: 'error-text' }, friendlyError(e)), h('button', { class: 'btn secondary small', onclick: load }, 'Try again'));
     }
   }
   box.append(slot);
@@ -110,24 +113,24 @@ export function recorder(kind, onSaved) {
   function idle(msg) {
     stopStream();
     clear(box).append(
-      h('div', { class: 'label' }, kind === 'audio' ? 'הקלטת קול' : 'הקלטת וידאו'),
+      h('div', { class: 'label' }, kind === 'audio' ? 'Voice recording' : 'Video recording'),
       msg && h('p', { class: 'error-text', role: 'alert' }, msg),
       supported
-        ? [h('button', { class: 'btn', type: 'button', onclick: startRec }, kind === 'audio' ? 'התחלת הקלטת קול' : 'התחלת הקלטת וידאו'),
-           h('div', { class: 'hint' }, `עד ${MAX_SEC / 60} דקות להקלטה. ההקלטה נעצרת אוטומטית בסוף הזמן.`)]
-        : h('p', { class: 'muted' }, 'הקלטה בדפדפן אינה זמינה במכשיר הזה. אפשר להעלות קובץ מוכן.'),
+        ? [h('button', { class: 'btn', type: 'button', onclick: startRec }, kind === 'audio' ? 'Start voice recording' : 'Start video recording'),
+           h('div', { class: 'hint' }, `Up to ${MAX_SEC / 60} minutes. Recording stops automatically at the limit.`)]
+        : h('p', { class: 'muted' }, 'Recording in the browser is not available on this device. You can upload a ready file.'),
       fileFallback());
   }
 
   function fileFallback() {
-    const picker = filePicker({ id: 'rec_file_' + kind, accept: kind === 'audio' ? 'audio/*' : 'video/*', label: kind === 'audio' ? 'בחירת קובץ קול' : 'בחירת קובץ וידאו', onChange: (f) => {
+    const picker = filePicker({ id: 'rec_file_' + kind, accept: kind === 'audio' ? 'audio/*' : 'video/*', label: kind === 'audio' ? 'Choose audio file' : 'Choose video file', onChange: (f) => {
       if (!f) return;
       const t = fileType(f);
-      if (!allowed.includes(t)) return idle('סוג הקובץ אינו נתמך.');
-      if (f.size > maxMB * 1048576) return idle(`הקובץ גדול מדי: ${sizeMB(f.size)}MB. המקסימום הוא ${maxMB}MB לקובץ. קצרו אותו או הקליטו ישירות כאן.`);
+      if (!allowed.includes(t)) return idle('This file type is not supported.');
+      if (f.size > maxMB * 1048576) return idle(`The file is too large: ${sizeMB(f.size)}MB. The limit is ${maxMB}MB per file. Trim it or record here instead.`);
       upload(f);
     } });
-    return h('div', null, h('div', { class: 'small', style: { fontWeight: 600, marginBottom: '.3rem' } }, 'או העלאת קובץ ' + (kind === 'audio' ? 'קול' : 'וידאו') + ` מוכן (עד ${maxMB}MB)`), picker);
+    return h('div', null, h('div', { class: 'small', style: { fontWeight: 600, marginBottom: '.3rem' } }, 'Or upload a ready ' + (kind === 'audio' ? 'audio' : 'video') + ` file (up to ${maxMB}MB)`), picker);
   }
 
   async function startRec() {
@@ -136,12 +139,12 @@ export function recorder(kind, onSaved) {
     } catch (e) {
       const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
       return idle(denied
-        ? 'הגישה ל' + (kind === 'audio' ? 'מיקרופון' : 'מצלמה ולמיקרופון') + ' נחסמה. אפשר לאשר אותה בהגדרות הדפדפן, או להעלות קובץ מוכן.'
-        : 'לא נמצא ' + (kind === 'audio' ? 'מיקרופון' : 'מצלמה') + ' זמין. אפשר להעלות קובץ מוכן.');
+        ? 'Access to the ' + (kind === 'audio' ? 'microphone' : 'camera and microphone') + ' was blocked. Allow it in the browser settings, or upload a ready file.'
+        : 'No ' + (kind === 'audio' ? 'microphone' : 'camera') + ' found. You can upload a ready file.');
     }
     const mime = pickMime();
     try { rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), ...BITRATE }); }
-    catch { return idle('לא ניתן להקליט במכשיר הזה. אפשר להעלות קובץ מוכן.'); }
+    catch { return idle('Recording is not possible on this device. You can upload a ready file.'); }
     chunks = [];
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     rec.onstop = () => {
@@ -156,14 +159,14 @@ export function recorder(kind, onSaved) {
     timer = setInterval(() => {
       sec++;
       clock.textContent = fmtTime(sec) + ' / ' + fmtTime(MAX_SEC);
-      if (sec >= MAX_SEC && rec.state !== 'inactive') { rec.stop(); toast(`ההקלטה נעצרה אוטומטית אחרי ${MAX_SEC / 60} דקות.`); }
+      if (sec >= MAX_SEC && rec.state !== 'inactive') { rec.stop(); toast(`Recording stopped automatically after ${MAX_SEC / 60} minutes.`); }
     }, 1000);
     const live = kind === 'video' ? h('video', { muted: true, playsInline: true, autoplay: true }) : null;
     if (live) { live.srcObject = stream; live.muted = true; }
     clear(box).append(
-      h('div', { class: 'row' }, h('span', { class: 'rec-dot', 'aria-hidden': 'true' }), h('strong', null, 'מקליט… '), clock),
+      h('div', { class: 'row' }, h('span', { class: 'rec-dot', 'aria-hidden': 'true' }), h('strong', null, 'Recording… '), clock),
       live,
-      h('button', { class: 'btn', type: 'button', onclick: () => rec.state !== 'inactive' && rec.stop() }, 'עצירת הקלטה'));
+      h('button', { class: 'btn', type: 'button', onclick: () => rec.state !== 'inactive' && rec.stop() }, 'Stop recording'));
   }
 
   function review(blob, type) {
@@ -171,36 +174,36 @@ export function recorder(kind, onSaved) {
     const media = kind === 'audio' ? h('audio', { src: url, controls: true, style: { width: '100%' } }) : h('video', { src: url, controls: true, playsInline: true });
     const tooBig = blob.size > maxMB * 1048576;
     clear(box).append(
-      h('div', { class: 'label' }, 'בדיקת ההקלטה (' + fmtSize(blob.size) + ')'),
+      h('div', { class: 'label' }, 'Review recording (' + fmtSize(blob.size) + ')'),
       media,
-      tooBig && h('p', { class: 'error-text' }, `ההקלטה גדולה מדי: ${sizeMB(blob.size)}MB. המקסימום הוא ${maxMB}MB לקובץ. הקליטו הקלטה קצרה יותר.`),
+      tooBig && h('p', { class: 'error-text' }, `The recording is too large: ${sizeMB(blob.size)}MB. The limit is ${maxMB}MB per file. Record a shorter one.`),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', type: 'button', disabled: tooBig, onclick: () => {
           const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
           upload(new File([blob], 'recording.' + ext, { type: allowed.includes(type) ? type : (kind === 'audio' ? 'audio/webm' : 'video/webm') }));
-        } }, 'שמירת ההקלטה'),
-        h('button', { class: 'btn secondary', type: 'button', onclick: () => { URL.revokeObjectURL(url); idle(); } }, 'מחיקה והקלטה מחדש')));
+        } }, 'Save recording'),
+        h('button', { class: 'btn secondary', type: 'button', onclick: () => { URL.revokeObjectURL(url); idle(); } }, 'Delete and record again')));
   }
 
   async function upload(file) {
     const bar = h('div');
     const prog = h('div', { class: 'progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' }, bar);
-    const label = h('p', null, 'מעלה… 0%');
+    const label = h('p', null, 'Uploading… 0%');
     clear(box).append(label, prog);
     try {
       const res = await uploadFile(file, purpose, (p) => {
         bar.style.width = Math.round(p * 100) + '%';
         prog.setAttribute('aria-valuenow', String(Math.round(p * 100)));
-        label.textContent = 'מעלה… ' + Math.round(p * 100) + '%';
+        label.textContent = 'Uploading… ' + Math.round(p * 100) + '%';
       });
       try { await onSaved(res); } catch (e) { discardUpload(res.key); throw e; }
       idle();
-      toast(kind === 'audio' ? 'הקלטת הקול נשמרה בטיוטה' : 'הקלטת הווידאו נשמרה בטיוטה');
+      toast(kind === 'audio' ? 'Voice recording saved to the draft' : 'Video recording saved to the draft');
     } catch (e) {
-      clear(box).append(h('p', { class: 'error-text', role: 'alert' }, 'ההעלאה נכשלה: ' + friendlyError(e)),
+      clear(box).append(h('p', { class: 'error-text', role: 'alert' }, 'Upload failed: ' + friendlyError(e)),
         h('div', { class: 'btn-row' },
-          h('button', { class: 'btn', type: 'button', onclick: () => upload(file) }, 'ניסיון חוזר'),
-          h('button', { class: 'btn secondary', type: 'button', onclick: () => idle() }, 'ביטול')));
+          h('button', { class: 'btn', type: 'button', onclick: () => upload(file) }, 'Try again'),
+          h('button', { class: 'btn secondary', type: 'button', onclick: () => idle() }, 'Cancel')));
     }
   }
 
@@ -208,3 +211,16 @@ export function recorder(kind, onSaved) {
   box.cleanup = () => { stopStream(); clearInterval(timer); };
   return box;
 }
+
+// Spoken languages: a chip per language. el.value() returns the picked codes.
+export function languagePicker(selected = [], name = 'langs') {
+  const el = h('div', { class: 'chips', role: 'group', 'aria-label': 'Languages I speak' },
+    Object.entries(LANGUAGES).map(([code, label]) => h('label', { class: 'chip' },
+      h('input', { type: 'checkbox', name, value: code, checked: selected.includes(code) }), label)));
+  el.value = () => [...el.querySelectorAll(`input[name="${name}"]:checked`)].map((i) => i.value);
+  return el;
+}
+
+// One small line: "Speaks: English, Dutch"
+export const languagesLine = (codes, label = 'Speaks') =>
+  codes && codes.length ? h('p', { class: 'langs' }, `${label}: ${languageNames(codes)}`) : null;

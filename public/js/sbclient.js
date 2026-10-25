@@ -230,6 +230,19 @@ export function createClient(url, anonKey) {
           const signed = data.signedURL || data.signedUrl;
           return { data: { signedUrl: signed.startsWith('http') ? signed : `${url}/storage/v1${signed}` }, error: null };
         },
+        // Several time-limited links in one request (e.g. all covers on a page).
+        async createSignedUrls(paths, expiresIn) {
+          const { data, error } = await storageJson(`object/sign/${bucket}`, { method: 'POST', body: JSON.stringify({ expiresIn, paths }) });
+          if (error) return { data: null, error };
+          return { data: data.map((d) => {
+            const signed = d.signedURL || d.signedUrl;
+            return { path: d.path, error: d.error || null, signedUrl: signed ? (signed.startsWith('http') ? signed : `${url}/storage/v1${signed}`) : null };
+          }), error: null };
+        },
+        // Address of a file in a public bucket (profile photos).
+        getPublicUrl(path) {
+          return { data: { publicUrl: `${url}/storage/v1/object/public/${bucket}/${encPath(path)}` } };
+        },
         // Removes files; files the user may not delete are skipped by the access rules.
         async remove(paths) {
           return storageJson(`object/${bucket}`, { method: 'DELETE', body: JSON.stringify({ prefixes: paths }) });

@@ -4,6 +4,7 @@ import { createClient } from './sbclient.js';
 // Supabase free plan: 50 MB per file. The same limit is set on the storage bucket (003_storage.sql).
 export const MAX_MB = 50;
 export const BUCKET = 'media';
+export const AVATARS = 'avatars';   // public bucket for profile photos (007)
 export const LIMITS = {
   videoMaxMB: MAX_MB,
   responseAudioMaxMB: MAX_MB,
@@ -11,7 +12,17 @@ export const LIMITS = {
   videoFormats: 'MP4, MOV, WebM',
   videoTypes: ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'],
   audioTypes: ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/x-m4a', 'audio/m4a', 'audio/aac', 'audio/wav', 'audio/x-wav'],
+  imageTypes: ['image/jpeg', 'image/png', 'image/webp'],
 };
+
+// Languages a user can say they speak (ISO 639-1). The database accepts any two-letter code.
+export const LANGUAGES = {
+  en: 'English', he: 'Hebrew', ar: 'Arabic', ru: 'Russian', es: 'Spanish', fr: 'French', de: 'German',
+  it: 'Italian', pt: 'Portuguese', nl: 'Dutch', pl: 'Polish', uk: 'Ukrainian', ro: 'Romanian', el: 'Greek',
+  tr: 'Turkish', sv: 'Swedish', no: 'Norwegian', da: 'Danish', fi: 'Finnish', cs: 'Czech', hu: 'Hungarian',
+  ja: 'Japanese', zh: 'Chinese', ko: 'Korean', hi: 'Hindi', th: 'Thai', id: 'Indonesian',
+};
+export const languageNames = (codes) => (codes || []).map((c) => LANGUAGES[c] || c.toUpperCase()).join(', ');
 
 export let sb = null;
 export const state = { session: null, user: null, profile: null, sports: [], unread: 0 };
@@ -86,22 +97,27 @@ const EXT = {
   'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'video/x-m4v': 'm4v',
   'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/x-m4a': 'm4a',
   'audio/m4a': 'm4a', 'audio/aac': 'aac', 'audio/wav': 'wav', 'audio/x-wav': 'wav',
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
 };
 export const sizeMB = (bytes) => Math.round((bytes / 1048576) * 10) / 10;
 
 /**
- * Upload a file to the private bucket, into the user's own folder, with progress.
- * purpose: 'video' | 'responseAudio' | 'responseVideo'. Returns { key, contentType, size }.
+ * Upload a file into the user's own folder, with progress.
+ * purpose: 'video' | 'responseAudio' | 'responseVideo' | 'cover' (private bucket) | 'avatar' (public photos).
+ * Returns { key, contentType, size }.
  */
 export async function uploadFile(file, purpose, onProgress, signal) {
   const contentType = fileType(file);
-  const allowed = purpose === 'responseAudio' ? LIMITS.audioTypes : LIMITS.videoTypes;
+  const image = purpose === 'cover' || purpose === 'avatar';
+  const allowed = image ? LIMITS.imageTypes : purpose === 'responseAudio' ? LIMITS.audioTypes : LIMITS.videoTypes;
   if (!allowed.includes(contentType)) throw new Error('BAD_TYPE');
-  if (file.size > MAX_MB * 1048576) throw new Error('TOO_LARGE');
-  const folder = purpose === 'video' ? 'videos' : 'responses';
-  const key = `${folder}/${state.user.id}/${crypto.randomUUID()}.${EXT[contentType] || 'bin'}`;
-  await makeRoom(file.size);
-  const { error } = await sb.storage.from(BUCKET).upload(key, file, { contentType, onProgress, signal });
+  if (file.size > (image ? 2 : MAX_MB) * 1048576) throw new Error('TOO_LARGE');
+  const name = `${state.user.id}/${crypto.randomUUID()}.${EXT[contentType] || 'bin'}`;
+  const bucket = purpose === 'avatar' ? AVATARS : BUCKET;
+  const key = purpose === 'avatar' ? name
+    : `${({ video: 'videos', cover: 'covers' })[purpose] || 'responses'}/${name}`;
+  if (bucket === BUCKET) await makeRoom(file.size);
+  const { error } = await sb.storage.from(bucket).upload(key, file, { contentType, onProgress, signal });
   if (error) throw new Error(error.message || 'UPLOAD_FAILED');
   return { key, contentType, size: file.size };
 }
@@ -116,7 +132,37 @@ async function makeRoom(bytes) {
 }
 
 // Best-effort removal of a file that was uploaded but could not be saved in the app.
-export const discardUpload = (key) => sb.storage.from(BUCKET).remove([key]).catch(() => {});
+export const discardUpload = (key, bucket = BUCKET) => sb.storage.from(bucket).remove([key]).catch(() => {});
+
+// Profile photos are public: a plain address, no signing.
+export const avatarUrl = (key) => (key ? sb.storage.from(AVATARS).getPublicUrl(key).data.publicUrl : null);
+
+// Covers are private: signed links, requested together for everything on screen at once.
+const coverCache = new Map();
+let coverQueue = null;
+export function coverUrl(key) {
+  if (!key) return Promise.resolve(null);
+  const c = coverCache.get(key);
+  if (c && c.until > Date.now()) return c.promise;
+  if (!coverQueue) {
+    coverQueue = new Map();
+    queueMicrotask(async () => {
+      const batch = coverQueue; coverQueue = null;
+      const { data, error } = await sb.storage.from(BUCKET).createSignedUrls([...batch.keys()], LINK_SECONDS);
+      const byPath = new Map((data || []).map((d) => [d.path, d.signedUrl]));
+      for (const [k, done] of batch) {
+        const url = error ? null : byPath.get(k) || null;
+        if (!url) coverCache.delete(k);
+        done(url);
+      }
+    });
+  }
+  let done;
+  const promise = new Promise((r) => { done = r; });
+  coverQueue.set(key, done);
+  coverCache.set(key, { promise, until: Date.now() + (LINK_SECONDS - 300) * 1000 });
+  return promise;
+}
 
 // Time-limited link to a protected file. The key is read through the database's permissions,
 // and storage issues the link only if its own access rules agree.

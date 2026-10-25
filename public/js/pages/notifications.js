@@ -4,14 +4,14 @@ import { sb, state, q } from '../api.js';
 import { refreshBadge } from '../app.js';
 
 export function notificationsPage({ main, setTitle }) {
-  setTitle('התראות');
+  setTitle('Notifications');
   const list = h('div');
-  const markAll = h('button', { class: 'btn secondary small' }, 'סימון הכול כנקרא');
+  const markAll = h('button', { class: 'btn secondary small' }, 'Mark all as read');
   markAll.onclick = () => busy(markAll, async () => {
     try { await q(sb.from('notifications').update({ read: true }).eq('user_id', state.user.id).eq('read', false)); await refreshBadge(); load(); }
     catch (e) { toast(friendlyError(e), 'err'); }
   });
-  main.append(h('div', { class: 'row between' }, h('h1', null, 'התראות'), markAll), list);
+  main.append(h('div', { class: 'row between' }, h('h1', null, 'Notifications'), markAll), list);
   const load = () => section(list,
     () => q(sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(100)),
     (rows) => rows.length ? h('div', null, rows.map((n) => {
@@ -21,7 +21,7 @@ export function notificationsPage({ main, setTitle }) {
       };
       return h(href ? 'a' : 'div', { class: 'card' + (href ? ' link' : '') + (n.read ? '' : ' unread'), href, onclick: href ? open : null },
         h('div', { class: 'list-item' }, h('div', null, h('div', null, n.body), h('div', { class: 'meta' }, fmtDate(n.created_at))),
-          !n.read && h('span', { class: 'dot', 'aria-label': 'חדש' })));
-    })) : empty('אין התראות', 'התראות על בקשות, ניתוחים והודעות יופיעו כאן.'));
+          !n.read && h('span', { class: 'dot', 'aria-label': 'New' })));
+    })) : empty('No notifications', 'Notifications about requests, analyses and messages show up here.'));
   load();
 }
