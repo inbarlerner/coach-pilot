@@ -15,7 +15,8 @@ export function adminPage({ main, setTitle, query }) {
       const mb = (b) => Math.round(b / 1048576);
       usage.textContent = `אחסון קבצים: ${mb(u.used_bytes)}MB מתוך ${mb(u.cap_bytes)}MB (${u.file_count} קבצים). כשמגיעים לגבול, הסרטונים הישנים ביותר נמחקים אוטומטית, חוץ מבקשות פתוחות.`;
     }).catch(() => {});
-    clear(main).append(h('h1', null, 'ניהול'), usage,
+    clear(main).append(h('div', { class: 'row between' }, h('h1', null, 'ניהול'),
+      h('div', { class: 'btn-row' }, h('a', { class: 'btn secondary small', href: '#/admin/lab' }, 'מעבדת מאמן AI'), h('a', { class: 'btn secondary small', href: '#/admin/feedback' }, 'פידבק ל־Claude'))), usage,
       tabs([['coaches', 'בקשות מאמנים'], ['users', 'משתמשים'], ['reports', 'דיווחים'], ['sports', 'ענפים']], tab, (k) => { tab = k; render(); }), body);
     ({ coaches, users, reports, sports })[tab](clear(body));
   };

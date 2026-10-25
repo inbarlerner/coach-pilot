@@ -1,4 +1,4 @@
-# Kitesurf trick cards: pilot set (16)
+# Kitesurf trick cards: pilot set (16) + big air (2)
 
 All cards are **drafts for Inbar's review**, written in our own words from IKSURFMAG (C&K), Steven Akkersdijk (SA Masterclass), Get High with Mike, Advakite and Duotone Academy. The AI coach gets **[fundamentals](fundamentals.md) + the one trick card** the trainee picked, plus the [coaching decisions](../../coaching-decisions.md).
 
@@ -22,6 +22,8 @@ All cards are **drafts for Inbar's review**, written in our own words from IKSUR
 | 13 | [Pop to toeside](pop-to-toeside.md) | Beginner+ | IKSURFMAG | — |
 | 14 | [Downloop transition](downloop-transition.md) | Beginner+ | IKSURFMAG, SA | — |
 | 15 | [First kite loop](first-kiteloop.md) | Intermediate | IKSURFMAG, SA | ⚠️ First loops: late on the descent, or at the apex? |
+| 16 | [Big air kiteloop](bigair-kiteloop.md) | Advanced | MACkite, Shaun Bennett, IKSURFMAG | ⚠️ Big loops before the apex (¾ height) vs first loops after it |
+| 17 | [Kiteloop late back roll](kiteloop-late-back.md) | Advanced | Brad Strahm, Shaun Bennett, IKSURFMAG | ⚠️ Rotation first or loop first? Mike's video still to transcribe |
 
 ## How each card is built
 Same sections everywhere: header table → stages ("what should happen" / "what it looks like in a frame") → common mistakes (what you see → fix) → coaching decisions applied → drills / safety → filming and frames needed → sources (internal).

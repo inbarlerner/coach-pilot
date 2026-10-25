@@ -147,6 +147,7 @@ export function createClient(url, anonKey) {
       return this;
     }
     insert(rows) { this.method = 'POST'; this.body = rows; this.headers.Prefer = 'return=minimal'; return this; }
+    upsert(rows) { this.method = 'POST'; this.body = rows; this.headers.Prefer = 'resolution=merge-duplicates,return=minimal'; return this; }
     update(values) { this.method = 'PATCH'; this.body = values; this.headers.Prefer = 'return=minimal'; return this; }
     delete() { this.method = 'DELETE'; this.headers.Prefer = 'return=minimal'; return this; }
     // Plain operators take the raw value; quoting is only for in-lists (PostgREST rules).
@@ -229,6 +230,17 @@ export function createClient(url, anonKey) {
           if (error) return { data: null, error };
           const signed = data.signedURL || data.signedUrl;
           return { data: { signedUrl: signed.startsWith('http') ? signed : `${url}/storage/v1${signed}` }, error: null };
+        },
+        // Several time-limited links at once: { path: url } (paths the user may not read are left out).
+        async createSignedUrls(paths, expiresIn) {
+          const { data, error } = await storageJson(`object/sign/${bucket}`, { method: 'POST', body: JSON.stringify({ expiresIn, paths }) });
+          if (error) return { data: null, error };
+          const out = {};
+          for (const x of data || []) {
+            const u = x.signedURL || x.signedUrl;
+            if (u) out[x.path] = u.startsWith('http') ? u : `${url}/storage/v1${u}`;
+          }
+          return { data: out, error: null };
         },
         // Removes files; files the user may not delete are skipped by the access rules.
         async remove(paths) {

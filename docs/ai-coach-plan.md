@@ -66,7 +66,7 @@ Key points:
 - **Streaming.** Opus can take 30–90 s. The function relays the streamed response to the browser, so the connection doesn't time out and the trainee sees progress. If they close the tab mid-run, the request goes back to `pending` and they can retry. They aren't charged, because credits are only used on `send_analysis`.
 - **"Not analyzable" videos** (wrong sport, too dark, not a person): the AI calls `decline_request` with `unclear` or `video_problem`. This **doesn't use a credit**, which matches the existing billing rule.
 
-## 5. Database — `supabase/007_ai_coach.sql` (new file, never edit 001–006)
+## 5. Database — `supabase/008_ai_coach.sql` (new file, never edit 001–007; 007 is the admin lab)
 
 - `profiles.is_ai boolean not null default false`, protected by `protect_profile_columns` so users can't set it.
 - `ai_runs` table: `request_id, model, input_tokens, output_tokens, cost_usd_est, status (ok/declined/error), error, created_at`. Readable by the admin only.
@@ -123,13 +123,62 @@ Out of scope here. When added, the charge hooks into `send_analysis` exactly as 
 
 The model isn't retrained. It's taught with **trick cards** written with our coaches and loaded per request.
 
-- **One card per trick**, plus one fundamentals card per sport. Each card covers stages, what each stage looks like *in a frame*, common mistakes (what you see → fix), drills, safety, and filming needs. Sample: [cards/kitesurf/back-roll.md](ai-coach/cards/kitesurf/back-roll.md).
+- **One card per trick**, plus one fundamentals card per sport. Each card covers stages, what each stage looks like *in a frame*, common mistakes (what you see → fix), drills, safety, and filming needs. Sample: [cards/kitesurf/back-roll.md](../public/ai-coach/cards/kitesurf/back-roll.md).
 - **The trainee picks the trick** at upload, or "not sure". The AI gets the fundamentals card plus that one trick card. For "not sure", the AI first identifies the trick from the frames.
 - **Frame timing (changes §4):** the trainee taps the takeoff moment, and we sample densely (6–8 fps) from ~2 s before to ~2 s after. Even spacing over a long clip misses tricks.
 - **Sources:** [ai-coach/kitesurf-sources.md](ai-coach/kitesurf-sources.md). Main sources: IKSURFMAG (233 articles), Steven Akkersdijk's SA Masterclass and Get High with Mike (tutorials plus student mistake reviews). Trick list: Duotone Academy (232 videos).
 - **Feedback comes from text knowledge only.** Screenshots are a study tool for writing the cards; no third-party images go into the product.
 - **DB:** `tricks (id, sport_id, name_he, name_en, level, card)` and `analysis_requests.trick_id`. Requests for tricks we have no card for are logged so the backlog is driven by demand.
 - **Quality loop:** test set of 20–30 pilot videos with coach-written reference analyses, rerun on every card or instruction change. Trainee rating on each AI analysis.
+
+## 12. Feedback format: on the video itself (25.10.2026)
+
+The AI doesn't produce a new video. It returns a **script** that a player runs over the original video:
+
+- **Pause:** freeze on a frame and show text plus drawings (arrow, line, circle, angle, label), zoomed into the action area. Drawings appear **only on frozen frames**, so nothing has to follow a moving rider.
+- **Slow motion:** a time range played at ¼ or ½ speed, with a caption. Phone slow-mo filming (120/240fps) looks much better than 30fps.
+- The written summary, strengths, fixes, safety note and filming tip stay, next to the script.
+
+How placement works: every frame sent to the AI has a **0–100 grid** and a label (`F07 · 3.40s`). The AI places drawings in grid units on a frame it actually saw, so the timing is exact and the position is approximate. The lab (§13) measures how approximate.
+
+Product impact: no new files to store, and no new dependencies (a `<canvas>` over the `<video>`). Later, human coaches could use the same drawing tool. Shared code: `functions/_lib/ai-coach.js` (prompt, schema, request, stream parsing) is used by both the lab and, later, the production function, so what we tune in the lab is what ships.
+
+## 13. Training lab: inside the app, admins only (25.10.2026)
+
+**Where:** ניהול → מעבדת מאמן AI (`#/admin/lab`). Only admins (Inbar, Jenni) can open it. The database and storage refuse everyone else, not just the screen.
+
+1. **New analysis:** pick a video from the computer, or any video already uploaded to the app. Mark the takeoff and draw a zoom box. Then choose the trick (or "not sure"), the trainee's question, the **feedback language (עברית / English)**, and the model and effort.
+2. The browser extracts the frames (about 34 small JPEGs, ~1.4MB) and uploads them to the private `ai-lab` bucket. The server function `/api/ai-lab` then calls Claude with the trick cards (`public/ai-coach/`) and the coaching decisions.
+3. **Run page:** the AI's script plays on the video: pauses, slow motion, zoom and drawings. If the video isn't available, the saved frames are shown instead.
+4. **Review** (saved automatically, one review per admin):
+   - each step and fix marked right / needs a fix / wrong, with a comment;
+   - drawings dragged to the right place (the AI's original is kept);
+   - points the AI missed;
+   - a score of 1–5 and "send as is?".
+   Each admin sees the other's review.
+5. **Rerun:** after changing cards or the prompt, rerun one analysis, or all the originals at once, on the same frames and compare. Each rerun records `cards_hash` and `prompt_version`.
+6. **Copy reviews for Claude:** a Markdown export of all reviews to paste into Claude Code, which turns them into card edits, coaching decisions and prompt fixes.
+
+**Feedback for Claude** (`#/admin/feedback`): free text from either admin, typed as bug / idea / coaching / product / other, optionally linked to a run. Each item has a status (new → planned → done / dropped) and an "outcome" field saying where it went (a todo, a plan section, a fix). "Copy the list for Claude" exports it. Claude replies by #id with what went where.
+
+**Storage decision:** Supabase, not Google Drive. It's one system with admin-only rules, and needs no outside scripts or tokens.
+- **Videos are not stored for the lab.** The AI only ever sees the frames, and what we learn lives in the reviews, the cards and the coaching decisions.
+- Frames have their own 150MB cap; the video cap dropped from 900MB to 800MB to make room inside the free 1GB. When the lab cap is full, the oldest runs lose their frames. Their text, AI output and reviews are kept.
+- Reruns share the original's frames. Deleting a run removes only frames that no other run uses.
+
+**API key and cost:**
+- `ANTHROPIC_API_KEY` (Jenni's key) is an encrypted secret in Cloudflare Pages and never reaches the browser. When Inbar runs an analysis, her browser sends her own login token.
+- The function asks the database, as Inbar, whether she is an admin and under the monthly limit (`ai_lab_start`). Only then does it call Claude with the key. The cost goes to Jenni's Anthropic account and is recorded per run with who ran it.
+- There is a lab limit of $30 per calendar month (`app_settings.ai_lab_monthly_cents`), plus a spend limit set in the Anthropic Console as a second guard.
+- Opus costs about $0.35 and takes about a minute per analysis; Haiku is about $0.01.
+
+**Rollout:**
+1. Run `supabase/007_ai_lab.sql` in the SQL Editor.
+2. Add `ANTHROPIC_API_KEY` in Cloudflare Pages → Settings → Variables and Secrets, as type **Secret**, for Production.
+3. Set a monthly limit in the Anthropic Console.
+4. Push. `/api/health` shows `"ai": true` once the key is in place.
+
+The earlier local lab (`lab/`, `node lab/server.mjs`) still works for offline experiments. It shares the same core (`functions/_lib/ai-coach.js`).
 
 ## Sources
 

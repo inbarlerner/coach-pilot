@@ -1,0 +1,58 @@
+:root { --fg: #111; --bg: #fff; --muted: #666; --line: #ddd; --soft: #f4f4f4; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; color: var(--fg); background: var(--bg); }
+a { color: inherit; }
+button, select, input, textarea { font: inherit; color: inherit; }
+button { border: 1px solid var(--fg); background: var(--bg); padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+button.primary { background: var(--fg); color: var(--bg); }
+button:disabled { opacity: .4; cursor: default; }
+button.on { background: var(--fg); color: var(--bg); }
+select, input, textarea { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; background: var(--bg); }
+textarea { width: 100%; min-height: 54px; resize: vertical; }
+.muted { color: var(--muted); font-size: 13px; }
+.top { display: flex; gap: 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--fg); position: sticky; top: 0; background: var(--bg); z-index: 5; }
+.brand { font-weight: 700; text-decoration: none; }
+.who { margin-inline-start: auto; font-size: 13px; }
+.who input { width: 120px; }
+main { padding: 16px; max-width: 1400px; margin: 0 auto; }
+h2 { font-size: 18px; margin: 0 0 10px; }
+h3 { font-size: 15px; margin: 14px 0 6px; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 20px; align-items: start; }
+@media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+.row label { display: flex; gap: 6px; align-items: center; }
+.drop { border: 2px dashed var(--line); border-radius: 8px; padding: 18px; text-align: center; color: var(--muted); }
+.drop.over { border-color: var(--fg); color: var(--fg); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: start; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; }
+.tag { display: inline-block; border: 1px solid var(--fg); border-radius: 10px; padding: 0 7px; font-size: 12px; margin-inline-end: 4px; }
+
+/* Video stage: the video and the drawing layer zoom together. */
+.stage { position: relative; overflow: hidden; background: #000; width: 100%; margin: 0 auto; direction: ltr; border-radius: 6px; }
+.zoom { position: absolute; inset: 0; transform-origin: 0 0; transition: transform .45s ease; }
+.zoom video, .zoom canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.zoom canvas { pointer-events: none; }
+.stage.editing .zoom canvas, .stage.picking .zoom canvas { pointer-events: auto; cursor: crosshair; }
+.caption { position: absolute; inset-inline: 0; bottom: 0; padding: 10px 14px 12px; background: rgba(0,0,0,.78); color: #fff; direction: rtl; font-size: 16px; display: none; }
+.caption b { display: block; font-size: 17px; }
+.caption.show { display: block; }
+.badge { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.75); color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 13px; direction: rtl; display: none; }
+.badge.show { display: block; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+
+.steps { list-style: none; padding: 0; margin: 0; }
+.step { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+.step.active { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg); }
+.step .head { display: flex; gap: 8px; align-items: baseline; cursor: pointer; }
+.step .head b { flex: 1; }
+.verdicts { display: flex; gap: 4px; margin-top: 6px; }
+.verdicts button { padding: 2px 8px; font-size: 13px; }
+.step textarea, .fix textarea { min-height: 36px; margin-top: 6px; font-size: 13px; }
+.tools { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+.tools button { padding: 2px 8px; font-size: 13px; }
+.progress { font-size: 14px; margin-top: 8px; }
+.error { border: 1px solid var(--fg); background: var(--soft); padding: 8px 10px; border-radius: 6px; margin: 8px 0; white-space: pre-wrap; }
+.written { white-space: pre-wrap; font-size: 14px; background: var(--soft); padding: 10px; border-radius: 6px; max-height: 420px; overflow: auto; }
+details summary { cursor: pointer; font-weight: 600; }
