@@ -25,7 +25,7 @@ export const LANGUAGES = {
 export const languageNames = (codes) => (codes || []).map((c) => LANGUAGES[c] || c.toUpperCase()).join(', ');
 
 export let sb = null;
-export const state = { session: null, user: null, profile: null, sports: [], unread: 0 };
+export const state = { session: null, user: null, profile: null, sports: [], unread: 0, inboxUnread: 0 };
 
 export async function init() {
   const res = await fetch('/api/config');
@@ -186,5 +186,10 @@ export async function refreshUnread() {
   if (!state.user) return 0;
   const { count } = await sb.from('notifications').select('id', { count: 'exact', head: true }).eq('read', false);
   state.unread = count || 0;
+  // Inbox badge: requests with something new for me (a new video to analyze, an analysis, a follow-up message).
+  const me = state.user.id;
+  const r = await sb.from('analysis_requests').select('id', { count: 'exact', head: true })
+    .or(`and(coach_id.eq.${me},coach_read.eq.false),and(trainee_id.eq.${me},trainee_read.eq.false)`);
+  state.inboxUnread = r.count || 0;
   return state.unread;
 }

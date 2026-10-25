@@ -65,7 +65,9 @@ function layout(path, title) {
     NAV.map(([ic, href, label, prefixes]) => {
       const active = prefixes.some((p) => path === p || path.startsWith(p));
       const pic = ic === 'profile' && state.profile?.avatar_key ? avatar(state.profile, 28) : icon(ic);
-      return h('a', { href: '#' + href, class: (active ? 'active ' : '') + ic, 'aria-current': active ? 'page' : null }, pic, label);
+      const n = ic === 'inbox' ? state.inboxUnread : 0;
+      return h('a', { href: '#' + href, class: (active ? 'active ' : '') + ic, 'aria-current': active ? 'page' : null,
+        'aria-label': n ? `${label} (${n} unread)` : null }, pic, label, n ? h('span', { class: 'badge' }, n > 99 ? '99+' : n) : null);
     }));
   clear(app).append(top, main, nav);
   return { main, setTitle: (t) => { top.querySelector('.title').textContent = t; } };
@@ -121,6 +123,12 @@ export async function refreshBadge() {
     bell.querySelector('.badge')?.remove();
     if (state.unread) bell.append(h('span', { class: 'badge' }, state.unread > 99 ? '99+' : state.unread));
     bell.setAttribute('aria-label', `Notifications${state.unread ? ` (${state.unread} new)` : ''}`);
+    const inbox = document.querySelector('nav.bottom a.inbox');
+    if (inbox) {
+      inbox.querySelector('.badge')?.remove();
+      if (state.inboxUnread) inbox.append(h('span', { class: 'badge' }, state.inboxUnread > 99 ? '99+' : state.inboxUnread));
+      inbox.setAttribute('aria-label', state.inboxUnread ? `Inbox (${state.inboxUnread} unread)` : 'Inbox');
+    }
   } catch {}
 }
 
@@ -155,7 +163,7 @@ async function start() {
     const wasIn = !!state.user;
     state.session = session;
     state.user = session?.user || null;
-    if (event === 'SIGNED_OUT') { state.profile = null; state.unread = 0; return go('/login'); }
+    if (event === 'SIGNED_OUT') { state.profile = null; state.unread = 0; state.inboxUnread = 0; return go('/login'); }
     if (event === 'SIGNED_IN' && !wasIn) {
       await loadProfile().catch(() => {});
       await refreshUnread().catch(() => {});
