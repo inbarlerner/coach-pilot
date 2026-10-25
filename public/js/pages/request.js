@@ -192,7 +192,7 @@ export async function requestPage({ main, setTitle, params }) {
     const thread = h('div', { class: 'thread' });
     const composer = h('div');
     const other = isCoachHere ? r.trainee : r.coach;
-    root.append(h('h2', null, 'Follow-up messages'), h('p', { class: 'muted small' }, POLICY[r.followup_policy] + ' · Messages are private between you, even if the video is public.'),
+    root.append(h('h2', null, 'Follow-up messages'), h('p', { class: 'muted small' }, 'Chat rules: ' + POLICY[r.followup_policy] + ' (the coach\'s setting when the video was sent). Messages are private between you, even if the video is public.'),
       languagesLine(other.languages, `${other.first_name} speaks`), thread, composer);
 
     const loadThread = async () => {
