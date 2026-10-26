@@ -13,3 +13,5 @@ b = await (await health({ env: {} })).json();
 check(!b.ok && b.missing.join() === 'SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY', 'health lists missing settings');
 b = await (await health({ env: { SUPABASE_URL: 'x', SUPABASE_PUBLISHABLE_KEY: 'y' } })).json();
 check(b.ok, 'health ok when both settings are present');
+b = await (await health({ env: { SUPABASE_URL: 'x', SUPABASE_PUBLISHABLE_KEY: 'y', ANTHROPIC_API_KEY: 'sk-ant-secret' } })).json();
+check(b.ai === true && !JSON.stringify(b).includes('sk-ant'), 'health says whether the AI lab key is set, never the key');

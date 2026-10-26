@@ -1,6 +1,6 @@
 -- =====================================================================
--- 009: drawings on the video are saved with the analysis.
--- Run in Supabase → SQL Editor AFTER 008_search.sql. Safe to run again.
+-- 010: drawings on the video are saved with the analysis.
+-- Run in Supabase → SQL Editor AFTER 009_ai_lab.sql. Safe to run again.
 --
 --   • A new item kind 'drawing' holds the coach's pencil work as JSON:
 --       { "strokes": [{ "t": 3.2, "c": "#ffd60a", "pts": [[x, y], ...] }],

@@ -1,0 +1,86 @@
+{
+  "decisions": "coaching-decisions.md",
+  "sports": [
+    {
+      "id": "kitesurf",
+      "name": {
+        "he": "קייטסרפינג (טווין טיפ)",
+        "en": "Kitesurfing (twin tip)"
+      },
+      "cards": [
+        {
+          "file": "fundamentals.md",
+          "title": "Fundamentals: stance, edge, kite, bar (יסודות)"
+        },
+        {
+          "file": "back-roll-transition.md",
+          "title": "Back roll transition (בק רול טרנזישן)"
+        },
+        {
+          "file": "back-roll.md",
+          "title": "Back Roll (בק רול)"
+        },
+        {
+          "file": "beach-start.md",
+          "title": "Beach start, twin tip (ביץ' סטארט)"
+        },
+        {
+          "file": "bigair-kiteloop.md",
+          "title": "Big air kiteloop (קייטלופ ביג אייר)"
+        },
+        {
+          "file": "body-drag.md",
+          "title": "Body drag upwind (בודי דראג)"
+        },
+        {
+          "file": "carve.md",
+          "title": "Carve turns, twin tip (קארב: החלפת כיוון)"
+        },
+        {
+          "file": "downloop-transition.md",
+          "title": "Downloop transition, on the water (דאונלופ טרנזישן)"
+        },
+        {
+          "file": "first-kiteloop.md",
+          "title": "First kite loop (קייט לופ ראשון)"
+        },
+        {
+          "file": "front-roll.md",
+          "title": "Front roll (פרונט רול)"
+        },
+        {
+          "file": "hooked-jump.md",
+          "title": "Hooked jump (קפיצה)"
+        },
+        {
+          "file": "jump-grab.md",
+          "title": "Jump with a grab (קפיצה עם גראב)"
+        },
+        {
+          "file": "jump-transition.md",
+          "title": "Jump transition (ג'אמפ טרנזישן)"
+        },
+        {
+          "file": "kiteloop-late-back.md",
+          "title": "Kiteloop late back roll (קייטלופ לייט בק)"
+        },
+        {
+          "file": "pop-to-toeside.md",
+          "title": "Pop to toeside (פופ לטו-סייד)"
+        },
+        {
+          "file": "riding-upwind.md",
+          "title": "Riding upwind (עלייה לרוח)"
+        },
+        {
+          "file": "toeside.md",
+          "title": "Toeside riding (טו-סייד)"
+        },
+        {
+          "file": "waterstart.md",
+          "title": "Waterstart (ווטרסטארט)"
+        }
+      ]
+    }
+  ]
+}

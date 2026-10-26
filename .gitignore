@@ -1,3 +1,7 @@
 node_modules/
 .DS_Store
 *.log
+
+# AI coach lab: videos stay on each computer; runs stay out of this public repo until we decide where they go
+lab/videos/
+lab/runs/

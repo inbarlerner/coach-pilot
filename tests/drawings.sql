@@ -1,5 +1,5 @@
--- Drawings saved with the analysis (009_analysis_drawings.sql).
--- Run on a fresh DB after the stubs, 001, 003, 005, 006, 007, 008 and 009.
+-- Drawings saved with the analysis (010_analysis_drawings.sql).
+-- Run on a fresh DB after the stubs, 001, 003, 005, 006, 007, 008, 009 and 010.
 \set ON_ERROR_STOP 1
 \set tr  '''00000000-0000-0000-0000-0000000000f1'''
 \set co  '''00000000-0000-0000-0000-0000000000f2'''

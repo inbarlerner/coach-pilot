@@ -320,3 +320,33 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 .viewer-mark.text { background: #fff; }
 .viewer-mark.draw.text { background: #ffd60a; }
 .viewer-mark.text { width: 17px; height: 17px; margin-left: -8px; top: 0; font: 800 10px/13px system-ui, sans-serif; color: #000; text-align: center; padding: 0; }
+
+/* ---------- AI coach lab (admins) ---------- */
+main.page.xwide { max-width: 1280px; }
+.ai-grid { display: grid; gap: 1rem; align-items: start; }
+@media (min-width: 900px) { .ai-grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
+.ai-stage { position: relative; overflow: hidden; background: #000; width: 100%; margin: 0 auto .6rem; direction: ltr; border-radius: 6px; aspect-ratio: 16 / 9; }
+.ai-zoom { position: absolute; inset: 0; transform-origin: 0 0; transition: transform .35s ease; }
+.ai-zoom video, .ai-zoom canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ai-zoom video { object-fit: fill; }
+.ai-zoom canvas { pointer-events: none; }
+.ai-stage.editing .ai-zoom canvas, .ai-stage.picking .ai-zoom canvas { pointer-events: auto; cursor: crosshair; touch-action: none; }
+.ai-caption { position: absolute; inset-inline: 0; bottom: 0; padding: 10px 14px 12px; background: rgba(0,0,0,.78); color: #fff; font-size: 15px; display: none; unicode-bidi: plaintext; }
+.ai-caption b { display: block; font-size: 16px; }
+.ai-caption.show { display: block; }
+.ai-badge { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.75); color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 13px; display: none; }
+.ai-badge.show { display: block; }
+.ai-stage-box > .meta { padding: 2rem 0; text-align: center; }
+.ai-controls { margin-bottom: .8rem; }
+.ai-controls > .btn { flex: 0 0 auto; }
+.ai-steps { list-style: none; padding: 0; margin: .5rem 0 0; display: grid; gap: .6rem; }
+.ai-step { border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem .7rem; display: grid; gap: .4rem; }
+.ai-step.active { border-color: var(--strong); box-shadow: inset 3px 0 0 var(--strong); }
+.ai-step p { margin: 0; }
+.ai-step-head { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; cursor: pointer; }
+.ai-step textarea { width: 100%; }
+.ai-tools { align-items: center; }
+.ai-pick-list { display: flex; flex-direction: column; gap: .35rem; margin: .5rem 0; max-height: 240px; overflow: auto; }
+.ai-pick-list .chip { text-align: start; }
+.ai-lab .row select { width: auto; flex: 0 1 auto; }
+.ai-lab .row input[type=text] { flex: 1 1 200px; width: auto; }

@@ -33,8 +33,10 @@ const cors = (res) => {
 const sendJson = (res, status, obj) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(obj));
 const storageErr = (res, http, code, error, message) => sendJson(res, http, { statusCode: String(code), error, message });
 
+// psql command for the test database; E2E_PSQL overrides it (e.g. "docker exec -i <container> psql -U postgres -d e2e").
+const PSQL = (process.env.E2E_PSQL || 'psql -h /var/tmp/pgtest -p 5544 -U postgres -d e2e').split(' ');
 function bucketConfig(id) {
-  const out = execFileSync('psql', ['-h', '/var/tmp/pgtest', '-p', '5544', '-U', 'postgres', '-d', 'e2e', '-At', '-c',
+  const out = execFileSync(PSQL[0], [...PSQL.slice(1), '-At', '-c',
     `select coalesce(file_size_limit, 0) || '|' || array_to_string(coalesce(allowed_mime_types, '{}'), ',') from storage.buckets where id = '${id.replace(/'/g, '')}'`]).toString().trim();
   if (!out) return null;
   const [limit, types] = out.split('|');
@@ -88,6 +90,17 @@ async function storage(req, res, p) {
   }
   if ((m = p.match(/^\/object\/public\/([^/]+)\/(.+)$/))) return storageErr(res, 400, 404, 'not_found', 'Bucket not found'); // bucket is private
   if (!token) return storageErr(res, 400, 403, 'Unauthorized', 'headers must have required property authorization');
+  // Create several signed URLs at once: { expiresIn, paths } → [{ path, signedURL, error }]
+  if ((m = p.match(/^\/object\/sign\/([^/]+)$/)) && req.method === 'POST') {
+    const { expiresIn = 60, paths = [] } = JSON.parse((await readBody(req)).toString() || '{}');
+    if (!paths.length) return sendJson(res, 200, []);
+    const r = await asUser(token, 'GET', `bucket_id=eq.${m[1]}&name=in.(${paths.map((x) => encodeURIComponent(pgQuote(x))).join(',')})&select=name`);
+    const readable = new Set(r.ok ? r.data.map((o) => o.name) : []);
+    const exp = Math.floor(Date.now() / 1000) + Number(expiresIn);
+    return sendJson(res, 200, paths.map((name) => readable.has(name)
+      ? { path: name, signedURL: `/object/sign/${m[1]}/${name}?token=${exp}.${sign(name, exp)}`, error: null }
+      : { path: name, signedURL: null, error: 'Either the object does not exist or you do not have access to it' }));
+  }
   // Create signed URL — the object must be readable by this user
   if ((m = p.match(/^\/object\/sign\/([^/]+)\/(.+)$/)) && req.method === 'POST') {
     const body = JSON.parse((await readBody(req)).toString() || '{}');
@@ -157,8 +170,29 @@ http.createServer(async (req, res) => {
   } catch (e) { res.writeHead(502).end(String(e)); }
 }).listen(8000, '127.0.0.1');
 
+// ---------- AI lab: site files for the function, and Claude (faked unless a real key is given) ----------
+const assets = { fetch: async (req) => {
+  const p = path.join(ROOT, 'public', decodeURIComponent(new URL(req.url).pathname));
+  return p.startsWith(path.join(ROOT, 'public')) && fs.existsSync(p) && fs.statSync(p).isFile() ? new Response(fs.readFileSync(p)) : new Response('not found', { status: 404 });
+} };
+const AI_KEY = process.env.ANTHROPIC_API_KEY || 'fake-key';
+// Fake reply: E2E_AI_REPLY (a JSON file with the AI's analysis), else a minimal one. Signed frame links are fetched
+// first, like Claude would, so a broken link fails the run.
+async function aiFetch(url, opts) {
+  if (!String(url).startsWith('https://api.anthropic.com') || process.env.ANTHROPIC_API_KEY) return fetch(url, opts);
+  const body = JSON.parse(opts.body);
+  for (const b of body.messages[0].content.filter((c) => c.type === 'image')) {
+    const r = await fetch(b.source.url);
+    if (!r.ok) return new Response(JSON.stringify({ error: { message: 'image fetch failed: ' + b.source.url } }), { status: 400 });
+  }
+  await new Promise((r) => setTimeout(r, Number(process.env.E2E_AI_DELAY_MS || 1500)));
+  const f = process.env.E2E_AI_REPLY;
+  const a = f ? JSON.parse(fs.readFileSync(f, 'utf8')) : { verdict: 'ok', trick_identified: 'jump', trick_confidence: 'low', summary: 'fake', strengths: [], fixes: [], steps: [], safety_note: '', cannot_judge: [], filming_tip: '' };
+  return Response.json({ model: body.model, stop_reason: 'end_turn', usage: { input_tokens: 30000, output_tokens: 4000, cache_read_input_tokens: 0 }, content: [{ type: 'text', text: JSON.stringify(a.analysis || a) }] });
+}
+
 // ---------- :8788 site + Pages Functions ----------
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8', '.md': 'text/markdown; charset=utf-8', '.mp4': 'video/mp4' };
 http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://127.0.0.1:8788');
   if (u.pathname.startsWith('/api/')) {
@@ -169,7 +203,7 @@ http.createServer(async (req, res) => {
     if (!fn) return res.writeHead(405).end();
     const body = await readBody(req);
     const request = new Request(u, { method: req.method, headers: req.headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body });
-    const r = await fn({ request, env });
+    const r = await fn({ request, env: { ...env, ASSETS: assets, ANTHROPIC_API_KEY: AI_KEY }, waitUntil: () => {}, fetchImpl: aiFetch });
     const h = {}; r.headers.forEach((v, k) => { h[k] = v; });
     return res.writeHead(r.status, h).end(Buffer.from(await r.arrayBuffer()));
   }

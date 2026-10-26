@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>למה Git ו־Claude Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Secular+One&display=swap">
+<style>
+/* Layout: one reading column of stacked diagrams. Ink-on-paper like the GetPro UI, one cobalt accent for "the way we work". */
+:root {
+  --paper: #F5F6F8;
+  --surface: #FFFFFF;
+  --ink: #15171C;
+  --muted: #5A6070;
+  --line: #DCDFE6;
+  --accent: #2F4FD8;
+  --accent-soft: #E8ECFE;
+  --warm: #8A5A12;
+  --warm-soft: #F7EEDD;
+  --add: #1C7445;
+  --add-bg: #E3F3EA;
+  --del: #B0342A;
+  --del-bg: #FBE8E6;
+  --display: "Secular One", "Arial Hebrew", "Rubik", system-ui, sans-serif;
+  --body: "IBM Plex Sans Hebrew", "Arial Hebrew", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #111318; --surface: #1A1D24; --ink: #ECEEF3; --muted: #A1A7B5; --line: #2D323C;
+    --accent: #93A6FF; --accent-soft: #222A4A; --warm: #E6BE79; --warm-soft: #2E2616;
+    --add: #74D3A0; --add-bg: #142E20; --del: #FF9188; --del-bg: #3A1D1A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #111318; --surface: #1A1D24; --ink: #ECEEF3; --muted: #A1A7B5; --line: #2D323C;
+  --accent: #93A6FF; --accent-soft: #222A4A; --warm: #E6BE79; --warm-soft: #2E2616;
+  --add: #74D3A0; --add-bg: #142E20; --del: #FF9188; --del-bg: #3A1D1A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--body); font-size: 16.5px; line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 1000px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 56px 80px;
+}
+h1, h2, h3 { font-family: var(--display); font-weight: 400; line-height: 1.2; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.3rem, 6vw, 3.8rem); letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.6rem, 3.6vw, 2.2rem); }
+h3 { font-size: 1.2rem; }
+p { margin: 0; }
+.ltr { direction: ltr; unicode-bidi: isolate; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+.muted { color: var(--muted); }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.prose { max-width: 66ch; }
+
+/* hero */
+.hero { display: flex; flex-direction: column; gap: 18px; padding-bottom: 8px; }
+.kicker { font-family: var(--mono); font-size: 0.8rem; letter-spacing: 0.08em; color: var(--accent); direction: ltr; unicode-bidi: isolate; text-align: right; }
+.lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+
+section { margin-top: 80px; display: flex; flex-direction: column; gap: 24px; }
+.sec-head { display: flex; flex-direction: column; gap: 8px; }
+.sec-label { font-size: 0.85rem; font-weight: 600; color: var(--accent); letter-spacing: 0.02em; }
+
+/* --- 1. chat vs code --- */
+.versus { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.lane { border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.lane.chat { background: var(--warm-soft); }
+.lane.code { background: var(--accent-soft); }
+.lane-head { display: flex; flex-direction: column; gap: 2px; }
+.lane.chat .lane-head h3 { color: var(--warm); }
+.lane.code .lane-head h3 { color: var(--accent); }
+.flow { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 22px; }
+.flow li {
+  position: relative; background: var(--surface); border-radius: 10px; padding: 11px 14px;
+  border: 1px solid var(--line);
+}
+.flow li:not(:last-child)::after {
+  content: ""; position: absolute; right: 50%; bottom: -17px; width: 2px; height: 12px;
+  background: var(--muted); opacity: 0.5;
+}
+.flow li.result { border: 2px solid currentColor; font-weight: 600; }
+.lane.chat li.result { color: var(--warm); }
+.lane.code li.result { color: var(--accent); }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; }
+th, td { text-align: right; padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+thead th { font-size: 0.85rem; color: var(--muted); font-weight: 600; background: var(--paper); }
+thead th.c-chat { color: var(--warm); }
+thead th.c-code { color: var(--accent); }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td.c-code { font-weight: 500; }
+
+/* --- 2. map --- */
+.map { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 28px 22px; display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+.map-row { display: grid; grid-template-columns: minmax(0,1fr) 96px minmax(0,1.15fr) 96px minmax(0,1fr); align-items: center; gap: 8px; }
+.map-row.lower { grid-template-columns: minmax(0,1fr) 96px minmax(0,1fr); max-width: 680px; margin-inline: auto; width: 100%; }
+.node { border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; background: var(--surface); }
+.node.hub { border-color: var(--accent); background: var(--accent-soft); }
+.node .who { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+.node strong { font-size: 1.05rem; }
+.node .sub { font-size: 0.86rem; color: var(--muted); overflow-wrap: anywhere; }
+.link { display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--muted); font-family: var(--mono); font-size: 0.75rem; text-align: center; }
+.link svg { width: 72px; height: 28px; display: block; }
+.link svg path { stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.down { display: flex; justify-content: center; }
+.down .link svg { width: 28px; height: 44px; }
+.note { border-inline-start: 3px solid var(--warm); padding: 4px 14px; color: var(--muted); font-size: 0.95rem; }
+.note strong { color: var(--ink); }
+
+/* --- 3. git --- */
+.analogies { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+.analogy { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+.analogy strong { font-size: 1.02rem; }
+.analogy span { color: var(--muted); font-size: 0.93rem; }
+
+.pipeline { display: grid; grid-template-columns: minmax(0,1fr) 92px minmax(0,1fr) 92px minmax(0,1fr) 92px minmax(0,1fr); align-items: stretch; gap: 6px; }
+.station { background: var(--surface); border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.station.hub { border-color: var(--accent); background: var(--accent-soft); }
+.station .tag { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); direction: ltr; text-align: right; }
+.station strong { font-size: 1.02rem; line-height: 1.3; }
+.station span { font-size: 0.88rem; color: var(--muted); }
+.step-arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--accent); text-align: center; }
+.step-arrow svg { width: 64px; height: 16px; }
+.step-arrow svg path { stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.step-arrow code { font-weight: 500; font-size: 0.8rem; direction: ltr; }
+.step-arrow small { color: var(--muted); font-size: 0.78rem; line-height: 1.3; }
+.pullback { display: flex; align-items: center; gap: 12px; color: var(--accent); padding-inline: 10px; }
+.pullback svg { flex: 1; height: 16px; min-width: 0; }
+.pullback svg path { stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pullback span { font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
+.pullback code { color: var(--accent); font-weight: 500; }
+
+.commit-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.cc-part { padding: 16px 22px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 120px minmax(0,1fr); gap: 16px; align-items: start; }
+.cc-part:last-child { border-bottom: 0; }
+.cc-label { font-size: 0.82rem; font-weight: 600; color: var(--accent); padding-top: 2px; }
+.cc-hash { font-family: var(--mono); font-size: 1.25rem; font-weight: 500; direction: ltr; text-align: right; }
+.cc-msg-en { font-family: var(--mono); font-size: 0.82rem; color: var(--muted); direction: ltr; text-align: left; }
+.files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.files li { display: grid; grid-template-columns: minmax(0,1fr) 92px 120px; gap: 12px; align-items: center; font-size: 0.9rem; }
+.files .path { font-family: var(--mono); font-size: 0.8rem; direction: ltr; text-align: left; overflow-wrap: anywhere; }
+.files .nums { font-family: var(--mono); font-size: 0.8rem; direction: ltr; text-align: left; font-variant-numeric: tabular-nums; }
+.files .nums .a { color: var(--add); }
+.files .nums .d { color: var(--del); }
+.bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--paper); direction: ltr; }
+.bar i { display: block; height: 100%; }
+.bar .a { background: var(--add); }
+.bar .d { background: var(--del); }
+.new { font-family: var(--body); font-size: 0.72rem; background: var(--add-bg); color: var(--add); padding: 1px 6px; border-radius: 4px; margin-inline-start: 6px; }
+.totals { font-size: 0.9rem; color: var(--muted); }
+
+.diff { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.diff-head { font-family: var(--mono); font-size: 0.8rem; padding: 10px 16px; background: var(--paper); border-bottom: 1px solid var(--line); direction: ltr; text-align: left; color: var(--muted); }
+.diff-body { overflow-x: auto; direction: ltr; }
+.diff pre { margin: 0; font-family: var(--mono); font-size: 0.8rem; line-height: 1.7; padding: 10px 0; min-width: max-content; }
+.diff pre span { display: block; padding: 0 16px; white-space: pre; }
+.diff .rm { background: var(--del-bg); color: var(--del); }
+.diff .ad { background: var(--add-bg); color: var(--add); }
+.diff mark { background: transparent; color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+.history { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 18px; }
+.commit { display: grid; grid-template-columns: 52px minmax(0,1fr); gap: 10px; }
+.rail { position: relative; }
+.rail svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.rail path { fill: none; stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.rail .m { stroke: var(--ink); }
+.rail .b { stroke: var(--accent); }
+.dot { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; transform: translate(-50%, -50%); background: var(--surface); border: 3px solid var(--ink); }
+.dot.main { left: 36px; }
+.dot.branch { left: 14px; border-color: var(--accent); }
+.dot.merge { left: 36px; background: var(--ink); }
+.c-body { padding-block: 12px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.c-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 0.82rem; color: var(--muted); }
+.c-meta .mono { color: var(--ink); direction: ltr; }
+.chip { font-size: 0.74rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.chip.acc { color: var(--accent); }
+.chip.ink { color: var(--ink); }
+.c-title { font-weight: 500; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 0.85rem; color: var(--muted); padding-top: 8px; border-top: 1px solid var(--line); margin-top: 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
+
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 14px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.steps li::before { content: counter(s); font-family: var(--display); font-size: 1.3rem; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.steps strong { display: block; }
+.steps span { color: var(--muted); font-size: 0.95rem; }
+
+.conflict { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap: 20px; align-items: start; }
+.vs-box { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); font-size: 0.92rem; }
+.vs-box div { padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.vs-box div:last-child { border-bottom: 0; }
+.vs-box .h { font-size: 0.8rem; font-weight: 600; color: var(--muted); background: var(--paper); }
+.vs-box .me { border-inline-start: 4px solid var(--accent); }
+.vs-box .her { border-inline-start: 4px solid var(--warm); }
+.tips { margin: 0; padding-inline-start: 20px; display: flex; flex-direction: column; gap: 6px; }
+
+.glossary { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0 28px; margin: 0; }
+.glossary div { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 130px minmax(0,1fr); gap: 12px; }
+.glossary dt { font-weight: 600; }
+.glossary dt .mono { display: block; font-weight: 400; color: var(--muted); font-size: 0.78rem; direction: ltr; text-align: right; }
+.glossary dd { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+
+@media (max-width: 760px) {
+  .versus, .analogies, .conflict, .glossary { grid-template-columns: 1fr; }
+  .map-row, .map-row.lower { grid-template-columns: 1fr; }
+  .map-row .link svg { transform: rotate(90deg); width: 44px; height: 28px; margin-block: 6px; }
+  .pipeline { grid-template-columns: 1fr; }
+  .step-arrow { flex-direction: row; gap: 10px; padding-block: 4px; }
+  .step-arrow svg { transform: rotate(-90deg); width: 36px; }
+  .pullback svg { display: none; }
+  .pullback { padding-inline: 0; }
+  .pullback span { white-space: normal; }
+  .cc-part { grid-template-columns: 1fr; gap: 6px; }
+  .files li { grid-template-columns: minmax(0,1fr) 82px; }
+  .files .bar { display: none; }
+  .glossary div { grid-template-columns: 110px minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .flow li, .station, .node { transition: transform .2s ease; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="kicker">GetPro · coach-pilot</div>
+    <h1>למה Git ו־Claude Code</h1>
+    <p class="lede">ענבר, זה הסבר קצר למה אנחנו עובדות על הפרויקט עם Claude Code ו־Git ולא בצ׳אט הרגיל של Claude, ומה Git עושה בפועל. כל הדוגמאות לקוחות מהפרויקט שלנו.</p>
+  </header>
+
+  <!-- 1 -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-label">חלק 1</div>
+      <h2>צ׳אט רגיל מול Claude Code</h2>
+      <p class="prose muted">שניהם אותו Claude. ההבדל הוא איפה הוא עובד: בצ׳אט הוא רואה רק מה שמדביקים לו, וב־Claude Code הוא עובד בתוך תיקיית הפרויקט עצמה.</p>
+    </div>
+
+    <div class="versus">
+      <div class="lane chat">
+        <div class="lane-head">
+          <h3>Claude בצ׳אט (claude.ai)</h3>
+          <span class="muted">אנחנו המתווכות בין קלוד לקבצים</span>
+        </div>
+        <ol class="flow">
+          <li>מעתיקות קוד מהקבצים ומדביקות בצ׳אט</li>
+          <li>קלוד רואה רק את מה שהדבקנו, לא את שאר 40 הקבצים</li>
+          <li>מקבלות קוד חדש בחזרה</li>
+          <li>מדביקות ידנית בקובץ הנכון, ומקוות שלא פספסנו שורה</li>
+          <li class="result">מעלות לאתר ידנית. בלי בדיקות, ובלי דרך קלה לחזור אחורה</li>
+        </ol>
+      </div>
+      <div class="lane code">
+        <div class="lane-head">
+          <h3>Claude Code</h3>
+          <span class="muted">קלוד עובד ישירות על הפרויקט</span>
+        </div>
+        <ol class="flow">
+          <li>קלוד פותח את תיקיית הפרויקט, במחשב או בענן</li>
+          <li>קורא את כל הקבצים, ואת <span class="ltr mono">CLAUDE.md</span> עם הכללים שלנו</li>
+          <li>עורך את הקבצים בעצמו, בכל המקומות שצריך</li>
+          <li>מריץ את הבדיקות של הפרויקט ומתקן אם משהו נשבר</li>
+          <li class="result">שומר גרסה ב־Git ושולח ל־GitHub. האתר מתעדכן לבד</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th></th><th class="c-chat">צ׳אט רגיל</th><th class="c-code">Claude Code + Git</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>מה קלוד רואה</td><td>רק מה שהדבקנו</td><td class="c-code">את כל הפרויקט</td></tr>
+          <tr><td>זיכרון בין שיחות</td><td>מתחיל מאפס בכל שיחה</td><td class="c-code">קורא את <span class="ltr mono">CLAUDE.md</span> בכל פעם ויודע מה הפרויקט והכללים</td></tr>
+          <tr><td>שינוי קבצים</td><td>אנחנו מעתיקות ומדביקות</td><td class="c-code">הוא עורך בעצמו</td></tr>
+          <tr><td>בדיקות</td><td>אין</td><td class="c-code">מריץ את בדיקות המסד, השרת והממשק לפני כל שמירה</td></tr>
+          <tr><td>גרסאות</td><td>‏״final_v3_באמת_אחרון״</td><td class="c-code">היסטוריה מלאה, אפשר לחזור לכל נקודה</td></tr>
+          <tr><td>עבודה בשתיים</td><td>שולחות קבצים אחת לשנייה</td><td class="c-code">שתינו עובדות על אותו ריפו ב־GitHub</td></tr>
+          <tr><td>עדכון האתר</td><td>ידני</td><td class="c-code">כל עדכון של <span class="ltr mono">main</span> עולה לאתר אוטומטית</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-label">חלק 2</div>
+      <h2>איך כל החלקים מתחברים</h2>
+      <p class="prose muted">GitHub הוא המקור המשותף. כל אחת מאיתנו עובדת אצלה, שולחת לשם ומושכת משם. האתר נבנה תמיד ממה שיש ב־GitHub.</p>
+    </div>
+
+    <div class="map">
+      <div class="map-row">
+        <div class="node">
+          <span class="who">ג׳ני</span>
+          <strong>Claude Code</strong>
+          <span class="sub">עותק מלא של הפרויקט במחשב</span>
+        </div>
+        <div class="link">
+          <svg viewBox="0 0 72 28" aria-hidden="true"><path d="M8 9 H64 M58 4 L64 9 L58 14"/><path d="M64 19 H8 M14 14 L8 19 L14 24"/></svg>
+          <span>push / pull</span>
+        </div>
+        <div class="node hub">
+          <span class="who">המקור המשותף</span>
+          <strong>GitHub</strong>
+          <span class="sub ltr" style="text-align:right">inbarlerner/coach-pilot</span>
+        </div>
+        <div class="link">
+          <svg viewBox="0 0 72 28" aria-hidden="true"><path d="M8 9 H64 M58 4 L64 9 L58 14"/><path d="M64 19 H8 M14 14 L8 19 L14 24"/></svg>
+          <span>push / pull</span>
+        </div>
+        <div class="node">
+          <span class="who">ענבר</span>
+          <strong>Claude Code</strong>
+          <span class="sub">עותק מלא של הפרויקט, במחשב או בענן</span>
+        </div>
+      </div>
+
+      <div class="down">
+        <div class="link">
+          <svg viewBox="0 0 28 44" aria-hidden="true"><path d="M14 4 V38 M8 32 L14 38 L20 32"/></svg>
+          <span>כל עדכון של main</span>
+        </div>
+      </div>
+
+      <div class="map-row lower">
+        <div class="node">
+          <span class="who">האתר החי</span>
+          <strong>Cloudflare Pages</strong>
+          <span class="sub ltr" style="text-align:right">coach-pilot-5jk.pages.dev</span>
+        </div>
+        <div class="link">
+          <svg viewBox="0 0 72 28" aria-hidden="true"><path d="M8 9 H64 M58 4 L64 9 L58 14"/><path d="M64 19 H8 M14 14 L8 19 L14 24"/></svg>
+          <span>נתונים</span>
+        </div>
+        <div class="node">
+          <span class="who">מאחורי הקלעים</span>
+          <strong>Supabase</strong>
+          <span class="sub">התחברות, מסד נתונים, סרטונים והקלטות</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="note"><strong>הצעד היחיד שלא קורה לבד:</strong> כששינוי כולל קובץ SQL חדש בתיקייה <span class="ltr mono">supabase/</span> (כמו <span class="ltr mono">006_request_coach.sql</span>), צריך להריץ אותו ידנית ב־Supabase, במסך SQL Editor.</p>
+  </section>
+
+  <!-- 3 -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-label">חלק 3</div>
+      <h2>מה Git עושה</h2>
+      <p class="prose muted">Git הוא כלי שזוכר כל גרסה של הפרויקט. GitHub הוא האתר שמחזיק את העותק המשותף שלנו בענן. אפשר לחשוב על Git כשילוב של שלושה דברים מוכרים:</p>
+    </div>
+    <div class="analogies">
+      <div class="analogy"><strong>נקודות שמירה במשחק</strong><span>כל גרסה נשמרת, ואפשר לחזור לכל אחת מהן.</span></div>
+      <div class="analogy"><strong>מעקב שינויים בוורד</strong><span>רואים בדיוק איזו שורה השתנתה, מי שינה ומתי.</span></div>
+      <div class="analogy"><strong>תיקייה משותפת, בלי דריסות</strong><span>שתינו עובדות על אותו פרויקט, ו־Git מחבר את השינויים.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h3>הדרך של שינוי: ארבע תחנות</h3>
+      <p class="prose muted">את לא צריכה לזכור את הפקודות. Claude Code מריץ אותן בשבילנו. מספיק להבין מה קורה בכל תחנה.</p>
+    </div>
+    <div class="pipeline">
+      <div class="station">
+        <span class="tag">working folder</span>
+        <strong>תיקיית העבודה</strong>
+        <span>הקבצים כמו שהם עכשיו במחשב. כאן קלוד עורך.</span>
+      </div>
+      <div class="step-arrow">
+        <svg viewBox="0 0 64 16" aria-hidden="true"><path d="M60 8 H4 M10 2 L4 8 L10 14"/></svg>
+        <code>git add</code><small>בוחרות מה ייכנס</small>
+      </div>
+      <div class="station">
+        <span class="tag">staging</span>
+        <strong>אזור ההכנה</strong>
+        <span>השינויים שנבחרו לגרסה הבאה.</span>
+      </div>
+      <div class="step-arrow">
+        <svg viewBox="0 0 64 16" aria-hidden="true"><path d="M60 8 H4 M10 2 L4 8 L10 14"/></svg>
+        <code>git commit</code><small>שומרות גרסה עם הסבר</small>
+      </div>
+      <div class="station">
+        <span class="tag">local history</span>
+        <strong>ההיסטוריה במחשב</strong>
+        <span>גרסה שמורה עם מזהה, תאריך, שם והסבר.</span>
+      </div>
+      <div class="step-arrow">
+        <svg viewBox="0 0 64 16" aria-hidden="true"><path d="M60 8 H4 M10 2 L4 8 L10 14"/></svg>
+        <code>git push</code><small>שולחות ל־GitHub</small>
+      </div>
+      <div class="station hub">
+        <span class="tag">GitHub</span>
+        <strong>העותק המשותף</strong>
+        <span>משם השותפה מושכת, ומשם האתר מתעדכן.</span>
+      </div>
+    </div>
+    <div class="pullback">
+      <span><code class="ltr">git pull</code> מביא למחשב את מה שהשותפה שלחה</span>
+      <svg viewBox="0 0 600 16" preserveAspectRatio="none" aria-hidden="true"><path d="M4 8 H594 M586 2 L594 8 L586 14" vector-effect="non-scaling-stroke"/></svg>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h3>מה יש בתוך גרסה אחת (commit)</h3>
+      <p class="prose muted">זו הגרסה שענבר הוסיפה היום. כל commit שומר את אותם ארבעה דברים.</p>
+    </div>
+    <div class="commit-card">
+      <div class="cc-part">
+        <div class="cc-label">מזהה ייחודי</div>
+        <div><div class="cc-hash">62cdec7</div><span class="muted" style="font-size:.9rem">כך אפשר להצביע על הגרסה הזו בדיוק, ולחזור אליה.</span></div>
+      </div>
+      <div class="cc-part">
+        <div class="cc-label">מי ומתי</div>
+        <div>ענבר (<span class="ltr mono">lernerinbar-glitch</span>) יחד עם Claude · 22.10.2026, 11:03</div>
+      </div>
+      <div class="cc-part">
+        <div class="cc-label">למה (ההסבר)</div>
+        <div class="stack" style="gap:6px">
+          <div>משתמש קיים יכול לבקש להיות מאמן, והאתר מזהה הרשמה חוזרת שנבלעה בשקט.</div>
+          <div class="cc-msg-en">Let existing accounts apply as coach; catch silently ignored repeat signups</div>
+        </div>
+      </div>
+      <div class="cc-part">
+        <div class="cc-label">מה השתנה</div>
+        <div class="stack" style="gap:10px">
+          <ul class="files">
+            <li><span class="path">tests/request_coach.sql<span class="new">חדש</span></span><span class="nums"><span class="a">+66</span></span><span class="bar"><i class="a" style="width:100%"></i></span></li>
+            <li><span class="path">supabase/006_request_coach.sql<span class="new">חדש</span></span><span class="nums"><span class="a">+65</span></span><span class="bar"><i class="a" style="width:98%"></i></span></li>
+            <li><span class="path">public/js/pages/settings.js</span><span class="nums"><span class="a">+27</span> <span class="d">−1</span></span><span class="bar"><i class="a" style="width:41%"></i><i class="d" style="width:1.5%"></i></span></li>
+            <li><span class="path">public/js/pages/auth.js</span><span class="nums"><span class="a">+8</span></span><span class="bar"><i class="a" style="width:12%"></i></span></li>
+            <li><span class="path">public/js/ui.js</span><span class="nums"><span class="a">+3</span></span><span class="bar"><i class="a" style="width:4.5%"></i></span></li>
+            <li><span class="path">CLAUDE.md</span><span class="nums"><span class="a">+3</span> <span class="d">−1</span></span><span class="bar"><i class="a" style="width:4.5%"></i><i class="d" style="width:1.5%"></i></span></li>
+            <li><span class="path">public/js/pages/notifications.js</span><span class="nums"><span class="a">+1</span> <span class="d">−1</span></span><span class="bar"><i class="a" style="width:1.5%"></i><i class="d" style="width:1.5%"></i></span></li>
+          </ul>
+          <div class="totals">7 קבצים · <span class="ltr">173</span> שורות נוספו · <span class="ltr">3</span> נמחקו</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h3>רואים כל שורה שהשתנתה (diff)</h3>
+      <p class="prose muted">זה השינוי בקובץ ההתראות מאותה גרסה. השורה האדומה יצאה, הירוקה נכנסה במקומה. מה שנוסף: התראה על בקשה להיות מאמן לוקחת את המנהלת ישר למסך הניהול.</p>
+    </div>
+    <div class="diff">
+      <div class="diff-head">public/js/pages/notifications.js</div>
+      <div class="diff-body">
+<pre><span class="rm">- const href = n.request_id ? '#/r/' + n.request_id : (n.type === 'coach_status' ? '#/me' : null);</span><span class="ad">+ const href = n.request_id ? '#/r/' + n.request_id : (n.type === 'coach_status' ? '#/me' : <mark>n.type === 'coach_request' ? '#/admin'</mark> : null);</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h3>ההיסטוריה של הפרויקט שלנו</h3>
+      <p class="prose muted">כל נקודה היא גרסה שלמה של הפרויקט, מהראשונה (למעלה) ועד היום. אם משהו נשבר, אפשר לחזור לכל אחת מהן.</p>
+    </div>
+    <div class="history">
+      <div class="commit">
+        <div class="rail"><svg viewBox="0 0 52 100" preserveAspectRatio="none" aria-hidden="true"><path class="m" d="M36 50 V100"/></svg><span class="dot main"></span></div>
+        <div class="c-body">
+          <div class="c-meta"><span class="mono">e4ef56f</span><span>Claude</span><span>21.10</span></div>
+          <div class="c-title">הבסיס: מסד נתונים, פונקציות שרת, אתר ובדיקות</div>
+        </div>
+      </div>
+      <div class="commit">
+        <div class="rail"><svg viewBox="0 0 52 100" preserveAspectRatio="none" aria-hidden="true"><path class="m" d="M36 0 V100"/></svg><span class="dot main"></span></div>
+        <div class="c-body">
+          <div class="c-meta"><span class="mono">e0a1894</span><span>Claude</span><span>21.10</span><span class="chip ink">גרסה 1</span></div>
+          <div class="c-title">גרסה ראשונה של הפיילוט: ממשק בעברית, בדיקות ממשק מלאות, README</div>
+        </div>
+      </div>
+      <div class="commit">
+        <div class="rail"><svg viewBox="0 0 52 100" preserveAspectRatio="none" aria-hidden="true"><path class="m" d="M36 0 V100"/></svg><span class="dot main"></span></div>
+        <div class="c-body">
+          <div class="c-meta"><span class="mono">235eddc</span><span>Claude</span><span>22.10</span></div>
+          <div class="c-title">העברת האחסון מ־Cloudflare R2 ל־Supabase Storage, בלי כרטיס אשראי</div>
+        </div>
+      </div>
+      <div class="commit">
+        <div class="rail"><svg viewBox="0 0 52 100" preserveAspectRatio="none" aria-hidden="true"><path class="m" d="M36 0 V100"/></svg><span class="dot main"></span></div>
+        <div class="c-body">
+          <div class="c-meta"><span class="mono">ae08431</span><span>Claude</span><span>22.10</span></div>
+          <div class="c-title">פינוי אוטומטי של הסרטונים הישנים כשהאחסון מתקרב לגבול</div>
+        </div>
+      </div>
+      <div class="commit">
+        <div class="rail"><svg viewBox="0 0 52 100" preserveAspectRatio="none" aria-hidden="true"><path class="m" d="M36 0 V100"/></svg><span class="dot main"></span></div>
+        <div class="c-body">
+          <div class="c-meta"><span class="mono">c4cefca</span><span>Claude</span><span>22.10</span></div>
+          <div class="c-title">הוספת <span class="ltr mono">CLAUDE.md</span>, קובץ ההקשר של קלוד</div>
+        </div>
+      </div>
+      <div class="commit">
+        <div class="rail"><svg viewBox="0 0 52 100" preserveAspectRatio="none" aria-hidden="true"><path class="m" d="M36 0 V100"/><path class="b" d="M36 0 C36 30 14 20 14 50 V100"/></svg><span class="dot branch"></span></div>
+        <div class="c-body">
+          <div class="c-meta"><span class="mono">62cdec7</span><span>ענבר</span><span>22.10</span><span class="chip acc">בענף נפרד</span></div>
+          <div class="c-title">משתמש קיים יכול לבקש להיות מאמן</div>
+        </div>
+      </div>
+      <div class="commit">
+        <div class="rail"><svg viewBox="0 0 52 100" preserveAspectRatio="none" aria-hidden="true"><path class="m" d="M36 0 V50"/><path class="b" d="M14 0 C14 30 36 20 36 50"/></svg><span class="dot merge"></span></div>
+        <div class="c-body">
+          <div class="c-meta"><span class="mono">f1b8f94</span><span>ענבר</span><span>22.10</span><span class="chip ink">main · באוויר</span></div>
+          <div class="c-title">מיזוג Pull Request #1 לתוך main</div>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--ink)"></i>main, הגרסה הראשית שבאתר</span>
+        <span><i style="background:var(--accent)"></i>ענף <span class="ltr mono">claude/project-thread-aa4ukc</span></span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h3>ענפים ו־Pull Request: מה קרה עם השינוי של ענבר</h3>
+      <p class="prose muted">ענף הוא עותק צדדי שאפשר לנסות בו דברים בלי לגעת במה שבאוויר. כך עבר השינוי מהרעיון ועד האתר:</p>
+    </div>
+    <ol class="steps">
+      <li><div><strong>ענבר פתחה ענף נפרד</strong><span>עותק צדדי בשם <span class="ltr mono">claude/project-thread-aa4ukc</span>. בזמן הזה, main והאתר לא השתנו.</span></div></li>
+      <li><div><strong>קלוד עבד בענף</strong><span>הוסיף אפשרות למשתמש קיים לבקש להיות מאמן, וכתב לזה בדיקה.</span></div></li>
+      <li><div><strong>נפתח Pull Request #1</strong><span>בקשה למזג את הענף לתוך main. כאן אפשר לראות את כל השינויים לפני שהם עולים לאתר.</span></div></li>
+      <li><div><strong>מיזוג לתוך main</strong><span>השינוי נכנס לגרסה הראשית, ו־Cloudflare עדכן את האתר החי.</span></div></li>
+      <li><div><strong>אצל ג׳ני: <span class="ltr mono">git pull</span></strong><span>פקודה אחת הביאה את השינוי למחשב שלה. בלי לשלוח קבצים בווטסאפ.</span></div></li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h3>ומה קורה אם שתינו משנות את אותה שורה?</h3>
+    </div>
+    <div class="conflict">
+      <div class="vs-box" aria-label="דוגמה להתנגשות">
+        <div class="h">Git עוצר ומראה את שתי הגרסאות</div>
+        <div class="me">ג׳ני: מכסת בקשות ברירת מחדל = 3</div>
+        <div class="her">ענבר: מכסת בקשות ברירת מחדל = 5</div>
+        <div class="h">ואנחנו (או קלוד) בוחרות מה נשאר</div>
+      </div>
+      <div class="stack">
+        <p>זה נקרא התנגשות (conflict). Git לא מנחש ולא מוחק כלום בשקט. הוא מסמן את המקום ומחכה להחלטה. כדי שזה יקרה כמה שפחות:</p>
+        <ul class="tips">
+          <li>למשוך (pull) לפני שמתחילות לעבוד</li>
+          <li>לשמור בגרסאות קטנות ותכופות</li>
+          <li>לעבוד בענף ולמזג עם Pull Request</li>
+        </ul>
+        <p class="muted" style="font-size:.9rem">הדוגמה מומצאת, רק להמחשה.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-label">חלק 4</div>
+      <h2>השגרה שלנו</h2>
+    </div>
+    <ol class="steps">
+      <li><div><strong>מושכות עדכונים</strong><span><span class="ltr mono">git pull</span>, כדי להתחיל מהגרסה האחרונה ב־GitHub.</span></div></li>
+      <li><div><strong>עובדות עם Claude Code</strong><span>מסבירות מה רוצים. קלוד קורא את <span class="ltr mono">CLAUDE.md</span> ועובד לפי הכללים שלנו.</span></div></li>
+      <li><div><strong>מריצות בדיקות</strong><span>קלוד מריץ את כל הבדיקות לפני שמירה, לפי מה שכתוב ב־<span class="ltr mono">CLAUDE.md</span>.</span></div></li>
+      <li><div><strong>שומרות ושולחות</strong><span>commit עם הסבר, ואז push ל־GitHub. לשינוי גדול: ענף ו־Pull Request.</span></div></li>
+      <li><div><strong>האתר מתעדכן</strong><span>Cloudflare מפרסם לבד. אם נוסף קובץ SQL חדש, מריצות אותו ב־Supabase.</span></div></li>
+    </ol>
+  </section>
+
+  <!-- 5 -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-label">מילון</div>
+      <h2>מילים שיחזרו</h2>
+    </div>
+    <dl class="glossary">
+      <div><dt>ריפו<span class="mono">repository</span></dt><dd>תיקיית הפרויקט יחד עם כל ההיסטוריה שלה.</dd></div>
+      <div><dt>גרסה<span class="mono">commit</span></dt><dd>תמונת מצב של כל הפרויקט, עם מזהה, שם, תאריך והסבר.</dd></div>
+      <div><dt>שליחה<span class="mono">push</span></dt><dd>שליחת הגרסאות החדשות מהמחשב ל־GitHub.</dd></div>
+      <div><dt>משיכה<span class="mono">pull</span></dt><dd>הבאת הגרסאות החדשות מ־GitHub למחשב.</dd></div>
+      <div><dt>שכפול<span class="mono">clone</span></dt><dd>הורדת עותק מלא של הריפו, בפעם הראשונה.</dd></div>
+      <div><dt>ענף<span class="mono">branch</span></dt><dd>עותק צדדי לעבודה, בלי לגעת בגרסה הראשית.</dd></div>
+      <div><dt>main</dt><dd>הענף הראשי. אצלנו זה מה שבאוויר.</dd></div>
+      <div><dt>Pull Request</dt><dd>בקשה למזג ענף לתוך main, עם אפשרות לראות את השינויים קודם.</dd></div>
+      <div><dt>מיזוג<span class="mono">merge</span></dt><dd>הכנסת השינויים מענף אחד לענף אחר.</dd></div>
+      <div><dt>הבדלים<span class="mono">diff</span></dt><dd>רשימת השורות שנוספו ונמחקו.</dd></div>
+      <div><dt>התנגשות<span class="mono">conflict</span></dt><dd>שתי גרסאות שינו את אותה שורה, ו־Git מבקש לבחור.</dd></div>
+      <div><dt>GitHub</dt><dd>האתר שמחזיק את העותק המשותף שלנו בענן.</dd></div>
+    </dl>
+  </section>
+
+  <footer>הוכן לענבר · פרויקט GetPro (coach-pilot) · אוקטובר 2026</footer>
+</div>
+</body>
+</html>
