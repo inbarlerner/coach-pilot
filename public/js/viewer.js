@@ -105,6 +105,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     colorTimer = setTimeout(() => { longPressed = true; togglePalette(true); }, COLOR_HOLD_MS);
   });
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) pencilBtn.addEventListener(ev, () => clearTimeout(colorTimer));
+  const textBtn = roundButton('Add text to this frame', icon('text'), addText);
   const undoBtn = roundButton('Undo the last drawing on this frame', '↶', undo);
   undoBtn.classList.add('viewer-undo');
 
@@ -113,7 +114,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
       type: 'button', class: 'viewer-swatch', 'aria-label': `Colour ${c}`, style: { background: c },
       onclick: () => pickColor(c),
     })));
-  const rail = h('div', { class: 'viewer-rail' }, playBtn, speedBtn, pencilBtn, undoBtn);
+  const rail = h('div', { class: 'viewer-rail' }, playBtn, speedBtn, pencilBtn, textBtn, undoBtn);
   const top = h('div', { class: 'viewer-top' },
     roundButton('Back to the request', icon('back'), () => onClose()),
     h('span', { class: 'title' }, title));
@@ -163,14 +164,21 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     track.setAttribute('aria-valuetext', timeLabel.textContent);
   }
   function markTimes() { return [...new Set([...strokes, ...notes].map((s) => round(s.t, 10)))].sort((a, b) => a - b); }
+  // A dot per frame: yellow = drawing, white with T = text, yellow with T = both.
   function renderMarks() {
     const d = duration();
-    clear(marks).append(markTimes().map((t) => h('button', {
-      type: 'button', class: 'viewer-mark' + (t === noteAt ? ' on' : ''),
-      'aria-label': `Frame at ${clock(t)}`, title: `Frame at ${clock(t)}`,
-      style: { left: d ? `${(t / d) * 100}%` : '0%' },
-      onclick: (e) => { e.stopPropagation(); seekTo(t); video.pause(); openNote(t); },
-    })));
+    clear(marks).append(markTimes().map((t) => {
+      const draws = strokes.some((x) => round(x.t, 10) === t);
+      const texts = notes.some((x) => round(x.t, 10) === t);
+      const kind = [draws && 'draw', texts && 'text'].filter(Boolean).join(' ');
+      const label = `Frame at ${clock(t)}: ${[draws && 'drawing', texts && 'text'].filter(Boolean).join(' and ')}`;
+      return h('button', {
+        type: 'button', class: `viewer-mark ${kind}` + (t === noteAt ? ' on' : ''),
+        'aria-label': label, title: label,
+        style: { left: d ? `${(t / d) * 100}%` : '0%' },
+        onclick: (e) => { e.stopPropagation(); seekTo(t); video.pause(); openNote(t); },
+      }, texts ? 'T' : null);
+    }));
   }
   function seekTo(t) { video.currentTime = Math.max(0, Math.min(duration() || t, t)); showProgress(); }
   const seekFromX = (e) => {
@@ -186,6 +194,13 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     noteInput.value = notes.find((n) => round(n.t, 10) === t)?.text || '';
     noteRow.hidden = false;
     renderMarks();
+  }
+  // The text tool: pause on this frame and write an explanation for it.
+  function addText() {
+    setDrawing(false);
+    video.pause();
+    openNote(round(video.currentTime, 100));
+    noteInput.focus({ preventScroll: true });
   }
   function hideNote() {
     if (noteAt === null) return;
