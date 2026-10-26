@@ -3,11 +3,8 @@ import { h, clear, icon, loading, errorState, friendlyError, fmtDate, timeLeft, 
 import { sb, state, q, rpc, action, sportName, languageNames, mediaUrl, coverUrl } from '../api.js';
 import { protectedVideo, analysisItem, recorder, languagesLine } from '../components.js';
 import { personLink, avatar, coverImg } from '../images.js';
-import { coachViewer } from '../viewer.js';
+import { coachViewer, readDrawings, isEmptyDrawings } from '../viewer.js';
 import { go, refreshBadge } from '../app.js';
-
-// Drawings are stored as a JSON list; a broken value means no drawings.
-const parseDrawings = (body) => { try { return JSON.parse(body) || []; } catch { return []; } };
 
 export async function requestPage({ main, setTitle, params }) {
   setTitle('Analysis request');
@@ -15,7 +12,7 @@ export async function requestPage({ main, setTitle, params }) {
   let timers = [];
   let recorders = [];
   let closeViewer = null;
-  let drawings = [];        // the coach's pencil strokes for this analysis; kept while the page is open
+  let drawings = { strokes: [], notes: [] };   // the coach's pencil work and frame notes; kept while the page is open
   const cleanup = () => {
     timers.forEach(clearInterval); recorders.forEach((r) => r.cleanup && r.cleanup()); timers = []; recorders = [];
     closeViewer?.();
@@ -118,7 +115,7 @@ export async function requestPage({ main, setTitle, params }) {
     catch (e) { return root.append(errorState(friendlyError(e), load)); }
     const textItem = items.find((i) => i.kind === 'text');
     const savedDrawings = items.find((i) => i.kind === 'drawing');
-    if (savedDrawings && !drawings.length) drawings = parseDrawings(savedDrawings.body);
+    if (savedDrawings && isEmptyDrawings(drawings)) drawings = readDrawings(savedDrawings.body);
     const text = h('textarea', { id: 'a_text', style: { minHeight: '180px' }, placeholder: 'What you saw, what to fix and how to practice' }, textItem?.body || '');
     text.value = textItem?.body || '';
     const mediaList = h('div');

@@ -1,8 +1,10 @@
 // Full-screen viewer for a coach watching a trainee's video.
-// The video fills the screen. Two quick taps on the right half jump 3 s forward, on the left half 3 s back.
-// Hold to play at 0.25×. Round buttons on the left: play/pause, 0.5× speed, pencil (draw on one frame).
+// The video fills the screen. One tap plays or pauses; two quick taps on one side jump 3 s.
+// Hold to play at 0.25×; release to go back to 1×. Round buttons on the left: play/pause, 0.5× speed,
+// pencil (hold for colours; tap to draw on the paused frame). The bar under the video shows where we are;
+// a dot marks each frame with drawings, and tapping it opens a line to explain that frame.
 // Buttons at the bottom open the response panel (write, voice, video) when the coach can respond here.
-// Drawings are stored normalized to the video frame, so they line up on any screen.
+// Drawings are stored normalized to the video picture, so they line up on any screen.
 import { h, clear, icon, toast } from './ui.js';
 import { mediaUrl, coverUrl, q, sb, state } from './api.js';
 import { coverImg } from './images.js';
@@ -12,14 +14,28 @@ const SKIP_SEC = 3;
 const SLOW_RATE = 0.25;
 const HALF_RATE = 0.5;
 const HOLD_MS = 350;
+const COLOR_HOLD_MS = 500;
 const DOUBLE_TAP_MS = 300;
 const FRAME_TOLERANCE = 0.12;   // seconds: a drawing belongs to the frame it was drawn on
-const INK = '#ffd60a';
+export const COLORS = ['#ffd60a', '#ff3b30', '#ffffff', '#34c759', '#0a84ff', '#ff9f0a'];
+const DEFAULT_COLOR = COLORS[0];
+const NOTE_MAX = 300;
 
 // Pointer capture throws for synthetic or already-ended pointers; the viewer still works without it.
 const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch {} };
 const roundButton = (label, content, onclick) =>
   h('button', { type: 'button', class: 'viewer-round', 'aria-label': label, title: label, onclick }, content);
+const round = (n, step = 10000) => Math.round(n * step) / step;
+const clock = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+// Saved drawings: { strokes, notes }. Older saves were a plain list of strokes.
+export function readDrawings(raw) {
+  let d = raw;
+  if (typeof raw === 'string') { try { d = JSON.parse(raw); } catch { d = null; } }
+  if (Array.isArray(d)) return { strokes: d, notes: [] };
+  return { strokes: Array.isArray(d?.strokes) ? d.strokes : [], notes: Array.isArray(d?.notes) ? d.notes : [] };
+}
+export const isEmptyDrawings = (d) => !d.strokes.length && !d.notes.length;
 
 // Where the video picture sits inside its box (object-fit: contain).
 export function contentBox(cw, ch, vw, vh) {
@@ -31,9 +47,9 @@ export function contentBox(cw, ch, vw, vh) {
 // Draw the strokes that belong to the frame at `time`. Strokes are normalized to the video picture.
 export function paintStrokes(ctx, strokes, time, box) {
   ctx.lineWidth = Math.max(3, box.w / 180); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.strokeStyle = INK;
   for (const s of strokes) {
     if (Math.abs(s.t - time) > FRAME_TOLERANCE) continue;
+    ctx.strokeStyle = s.c || DEFAULT_COLOR;
     ctx.beginPath();
     s.pts.forEach(([x, y], i) => {
       const px = box.x + x * box.w, py = box.y + y * box.h;
@@ -43,7 +59,7 @@ export function paintStrokes(ctx, strokes, time, box) {
   }
 }
 
-// Keeps a canvas the same size as its element on screen (retina aware).
+// Keeps a canvas the same size as its element on screen (retina aware) and clears it.
 function fitCanvas(canvas, rect) {
   const dpr = window.devicePixelRatio || 1;
   const w = Math.round(rect.width * dpr), hgt = Math.round(rect.height * dpr);
@@ -54,25 +70,40 @@ function fitCanvas(canvas, rect) {
   return ctx;
 }
 
-export function coachViewer({ src, title, onClose, onAction, respond = true, drawings = [], onDrawingsChange }) {
+export function coachViewer({ src, title, onClose, onAction, respond = true, drawings, onDrawingsChange }) {
   const video = h('video', { class: 'viewer-video', src, playsInline: true, preload: 'auto' });
   const ink = h('canvas', { class: 'viewer-ink', 'aria-hidden': 'true' });
   const tap = h('div', { class: 'viewer-tap', 'aria-hidden': 'true' });
   const hint = h('div', { class: 'viewer-hint', 'aria-live': 'polite' });
-  const prevOverflow = document.body.style.overflow;
-  let strokes = drawings.slice(), stroke = null;
+  const start = readDrawings(drawings || { strokes: [], notes: [] });
+  let strokes = start.strokes.slice(), notes = start.notes.slice(), stroke = null;
+  let color = DEFAULT_COLOR, paletteOpen = false, longPressed = false, colorTimer = null;
   let base = 1, held = false, holdTimer = null, hintTimer = null, raf = 0;
-  let drawing = false;
-  let pendingTap = null, downSide = null;
+  let drawing = false, pendingTap = null, downSide = null, noteAt = null;
+  const prevOverflow = document.body.style.overflow;
 
-  const playBtn = roundButton('Play or pause', icon('play'), () => (video.paused ? video.play() : video.pause()));
+  const playBtn = roundButton('Play or pause', icon('play'), () => togglePlay());
   const speedBtn = roundButton('Half speed', '0.5×', toggleSpeed);
   speedBtn.setAttribute('aria-pressed', 'false');
-  const pencilBtn = roundButton('Draw on this frame', icon('pencil'), () => setDrawing(!drawing));
+  const pencilBtn = roundButton('Draw on this frame (hold to choose a colour)', icon('pencil'), () => {
+    if (longPressed) { longPressed = false; return; }
+    setDrawing(!drawing);
+  });
   pencilBtn.setAttribute('aria-pressed', 'false');
+  pencilBtn.addEventListener('pointerdown', () => {
+    longPressed = false;
+    clearTimeout(colorTimer);
+    colorTimer = setTimeout(() => { longPressed = true; togglePalette(true); }, COLOR_HOLD_MS);
+  });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) pencilBtn.addEventListener(ev, () => clearTimeout(colorTimer));
   const undoBtn = roundButton('Undo the last drawing on this frame', '↶', undo);
   undoBtn.classList.add('viewer-undo');
 
+  const palette = h('div', { class: 'viewer-palette', hidden: true, role: 'group', 'aria-label': 'Drawing colour' },
+    COLORS.map((c) => h('button', {
+      type: 'button', class: 'viewer-swatch', 'aria-label': `Colour ${c}`, style: { background: c },
+      onclick: () => pickColor(c),
+    })));
   const rail = h('div', { class: 'viewer-rail' }, playBtn, speedBtn, pencilBtn, undoBtn);
   const top = h('div', { class: 'viewer-top' },
     roundButton('Back to the request', icon('back'), () => onClose()),
@@ -83,21 +114,36 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
       h('strong', null, 'Your response'),
       h('button', { type: 'button', class: 'btn ghost small', onclick: closeSheet }, 'Close')),
     sheetBody);
-  // Progress bar: where we are in the video, with a dot for every frame that has a drawing.
+
+  // Progress bar: where we are in the video, with a dot for every frame that has drawings or a note.
   const track = h('div', { class: 'viewer-track', role: 'slider', 'aria-label': 'Video position', tabindex: '0' },
     h('div', { class: 'viewer-fill' }));
   const marks = h('div', { class: 'viewer-marks' });
   const timeLabel = h('span', { class: 'viewer-time' }, '0:00 / 0:00');
   const scrub = h('div', { class: 'viewer-scrub' },
     h('div', { class: 'viewer-track-wrap' }, track, marks), timeLabel);
+  const noteInput = h('input', { type: 'text', class: 'viewer-note-input', maxlength: NOTE_MAX,
+    placeholder: 'Why did you mark this frame?', 'aria-label': 'Explanation for this frame' });
+  noteInput.addEventListener('input', () => setNote(noteAt, noteInput.value));
+  const noteRow = h('div', { class: 'viewer-note', hidden: true }, noteInput);
   const actions = respond ? h('div', { class: 'viewer-actions' },
     [['write', 'Write', 'text'], ['voice', 'Voice', 'mic'], ['video', 'Video', 'camera']].map(([kind, label, ic]) =>
       h('button', { type: 'button', onclick: () => openSheet(kind) }, icon(ic), label))) : null;
-  const bottom = h('div', { class: 'viewer-bottom' }, scrub, actions);
+  const bottom = h('div', { class: 'viewer-bottom' }, noteRow, scrub, actions);
   const el = h('div', { class: 'viewer', role: 'dialog', 'aria-label': 'Video viewer' },
-    video, ink, tap, hint, top, rail, bottom, sheet);
+    video, ink, tap, hint, top, rail, palette, bottom, sheet);
 
-  // ---------- Progress bar ----------
+  document.body.style.overflow = 'hidden';
+  video.addEventListener('play', () => { syncPlay(); hideNote(); });
+  video.addEventListener('pause', syncPlay);
+  video.addEventListener('timeupdate', () => { paint(); showProgress(); });
+  video.addEventListener('seeked', paint);
+  video.addEventListener('loadedmetadata', () => { showProgress(); renderMarks(); });
+  video.addEventListener('durationchange', () => { showProgress(); renderMarks(); });
+  function syncPlay() { clear(playBtn).append(video.paused ? icon('play') : icon('pause')); }
+  function togglePlay() { if (video.paused) video.play().catch(() => {}); else video.pause(); }
+
+  // ---------- Progress bar and frame marks ----------
   const fill = track.firstChild;
   const duration = () => (Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0);
   function showProgress() {
@@ -106,13 +152,14 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     timeLabel.textContent = `${clock(video.currentTime)} / ${clock(d)}`;
     track.setAttribute('aria-valuetext', timeLabel.textContent);
   }
+  function markTimes() { return [...new Set([...strokes, ...notes].map((s) => round(s.t, 10)))].sort((a, b) => a - b); }
   function renderMarks() {
     const d = duration();
-    const times = [...new Set(strokes.map((s) => round(s.t, 10)))];
-    clear(marks).append(times.map((t) => h('button', {
-      type: 'button', class: 'viewer-mark', 'aria-label': `Drawing at ${clock(t)}`, title: `Drawing at ${clock(t)}`,
+    clear(marks).append(markTimes().map((t) => h('button', {
+      type: 'button', class: 'viewer-mark' + (t === noteAt ? ' on' : ''),
+      'aria-label': `Frame at ${clock(t)}`, title: `Frame at ${clock(t)}`,
       style: { left: d ? `${(t / d) * 100}%` : '0%' },
-      onclick: (e) => { e.stopPropagation(); seekTo(t); video.pause(); },
+      onclick: (e) => { e.stopPropagation(); seekTo(t); video.pause(); openNote(t); },
     })));
   }
   function seekTo(t) { video.currentTime = Math.max(0, Math.min(duration() || t, t)); showProgress(); }
@@ -122,17 +169,30 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   };
   track.addEventListener('pointerdown', (e) => { capture(track, e); seekFromX(e); });
   track.addEventListener('pointermove', (e) => { if (e.buttons) seekFromX(e); });
-  video.addEventListener('loadedmetadata', () => { showProgress(); renderMarks(); });
-  video.addEventListener('durationchange', () => { showProgress(); renderMarks(); });
 
-  document.body.style.overflow = 'hidden';
-  video.addEventListener('play', syncPlay);
-  video.addEventListener('pause', syncPlay);
-  video.addEventListener('timeupdate', () => { paint(); showProgress(); });
-  video.addEventListener('seeked', paint);
-  function syncPlay() { clear(playBtn).append(video.paused ? icon('play') : icon('pause')); }
+  // ---------- Explanation for a frame ----------
+  function openNote(t) {
+    noteAt = t;
+    noteInput.value = notes.find((n) => round(n.t, 10) === t)?.text || '';
+    noteRow.hidden = false;
+    renderMarks();
+  }
+  function hideNote() {
+    if (noteAt === null) return;
+    noteAt = null;
+    noteRow.hidden = true;
+    renderMarks();
+  }
+  function setNote(t, text) {
+    if (t === null) return;
+    const clean = text.trim();
+    notes = notes.filter((n) => round(n.t, 10) !== t);
+    if (clean) notes.push({ t, text: clean.slice(0, NOTE_MAX) });
+    emit();
+    renderMarks();
+  }
 
-  // ---------- Tap zones: double tap to skip, hold for 0.25× ----------
+  // ---------- Tap zones: one tap plays or pauses, two quick taps skip, hold for 0.25× ----------
   const sideOf = (e) => (e.clientX < window.innerWidth / 2 ? 'left' : 'right');
   tap.addEventListener('pointerdown', (e) => {
     capture(tap, e);
@@ -140,7 +200,6 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     clearTimeout(holdTimer);
     holdTimer = setTimeout(() => { held = true; applyRate(); showHint(`${SLOW_RATE}×`, true); }, HOLD_MS);
   });
-  // One tap plays or pauses. Two quick taps on the same side skip 3 s.
   tap.addEventListener('pointerup', () => {
     clearTimeout(holdTimer);
     if (held) { endHold(); return; }
@@ -164,8 +223,6 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     applyRate();
     showHint('', true);
   }
-  function togglePlay() { if (video.paused) video.play().catch(() => {}); else video.pause(); }
-
   function skip(sec) {
     const max = Number.isFinite(video.duration) ? video.duration : Infinity;
     video.currentTime = Math.max(0, Math.min(max, video.currentTime + sec));
@@ -186,12 +243,24 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     applyRate();
   }
 
+  // ---------- Colour ----------
+  function togglePalette(on) {
+    paletteOpen = on;
+    palette.hidden = !on;
+  }
+  function pickColor(c) {
+    color = c;
+    pencilBtn.style.color = c;
+    togglePalette(false);
+  }
+
   // ---------- Pencil: a drawing lives on the frame it was drawn on and disappears once playback leaves it ----------
   function setDrawing(on) {
     drawing = on;
     el.classList.toggle('drawing', on);
     pencilBtn.setAttribute('aria-pressed', String(on));
-    if (on) video.pause();
+    pencilBtn.style.color = on ? color : '';
+    if (on) { video.pause(); togglePalette(false); }
   }
   // Position as a fraction of the video picture (not of the screen), so it matches on every device.
   const pointOf = (e) => {
@@ -199,10 +268,10 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
     return [round((e.clientX - r.left - b.x) / b.w), round((e.clientY - r.top - b.y) / b.h)];
   };
-  ink.addEventListener('pointerdown', (e) => { capture(ink, e); stroke = { t: round(video.currentTime, 100), pts: [pointOf(e)] }; });
+  ink.addEventListener('pointerdown', (e) => { capture(ink, e); stroke = { t: round(video.currentTime, 100), c: color, pts: [pointOf(e)] }; });
   ink.addEventListener('pointermove', (e) => { if (stroke) stroke.pts.push(pointOf(e)); });
   const endStroke = () => {
-    if (stroke && stroke.pts.length > 1) { strokes.push(stroke); onDrawingsChange?.(strokes.slice()); renderMarks(); }
+    if (stroke && stroke.pts.length > 1) { strokes.push(stroke); emit(); renderMarks(); }
     stroke = null;
     paint();
   };
@@ -212,13 +281,14 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     for (let i = strokes.length - 1; i >= 0; i--) {
       if (Math.abs(strokes[i].t - video.currentTime) <= FRAME_TOLERANCE) {
         strokes.splice(i, 1);
-        onDrawingsChange?.(strokes.slice());
+        emit();
         renderMarks();
         paint();
         return;
       }
     }
   }
+  function emit() { onDrawingsChange?.({ strokes: strokes.slice(), notes: notes.slice() }); }
   function paint() {
     const r = ink.getBoundingClientRect();
     const ctx = fitCanvas(ink, r);
@@ -235,6 +305,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     cancelAnimationFrame(raf);
     clearTimeout(holdTimer);
     clearTimeout(hintTimer);
+    clearTimeout(colorTimer);
     clearTimeout(pendingTap?.timer);
     video.pause();
     video.removeAttribute('src');
@@ -245,11 +316,8 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
 
   renderMarks();
   loop();
-  return { el, sheetBody, destroy, drawings: () => strokes.slice() };
+  return { el, sheetBody, destroy, drawings: () => ({ strokes: strokes.slice(), notes: notes.slice() }) };
 }
-
-const round = (n, step = 10000) => Math.round(n * step) / step;
-const clock = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
 // The card that opens the viewer. A coach with an open request for this video responds there;
 // otherwise the video opens to watch and draw, without the response buttons.
@@ -273,23 +341,29 @@ async function watchAsCoach(video) {
   }
 }
 
-// Read-only drawings of a finished analysis: the video with the coach's drawings at their frames.
+// Read-only drawings of a finished analysis: the video with the coach's drawings at their frames,
+// and the coach's explanation for each frame.
 export function drawingsReview(item, videoId) {
-  let list = [];
-  try { list = JSON.parse(item.body) || []; } catch {}
-  if (!list.length) return null;
-  const times = [...new Set(list.map((s) => round(s.t, 10)))].sort((a, b) => a - b);
+  const d = readDrawings(item.body);
+  if (isEmptyDrawings(d)) return null;
+  const times = [...new Set([...d.strokes, ...d.notes].map((s) => round(s.t, 10)))].sort((a, b) => a - b);
   const video = h('video', { controls: true, playsInline: true, preload: 'metadata', class: 'review-video' });
   const canvas = h('canvas', { class: 'review-ink', 'aria-hidden': 'true' });
   const stage = h('div', { class: 'review-stage' }, video, canvas);
+  const note = h('p', { class: 'review-note' });
+  const showNote = (t) => {
+    const n = d.notes.find((x) => round(x.t, 10) === t);
+    note.textContent = n ? n.text : '';
+    note.hidden = !n;
+  };
   const frames = h('div', { class: 'row', style: { marginTop: '.5rem' } }, times.map((t) =>
-    h('button', { type: 'button', class: 'btn secondary small', onclick: () => { video.pause(); video.currentTime = t; paint(); } },
-      'Frame ' + fmt(t))));
+    h('button', { type: 'button', class: 'btn secondary small', onclick: () => { video.pause(); video.currentTime = t; showNote(t); paint(); } },
+      'Frame ' + clock(t))));
   const paint = () => {
     const r = canvas.getBoundingClientRect();
     const ctx = fitCanvas(canvas, r);
     const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
-    paintStrokes(ctx, list, video.currentTime, b);
+    paintStrokes(ctx, d.strokes, video.currentTime, b);
   };
   video.addEventListener('timeupdate', paint);
   video.addEventListener('seeked', paint);
@@ -297,8 +371,8 @@ export function drawingsReview(item, videoId) {
   mediaUrl('video', videoId).then((src) => { video.src = src; }).catch(() => {
     stage.replaceWith(h('p', { class: 'muted' }, 'The video is not available, so the drawings cannot be shown.'));
   });
+  showNote(times[0]);
   return h('div', { class: 'card' },
     h('div', { class: 'label' }, 'Drawings on the video'),
-    stage, frames);
+    stage, frames, note);
 }
-const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${Math.round((t % 1) * 10)}`;

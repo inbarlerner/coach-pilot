@@ -298,3 +298,14 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 .review-stage { position: relative; background: #000; border-radius: 8px; overflow: hidden; }
 .review-video { width: 100%; max-height: 60vh; display: block; background: #000; }
 .review-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* Colours for the pencil, and the explanation line for a frame */
+.viewer-palette { position: absolute; inset-inline-start: 74px; top: 50%; transform: translateY(-50%); z-index: 6;
+  display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 30px; background: rgba(0,0,0,.7); }
+.viewer-palette[hidden] { display: none; }
+.viewer-swatch { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; padding: 0; cursor: pointer; }
+.viewer-note { padding: 0 0 2px; }
+.viewer-note[hidden] { display: none; }
+.viewer-note-input { width: 100%; min-height: 44px; border: 0; border-radius: 22px; padding: 0 16px; font: inherit; background: #fff; color: #000; }
+.viewer-mark.on { background: #fff; }
+.review-note { font-weight: 600; margin: .6rem 0 0; }
