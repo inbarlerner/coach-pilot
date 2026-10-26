@@ -1,8 +1,9 @@
 // A single analysis request: trainee view, coach analysis workspace, analysis result, follow-up messages.
-import { h, clear, loading, errorState, friendlyError, fmtDate, timeLeft, STATUS, DECLINE, POLICY, busy, toast, confirmDialog, modal } from '../ui.js';
-import { sb, state, q, rpc, action, sportName, languageNames } from '../api.js';
+import { h, clear, icon, loading, errorState, friendlyError, fmtDate, timeLeft, STATUS, DECLINE, POLICY, busy, toast, confirmDialog, modal } from '../ui.js';
+import { sb, state, q, rpc, action, sportName, languageNames, mediaUrl, coverUrl } from '../api.js';
 import { protectedVideo, analysisItem, recorder, languagesLine } from '../components.js';
-import { personLink, avatar } from '../images.js';
+import { personLink, avatar, coverImg } from '../images.js';
+import { coachViewer } from '../viewer.js';
 import { go, refreshBadge } from '../app.js';
 
 export async function requestPage({ main, setTitle, params }) {
@@ -10,7 +11,11 @@ export async function requestPage({ main, setTitle, params }) {
   const id = params[0];
   let timers = [];
   let recorders = [];
-  const cleanup = () => { timers.forEach(clearInterval); recorders.forEach((r) => r.cleanup && r.cleanup()); timers = []; recorders = []; };
+  let closeViewer = null;
+  const cleanup = () => {
+    timers.forEach(clearInterval); recorders.forEach((r) => r.cleanup && r.cleanup()); timers = []; recorders = [];
+    closeViewer?.();
+  };
 
   async function load() {
     cleanup();
@@ -60,16 +65,45 @@ export async function requestPage({ main, setTitle, params }) {
     main.classList.add('wide');
     main.append(h('div', { class: 'two-col' }, left, right));
 
-    left.append(protectedVideo('video', r.video.id, { tools: true, cover: r.video.cover_key }),
+    const coachWorks = isCoachHere && open;
+    left.append(coachWorks ? viewerCard(r, right) : protectedVideo('video', r.video.id, { tools: true, cover: r.video.cover_key }),
       r.video.description && h('div', null, h('h3', null, 'Description'), h('p', { class: 'pre' }, r.video.description)),
       r.question && h('div', null, h('h3', null, 'Question for the coach'), h('p', { class: 'pre' }, r.question)));
 
-    if (isCoachHere && open) return workspace(r, right);
+    if (coachWorks) return workspace(r, right);
     if (r.status === 'completed') return result(r, right, isCoachHere, isTrainee);
     if (isTrainee && ['pending', 'draft'].includes(r.status)) {
       right.append(h('div', { class: 'state' }, h('p', null, h('strong', null, 'Waiting for the coach\'s analysis')),
         h('p', null, 'You\'ll get a notification when the analysis arrives. Deadline: ' + fmtDate(r.deadline_at) + '.')));
     }
+  }
+
+  // ---------- Coach: the video opens full screen; the response panel moves into the viewer's bottom sheet ----------
+  function viewerCard(r, right) {
+    return h('button', { type: 'button', class: 'viewer-card', onclick: () => openViewer(r, right) },
+      coverImg(coverUrl(r.video.cover_key)),
+      h('span', { class: 'viewer-card-play' }, icon('play')),
+      h('span', { class: 'viewer-card-label' }, 'Watch full screen'));
+  }
+  async function openViewer(r, right) {
+    if (closeViewer) return;
+    let src;
+    try { src = await mediaUrl('video', r.video.id); } catch (e) { return toast(friendlyError(e), 'err'); }
+    if (closeViewer) return;
+    const slot = h('div');
+    right.replaceWith(slot);
+    const viewer = coachViewer({
+      src, title: r.video.title,
+      onClose: () => closeViewer?.(),
+      onAction: (kind) => focusResponse(right, kind),
+    });
+    viewer.sheetBody.append(right);
+    document.body.append(viewer.el);
+    closeViewer = () => { closeViewer = null; viewer.destroy(); slot.replaceWith(right); };
+  }
+  function focusResponse(root, kind) {
+    if (kind === 'write') return root.querySelector('#a_text')?.focus();
+    root.querySelectorAll('.rec')[kind === 'voice' ? 0 : 1]?.scrollIntoView({ block: 'center' });
   }
 
   // ---------- Coach workspace ----------

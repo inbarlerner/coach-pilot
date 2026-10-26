@@ -40,10 +40,11 @@ p { margin: .4rem 0; }
   position: sticky; top: 0; z-index: 20; background: var(--bg);
   border-bottom: 1px solid var(--line);
   display: flex; align-items: center; justify-content: space-between;
-  padding: .5rem 16px; min-height: 56px;
+  padding: .5rem 8px; min-height: 56px;
 }
 .topbar .title { font-weight: 700; font-size: 1.1rem; }
-main.page { max-width: 720px; margin: 0 auto; padding: 16px 16px calc(var(--nav-h) + 32px); }
+main.page { max-width: 720px; margin: 0 auto; padding: 8px 8px calc(var(--nav-h) + 24px); }
+@media (max-width: 639px) { .feed-item { border-radius: 0; border-width: 1px 0; margin-inline: -8px; } }
 main.page.wide { max-width: 980px; }
 .banner { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: .75rem 1rem; margin-bottom: 1rem; }
 .banner.strong { background: var(--strong); color: var(--inverse); border-color: var(--strong); }
@@ -246,3 +247,41 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 .msg-row.mine { justify-content: flex-end; }
 .msg-row .msg { align-self: auto; }
 .tile:has(img.cover:not([hidden])) .tag { background: rgba(255,255,255,.92); color: #111; border-color: transparent; text-shadow: none; }
+
+/* Coach viewer: full screen, the video is the page */
+.viewer { position: fixed; inset: 0; z-index: 50; background: #000; color: #fff; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.viewer-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.viewer-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.viewer.drawing .viewer-ink { pointer-events: auto; touch-action: none; cursor: crosshair; }
+.viewer-tap { position: absolute; inset: 0; touch-action: none; z-index: 2; }
+.viewer.drawing .viewer-tap { pointer-events: none; }
+.viewer-top { position: absolute; top: 0; inset-inline: 0; display: flex; align-items: center; gap: .6rem; z-index: 4;
+  padding: calc(env(safe-area-inset-top) + 10px) 12px 28px; background: linear-gradient(rgba(0,0,0,.65), transparent); pointer-events: none; }
+.viewer-top > * { pointer-events: auto; }
+.viewer-top .title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.viewer-rail { position: absolute; inset-inline-start: 10px; top: 50%; transform: translateY(-50%); z-index: 4; display: flex; flex-direction: column; gap: 12px; }
+.viewer-round { width: 52px; height: 52px; flex: none; border-radius: 50%; border: 0; padding: 0; background: rgba(0,0,0,.55); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; font: 700 .95rem/1 system-ui, sans-serif; cursor: pointer; }
+.viewer-round svg { width: 26px; height: 26px; }
+.viewer-round[aria-pressed=true] { background: #fff; color: #000; }
+.viewer-undo { display: none; }
+.viewer.drawing .viewer-undo { display: inline-flex; }
+.viewer-bottom { position: absolute; inset-inline: 0; bottom: 0; z-index: 4; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  padding: 28px 12px calc(env(safe-area-inset-bottom) + 12px); background: linear-gradient(transparent, rgba(0,0,0,.8)); }
+.viewer-bottom button { min-height: 52px; border-radius: 26px; border: 0; background: #fff; color: #000; font: inherit; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem; cursor: pointer; }
+.viewer-bottom svg { width: 22px; height: 22px; }
+.viewer-hint { position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%); z-index: 3; font-size: 2rem; font-weight: 800;
+  text-shadow: 0 2px 8px rgba(0,0,0,.8); opacity: 0; transition: opacity .2s; pointer-events: none; }
+.viewer-hint.show { opacity: 1; }
+.viewer-sheet { position: absolute; inset-inline: 0; bottom: 0; z-index: 5; max-height: 80%; overflow: auto; padding: 14px 16px calc(env(safe-area-inset-bottom) + 16px);
+  background: var(--bg); color: var(--text); border-radius: 18px 18px 0 0; box-shadow: 0 -4px 24px rgba(0,0,0,.35); }
+.viewer-sheet[hidden] { display: none; }
+
+/* Cover that opens the viewer (coach request page) */
+.viewer-card { position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; max-height: 70vh; padding: 0; border: 0; border-radius: var(--radius);
+  overflow: hidden; background: #111; color: #fff; cursor: pointer; }
+.viewer-card img.cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.viewer-card-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 64px; height: 64px; }
+.viewer-card-play svg { width: 64px; height: 64px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+.viewer-card-label { position: absolute; bottom: 12px; inset-inline-start: 12px; background: rgba(0,0,0,.7); padding: .35rem .7rem; border-radius: 999px; font-weight: 700; }
