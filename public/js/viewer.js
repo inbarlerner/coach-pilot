@@ -1,8 +1,12 @@
 // Full-screen viewer for a coach watching a trainee's video.
 // The video fills the screen. Two quick taps on the right half jump 3 s forward, on the left half 3 s back.
 // Hold to play at 0.25×. Round buttons on the left: play/pause, 0.5× speed, pencil (draw on one frame).
-// Buttons at the bottom open the response panel (write, voice, video).
-import { h, clear, icon } from './ui.js';
+// Buttons at the bottom open the response panel (write, voice, video) when the coach can respond here.
+// Drawings are stored normalized to the video frame, so they line up on any screen.
+import { h, clear, icon, toast } from './ui.js';
+import { mediaUrl, coverUrl, q, sb, state } from './api.js';
+import { coverImg } from './images.js';
+import { go } from './app.js';
 
 const SKIP_SEC = 3;
 const SLOW_RATE = 0.25;
@@ -17,15 +21,48 @@ const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch {}
 const roundButton = (label, content, onclick) =>
   h('button', { type: 'button', class: 'viewer-round', 'aria-label': label, title: label, onclick }, content);
 
-export function coachViewer({ src, title, onClose, onAction }) {
+// Where the video picture sits inside its box (object-fit: contain).
+export function contentBox(cw, ch, vw, vh) {
+  if (!vw || !vh) return { x: 0, y: 0, w: cw, h: ch };
+  const s = Math.min(cw / vw, ch / vh), w = vw * s, hh = vh * s;
+  return { x: (cw - w) / 2, y: (ch - hh) / 2, w, h: hh };
+}
+
+// Draw the strokes that belong to the frame at `time`. Strokes are normalized to the video picture.
+export function paintStrokes(ctx, strokes, time, box) {
+  ctx.lineWidth = Math.max(3, box.w / 180); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = INK;
+  for (const s of strokes) {
+    if (Math.abs(s.t - time) > FRAME_TOLERANCE) continue;
+    ctx.beginPath();
+    s.pts.forEach(([x, y], i) => {
+      const px = box.x + x * box.w, py = box.y + y * box.h;
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    });
+    ctx.stroke();
+  }
+}
+
+// Keeps a canvas the same size as its element on screen (retina aware).
+function fitCanvas(canvas, rect) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(rect.width * dpr), hgt = Math.round(rect.height * dpr);
+  if (canvas.width !== w || canvas.height !== hgt) { canvas.width = w; canvas.height = hgt; }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  return ctx;
+}
+
+export function coachViewer({ src, title, onClose, onAction, respond = true, drawings = [], onDrawingsChange }) {
   const video = h('video', { class: 'viewer-video', src, playsInline: true, preload: 'auto' });
   const ink = h('canvas', { class: 'viewer-ink', 'aria-hidden': 'true' });
   const tap = h('div', { class: 'viewer-tap', 'aria-hidden': 'true' });
   const hint = h('div', { class: 'viewer-hint', 'aria-live': 'polite' });
-  const ctx = ink.getContext('2d');
   const prevOverflow = document.body.style.overflow;
+  let strokes = drawings.slice(), stroke = null;
   let base = 1, held = false, holdTimer = null, hintTimer = null, raf = 0;
-  let drawing = false, strokes = [], stroke = null;
+  let drawing = false;
   let lastTap = { side: null, at: 0 }, downSide = null;
 
   const playBtn = roundButton('Play or pause', icon('play'), () => (video.paused ? video.play() : video.pause()));
@@ -50,11 +87,13 @@ export function coachViewer({ src, title, onClose, onAction }) {
     [['write', 'Write', 'text'], ['voice', 'Voice', 'mic'], ['video', 'Video', 'camera']].map(([kind, label, ic]) =>
       h('button', { type: 'button', onclick: () => openSheet(kind) }, icon(ic), label)));
   const el = h('div', { class: 'viewer', role: 'dialog', 'aria-label': 'Video viewer' },
-    video, ink, tap, hint, top, rail, bottom, sheet);
+    video, ink, tap, hint, top, rail, respond ? bottom : null, sheet);
 
   document.body.style.overflow = 'hidden';
   video.addEventListener('play', syncPlay);
   video.addEventListener('pause', syncPlay);
+  video.addEventListener('timeupdate', paint);
+  video.addEventListener('seeked', paint);
   function syncPlay() { clear(playBtn).append(video.paused ? icon('play') : icon('pause')); }
 
   // ---------- Tap zones: double tap to skip, hold for 0.25× ----------
@@ -106,34 +145,38 @@ export function coachViewer({ src, title, onClose, onAction }) {
     pencilBtn.setAttribute('aria-pressed', String(on));
     if (on) video.pause();
   }
-  const pointOf = (e) => { const r = ink.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; };
-  ink.addEventListener('pointerdown', (e) => { capture(ink, e); stroke = { t: video.currentTime, pts: [pointOf(e)] }; });
+  // Position as a fraction of the video picture (not of the screen), so it matches on every device.
+  const pointOf = (e) => {
+    const r = ink.getBoundingClientRect();
+    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
+    return [round((e.clientX - r.left - b.x) / b.w), round((e.clientY - r.top - b.y) / b.h)];
+  };
+  ink.addEventListener('pointerdown', (e) => { capture(ink, e); stroke = { t: round(video.currentTime, 100), pts: [pointOf(e)] }; });
   ink.addEventListener('pointermove', (e) => { if (stroke) stroke.pts.push(pointOf(e)); });
-  const endStroke = () => { if (stroke && stroke.pts.length > 1) strokes.push(stroke); stroke = null; };
+  const endStroke = () => {
+    if (stroke && stroke.pts.length > 1) { strokes.push(stroke); onDrawingsChange?.(strokes.slice()); }
+    stroke = null;
+    paint();
+  };
   ink.addEventListener('pointerup', endStroke);
   ink.addEventListener('pointercancel', endStroke);
   function undo() {
     for (let i = strokes.length - 1; i >= 0; i--) {
-      if (Math.abs(strokes[i].t - video.currentTime) <= FRAME_TOLERANCE) { strokes.splice(i, 1); return; }
+      if (Math.abs(strokes[i].t - video.currentTime) <= FRAME_TOLERANCE) {
+        strokes.splice(i, 1);
+        onDrawingsChange?.(strokes.slice());
+        paint();
+        return;
+      }
     }
   }
   function paint() {
-    raf = requestAnimationFrame(paint);
-    const r = ink.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    if (ink.width !== Math.round(r.width * dpr) || ink.height !== Math.round(r.height * dpr)) {
-      ink.width = Math.round(r.width * dpr);
-      ink.height = Math.round(r.height * dpr);
-    }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, r.width, r.height);
-    ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    for (const s of stroke ? [...strokes, stroke] : strokes) {
-      if (s !== stroke && Math.abs(s.t - video.currentTime) > FRAME_TOLERANCE) continue;
-      ctx.beginPath();
-      s.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * r.width, y * r.height) : ctx.moveTo(x * r.width, y * r.height)));
-      ctx.stroke();
-    }
+    const r = ink.getBoundingClientRect();
+    const ctx = fitCanvas(ink, r);
+    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
+    paintStrokes(ctx, stroke ? [...strokes, stroke] : strokes, video.currentTime, b);
   }
+  function loop() { raf = requestAnimationFrame(loop); paint(); }
 
   // ---------- Response panel ----------
   function openSheet(kind) { setDrawing(false); video.pause(); sheet.hidden = false; onAction && onAction(kind); }
@@ -150,6 +193,60 @@ export function coachViewer({ src, title, onClose, onAction }) {
     el.remove();
   }
 
-  paint();
-  return { el, sheetBody, destroy };
+  loop();
+  return { el, sheetBody, destroy, drawings: () => strokes.slice() };
 }
+
+const round = (n, step = 10000) => Math.round(n * step) / step;
+
+// The card that opens the viewer. A coach with an open request for this video responds there;
+// otherwise the video opens to watch and draw, without the response buttons.
+export function coachWatchCard(video, { label = 'Watch full screen' } = {}) {
+  return h('button', { type: 'button', class: 'viewer-card', onclick: () => watchAsCoach(video) },
+    coverImg(coverUrl(video.cover_key)),
+    h('span', { class: 'viewer-card-play' }, icon('play')),
+    h('span', { class: 'viewer-card-label' }, label));
+}
+
+async function watchAsCoach(video) {
+  try {
+    const open = await q(sb.from('analysis_requests').select('id')
+      .eq('video_id', video.id).eq('coach_id', state.user.id).in('status', ['pending', 'draft']).limit(1));
+    if (open.length) return go('/r/' + open[0].id);
+    const src = await mediaUrl('video', video.id);
+    const viewer = coachViewer({ src, title: video.title, respond: false, onClose: () => viewer.destroy() });
+    document.body.append(viewer.el);
+  } catch (e) {
+    toast('This video cannot be opened right now.', 'err');
+  }
+}
+
+// Read-only drawings of a finished analysis: the video with the coach's drawings at their frames.
+export function drawingsReview(item, videoId) {
+  let list = [];
+  try { list = JSON.parse(item.body) || []; } catch {}
+  if (!list.length) return null;
+  const times = [...new Set(list.map((s) => round(s.t, 10)))].sort((a, b) => a - b);
+  const video = h('video', { controls: true, playsInline: true, preload: 'metadata', class: 'review-video' });
+  const canvas = h('canvas', { class: 'review-ink', 'aria-hidden': 'true' });
+  const stage = h('div', { class: 'review-stage' }, video, canvas);
+  const frames = h('div', { class: 'row', style: { marginTop: '.5rem' } }, times.map((t) =>
+    h('button', { type: 'button', class: 'btn secondary small', onclick: () => { video.pause(); video.currentTime = t; paint(); } },
+      'Frame ' + fmt(t))));
+  const paint = () => {
+    const r = canvas.getBoundingClientRect();
+    const ctx = fitCanvas(canvas, r);
+    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
+    paintStrokes(ctx, list, video.currentTime, b);
+  };
+  video.addEventListener('timeupdate', paint);
+  video.addEventListener('seeked', paint);
+  video.addEventListener('loadeddata', paint);
+  mediaUrl('video', videoId).then((src) => { video.src = src; }).catch(() => {
+    stage.replaceWith(h('p', { class: 'muted' }, 'The video is not available, so the drawings cannot be shown.'));
+  });
+  return h('div', { class: 'card' },
+    h('div', { class: 'label' }, 'Drawings on the video'),
+    stage, frames);
+}
+const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${Math.round((t % 1) * 10)}`;

@@ -1,6 +1,7 @@
 // Single video page: player, owner controls (privacy, delete, send to coach), analysis, comments, report.
 import { h, clear, loading, errorState, friendlyError, fmtDate, busy, toast, confirmDialog, modal, STATUS } from '../ui.js';
-import { sb, state, q, rpc, action, sportName, isAdmin, mediaUrl, coverUrl, uploadFile, discardUpload } from '../api.js';
+import { sb, state, q, rpc, action, sportName, isAdmin, isCoach, mediaUrl, coverUrl, uploadFile, discardUpload } from '../api.js';
+import { coachWatchCard } from '../viewer.js';
 import { personLink, coverPicker } from '../images.js';
 import { protectedVideo, analysisItem } from '../components.js';
 import { go } from '../app.js';
@@ -26,7 +27,7 @@ export async function videoPage({ main, setTitle, params, query }) {
           v.removed && h('span', { class: 'tag fill' }, 'Removed by admin'))),
       h('h1', null, v.title),
       h('p', { class: 'meta' }, sportName(v.sport_id) + ' · ' + fmtDate(v.created_at)),
-      protectedVideo('video', v.id, { tools: true, cover: v.cover_key }),
+      isCoach() && !mine ? coachWatchCard(v) : protectedVideo('video', v.id, { tools: true, cover: v.cover_key }),
       v.description && h('p', { class: 'pre', style: { marginTop: '.75rem' } }, v.description));
 
     if (mine) main.append(ownerControls(v));
@@ -49,8 +50,8 @@ export async function videoPage({ main, setTitle, params, query }) {
             (mine || r.coach_id === state.user.id) && h('a', { class: 'btn secondary small', style: { marginTop: '.5rem' }, href: '#/r/' + r.id }, 'Open full request'));
           if (r.status === 'completed') {
             const items = await q(sb.from('analysis_items').select('*').eq('request_id', r.id).order('created_at'));
-            const order = { text: 0, video: 1, audio: 2 };
-            items.sort((a, b) => order[a.kind] - order[b.kind]).forEach((it) => card.append(analysisItem(it)));
+            const order = { text: 0, video: 1, audio: 2, drawing: 3 };
+            items.sort((a, b) => order[a.kind] - order[b.kind]).forEach((it) => card.append(analysisItem(it, v.id)));
           }
           reqBox.append(card);
         }

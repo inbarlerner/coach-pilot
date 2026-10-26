@@ -6,12 +6,16 @@ import { personLink, avatar, coverImg } from '../images.js';
 import { coachViewer } from '../viewer.js';
 import { go, refreshBadge } from '../app.js';
 
+// Drawings are stored as a JSON list; a broken value means no drawings.
+const parseDrawings = (body) => { try { return JSON.parse(body) || []; } catch { return []; } };
+
 export async function requestPage({ main, setTitle, params }) {
   setTitle('Analysis request');
   const id = params[0];
   let timers = [];
   let recorders = [];
   let closeViewer = null;
+  let drawings = [];        // the coach's pencil strokes for this analysis; kept while the page is open
   const cleanup = () => {
     timers.forEach(clearInterval); recorders.forEach((r) => r.cleanup && r.cleanup()); timers = []; recorders = [];
     closeViewer?.();
@@ -96,6 +100,7 @@ export async function requestPage({ main, setTitle, params }) {
       src, title: r.video.title,
       onClose: () => closeViewer?.(),
       onAction: (kind) => focusResponse(right, kind),
+      drawings, onDrawingsChange: (d) => { drawings = d; },
     });
     viewer.sheetBody.append(right);
     document.body.append(viewer.el);
@@ -112,12 +117,14 @@ export async function requestPage({ main, setTitle, params }) {
     try { items = await q(sb.from('analysis_items').select('*').eq('request_id', r.id).order('created_at')); }
     catch (e) { return root.append(errorState(friendlyError(e), load)); }
     const textItem = items.find((i) => i.kind === 'text');
+    const savedDrawings = items.find((i) => i.kind === 'drawing');
+    if (savedDrawings && !drawings.length) drawings = parseDrawings(savedDrawings.body);
     const text = h('textarea', { id: 'a_text', style: { minHeight: '180px' }, placeholder: 'What you saw, what to fix and how to practice' }, textItem?.body || '');
     text.value = textItem?.body || '';
     const mediaList = h('div');
     const renderMedia = () => {
       clear(mediaList);
-      const media = items.filter((i) => i.kind !== 'text');
+      const media = items.filter((i) => i.kind !== 'text' && i.kind !== 'drawing');
       if (!media.length) return;
       mediaList.append(h('h3', null, 'Recordings saved in the draft'));
       media.forEach((it) => {
@@ -129,7 +136,7 @@ export async function requestPage({ main, setTitle, params }) {
             catch (e) { toast(friendlyError(e), 'err'); }
           });
         };
-        mediaList.append(h('div', null, analysisItem(it), h('div', { style: { margin: '.3rem 0 .8rem' } }, del)));
+        mediaList.append(h('div', null, analysisItem(it, r.video.id), h('div', { style: { margin: '.3rem 0 .8rem' } }, del)));
       });
     };
     renderMedia();
@@ -152,17 +159,19 @@ export async function requestPage({ main, setTitle, params }) {
     saveBtn.onclick = () => busy(saveBtn, async () => {
       try {
         await rpc('set_analysis_text', { p_request: r.id, p_text: text.value });
+        await rpc('save_drawings', { p_request: r.id, p_drawings: drawings });
         await rpc('save_draft', { p_request: r.id });
         toast('Draft saved. The request still takes a spot in your quota.');
       } catch (e) { toast(friendlyError(e), 'err'); if (/EXPIRED|NOT_OPEN/.test(e.message)) load(); }
     });
     sendBtn.onclick = async () => {
-      const hasMedia = items.some((i) => i.kind !== 'text');
+      const hasMedia = items.some((i) => i.kind !== 'text' && i.kind !== 'drawing');
       if (!text.value.trim() && !hasMedia) return toast('Add at least one part: text, a voice recording or a video recording.', 'err');
       if (!(await confirmDialog('Send the analysis to the trainee?', 'After sending, the analysis cannot be edited.', 'Send'))) return;
       busy(sendBtn, async () => {
         try {
           await rpc('set_analysis_text', { p_request: r.id, p_text: text.value });
+          await rpc('save_drawings', { p_request: r.id, p_drawings: drawings });
           await rpc('send_analysis', { p_request: r.id });
           toast('Analysis sent to the trainee');
           load();
@@ -204,8 +213,8 @@ export async function requestPage({ main, setTitle, params }) {
       audioRec, h('div', { style: { height: '.75rem' } }), videoRec,
       mediaList,
       h('div', { class: 'card soon', style: { marginTop: '1rem' } },
-        h('div', { class: 'row' }, h('strong', null, 'Advanced analysis tools'), h('span', { class: 'tag' }, 'Soon')),
-        h('p', { class: 'small muted' }, 'Drawing on the video, a combined explainer recording (trainee video + voice + small coach camera) and timed drawings are coming next. They are not active yet.')),
+        h('div', { class: 'row' }, h('strong', null, 'Explainer recording'), h('span', { class: 'tag' }, 'Soon')),
+        h('p', { class: 'small muted' }, 'A combined recording (trainee video + your voice + a small camera of you) is coming next. It is not active yet.')),
       h('div', { class: 'btn-row', style: { marginTop: '1.25rem' } }, sendBtn, saveBtn),
       h('div', { class: 'btn-row', style: { marginTop: '.6rem' } }, declineBtn, cancelBtn));
   }
@@ -216,10 +225,10 @@ export async function requestPage({ main, setTitle, params }) {
     const itemsBox = h('div', null, loading());
     root.append(itemsBox);
     try {
-      const order = { text: 0, video: 1, audio: 2 };
+      const order = { text: 0, video: 1, audio: 2, drawing: 3 };
       const items = (await q(sb.from('analysis_items').select('*').eq('request_id', r.id).order('created_at')))
         .sort((a, b) => order[a.kind] - order[b.kind]);
-      clear(itemsBox).append(...(items.length ? items.map(analysisItem) : [h('p', { class: 'muted' }, 'No analysis parts.')]));
+      clear(itemsBox).append(...(items.length ? items.map((it) => analysisItem(it, r.video.id)) : [h('p', { class: 'muted' }, 'No analysis parts.')]));
     } catch (e) { clear(itemsBox).append(errorState(friendlyError(e))); }
 
     if (!isCoachHere && !isTrainee) return;

@@ -285,3 +285,8 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 .viewer-card-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 64px; height: 64px; }
 .viewer-card-play svg { width: 64px; height: 64px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
 .viewer-card-label { position: absolute; bottom: 12px; inset-inline-start: 12px; background: rgba(0,0,0,.7); padding: .35rem .7rem; border-radius: 999px; font-weight: 700; }
+
+/* Drawings shown with a finished analysis */
+.review-stage { position: relative; background: #000; border-radius: 8px; overflow: hidden; }
+.review-video { width: 100%; max-height: 60vh; display: block; background: #000; }
+.review-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
