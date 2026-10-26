@@ -59,6 +59,14 @@ export function paintStrokes(ctx, strokes, time, box) {
   }
 }
 
+// The explanation of a frame shows only while that frame is on screen, like its drawings.
+export function showCaption(el, notes, time) {
+  const n = notes.find((x) => Math.abs(x.t - time) <= FRAME_TOLERANCE);
+  const text = n ? n.text : '';
+  if (el.textContent !== text) el.textContent = text;
+  el.hidden = !n;
+}
+
 // Keeps a canvas the same size as its element on screen (retina aware) and clears it.
 function fitCanvas(canvas, rect) {
   const dpr = window.devicePixelRatio || 1;
@@ -70,11 +78,12 @@ function fitCanvas(canvas, rect) {
   return ctx;
 }
 
-export function coachViewer({ src, title, onClose, onAction, respond = true, drawings, onDrawingsChange }) {
+export function coachViewer({ src, title, onClose, onAction, respond = true, drawings, onDrawingsChange, onSave }) {
   const video = h('video', { class: 'viewer-video', src, playsInline: true, preload: 'auto' });
   const ink = h('canvas', { class: 'viewer-ink', 'aria-hidden': 'true' });
   const tap = h('div', { class: 'viewer-tap', 'aria-hidden': 'true' });
   const hint = h('div', { class: 'viewer-hint', 'aria-live': 'polite' });
+  const caption = h('div', { class: 'viewer-caption', hidden: true });
   const start = readDrawings(drawings || { strokes: [], notes: [] });
   let strokes = start.strokes.slice(), notes = start.notes.slice(), stroke = null;
   let color = DEFAULT_COLOR, paletteOpen = false, longPressed = false, colorTimer = null;
@@ -125,13 +134,14 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   const noteInput = h('input', { type: 'text', class: 'viewer-note-input', maxlength: NOTE_MAX,
     placeholder: 'Why did you mark this frame?', 'aria-label': 'Explanation for this frame' });
   noteInput.addEventListener('input', () => setNote(noteAt, noteInput.value));
+  noteInput.addEventListener('change', () => saveSoon(0));
   const noteRow = h('div', { class: 'viewer-note', hidden: true }, noteInput);
   const actions = respond ? h('div', { class: 'viewer-actions' },
     [['write', 'Write', 'text'], ['voice', 'Voice', 'mic'], ['video', 'Video', 'camera']].map(([kind, label, ic]) =>
       h('button', { type: 'button', onclick: () => openSheet(kind) }, icon(ic), label))) : null;
   const bottom = h('div', { class: 'viewer-bottom' }, noteRow, scrub, actions);
   const el = h('div', { class: 'viewer', role: 'dialog', 'aria-label': 'Video viewer' },
-    video, ink, tap, hint, top, rail, palette, bottom, sheet);
+    video, ink, tap, hint, caption, top, rail, palette, bottom, sheet);
 
   document.body.style.overflow = 'hidden';
   video.addEventListener('play', () => { syncPlay(); hideNote(); });
@@ -190,6 +200,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     if (clean) notes.push({ t, text: clean.slice(0, NOTE_MAX) });
     emit();
     renderMarks();
+    saveSoon();
   }
 
   // ---------- Tap zones: one tap plays or pauses, two quick taps skip, hold for 0.25× ----------
@@ -271,7 +282,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   ink.addEventListener('pointerdown', (e) => { capture(ink, e); stroke = { t: round(video.currentTime, 100), c: color, pts: [pointOf(e)] }; });
   ink.addEventListener('pointermove', (e) => { if (stroke) stroke.pts.push(pointOf(e)); });
   const endStroke = () => {
-    if (stroke && stroke.pts.length > 1) { strokes.push(stroke); emit(); renderMarks(); }
+    if (stroke && stroke.pts.length > 1) { strokes.push(stroke); emit(); renderMarks(); saveSoon(); }
     stroke = null;
     paint();
   };
@@ -283,17 +294,28 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
         strokes.splice(i, 1);
         emit();
         renderMarks();
+        saveSoon();
         paint();
         return;
       }
     }
   }
   function emit() { onDrawingsChange?.({ strokes: strokes.slice(), notes: notes.slice() }); }
+  // Saves the drawings and explanations to the draft shortly after the last change.
+  let saveTimer = null;
+  function saveSoon(delay = 800) {
+    if (!onSave) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      Promise.resolve(onSave()).then(() => showHint('Saved', false)).catch(() => {});
+    }, delay);
+  }
   function paint() {
     const r = ink.getBoundingClientRect();
     const ctx = fitCanvas(ink, r);
     const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
     paintStrokes(ctx, stroke ? [...strokes, stroke] : strokes, video.currentTime, b);
+    showCaption(caption, notes, video.currentTime);
   }
   function loop() { raf = requestAnimationFrame(loop); paint(); }
 
@@ -307,6 +329,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     clearTimeout(hintTimer);
     clearTimeout(colorTimer);
     clearTimeout(pendingTap?.timer);
+    clearTimeout(saveTimer);
     video.pause();
     video.removeAttribute('src');
     video.load();
@@ -349,7 +372,8 @@ export function drawingsReview(item, videoId) {
   const times = [...new Set([...d.strokes, ...d.notes].map((s) => round(s.t, 10)))].sort((a, b) => a - b);
   const video = h('video', { controls: true, playsInline: true, preload: 'metadata', class: 'review-video' });
   const canvas = h('canvas', { class: 'review-ink', 'aria-hidden': 'true' });
-  const stage = h('div', { class: 'review-stage' }, video, canvas);
+  const caption = h('div', { class: 'viewer-caption', hidden: true });
+  const stage = h('div', { class: 'review-stage' }, video, canvas, caption);
   const note = h('p', { class: 'review-note' });
   const showNote = (t) => {
     const n = d.notes.find((x) => round(x.t, 10) === t);
@@ -364,6 +388,7 @@ export function drawingsReview(item, videoId) {
     const ctx = fitCanvas(canvas, r);
     const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
     paintStrokes(ctx, d.strokes, video.currentTime, b);
+    showCaption(caption, d.notes, video.currentTime);
   };
   video.addEventListener('timeupdate', paint);
   video.addEventListener('seeked', paint);

@@ -98,6 +98,7 @@ export async function requestPage({ main, setTitle, params }) {
       onClose: () => closeViewer?.(),
       onAction: (kind) => focusResponse(right, kind),
       drawings, onDrawingsChange: (d) => { drawings = d; },
+      onSave: () => rpc('save_drawings', { p_request: r.id, p_drawings: drawings }).catch((e) => toast(friendlyError(e), 'err')),
     });
     viewer.sheetBody.append(right);
     document.body.append(viewer.el);
