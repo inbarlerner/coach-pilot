@@ -63,7 +63,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   let strokes = drawings.slice(), stroke = null;
   let base = 1, held = false, holdTimer = null, hintTimer = null, raf = 0;
   let drawing = false;
-  let lastTap = { side: null, at: 0 }, downSide = null;
+  let pendingTap = null, downSide = null;
 
   const playBtn = roundButton('Play or pause', icon('play'), () => (video.paused ? video.play() : video.pause()));
   const speedBtn = roundButton('Half speed', '0.5×', toggleSpeed);
@@ -83,16 +83,52 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
       h('strong', null, 'Your response'),
       h('button', { type: 'button', class: 'btn ghost small', onclick: closeSheet }, 'Close')),
     sheetBody);
-  const bottom = h('div', { class: 'viewer-bottom' },
+  // Progress bar: where we are in the video, with a dot for every frame that has a drawing.
+  const track = h('div', { class: 'viewer-track', role: 'slider', 'aria-label': 'Video position', tabindex: '0' },
+    h('div', { class: 'viewer-fill' }));
+  const marks = h('div', { class: 'viewer-marks' });
+  const timeLabel = h('span', { class: 'viewer-time' }, '0:00 / 0:00');
+  const scrub = h('div', { class: 'viewer-scrub' },
+    h('div', { class: 'viewer-track-wrap' }, track, marks), timeLabel);
+  const actions = respond ? h('div', { class: 'viewer-actions' },
     [['write', 'Write', 'text'], ['voice', 'Voice', 'mic'], ['video', 'Video', 'camera']].map(([kind, label, ic]) =>
-      h('button', { type: 'button', onclick: () => openSheet(kind) }, icon(ic), label)));
+      h('button', { type: 'button', onclick: () => openSheet(kind) }, icon(ic), label))) : null;
+  const bottom = h('div', { class: 'viewer-bottom' }, scrub, actions);
   const el = h('div', { class: 'viewer', role: 'dialog', 'aria-label': 'Video viewer' },
-    video, ink, tap, hint, top, rail, respond ? bottom : null, sheet);
+    video, ink, tap, hint, top, rail, bottom, sheet);
+
+  // ---------- Progress bar ----------
+  const fill = track.firstChild;
+  const duration = () => (Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0);
+  function showProgress() {
+    const d = duration();
+    fill.style.width = d ? `${(video.currentTime / d) * 100}%` : '0%';
+    timeLabel.textContent = `${clock(video.currentTime)} / ${clock(d)}`;
+    track.setAttribute('aria-valuetext', timeLabel.textContent);
+  }
+  function renderMarks() {
+    const d = duration();
+    const times = [...new Set(strokes.map((s) => round(s.t, 10)))];
+    clear(marks).append(times.map((t) => h('button', {
+      type: 'button', class: 'viewer-mark', 'aria-label': `Drawing at ${clock(t)}`, title: `Drawing at ${clock(t)}`,
+      style: { left: d ? `${(t / d) * 100}%` : '0%' },
+      onclick: (e) => { e.stopPropagation(); seekTo(t); video.pause(); },
+    })));
+  }
+  function seekTo(t) { video.currentTime = Math.max(0, Math.min(duration() || t, t)); showProgress(); }
+  const seekFromX = (e) => {
+    const r = track.getBoundingClientRect();
+    if (duration()) seekTo(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration());
+  };
+  track.addEventListener('pointerdown', (e) => { capture(track, e); seekFromX(e); });
+  track.addEventListener('pointermove', (e) => { if (e.buttons) seekFromX(e); });
+  video.addEventListener('loadedmetadata', () => { showProgress(); renderMarks(); });
+  video.addEventListener('durationchange', () => { showProgress(); renderMarks(); });
 
   document.body.style.overflow = 'hidden';
   video.addEventListener('play', syncPlay);
   video.addEventListener('pause', syncPlay);
-  video.addEventListener('timeupdate', paint);
+  video.addEventListener('timeupdate', () => { paint(); showProgress(); });
   video.addEventListener('seeked', paint);
   function syncPlay() { clear(playBtn).append(video.paused ? icon('play') : icon('pause')); }
 
@@ -104,19 +140,31 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     clearTimeout(holdTimer);
     holdTimer = setTimeout(() => { held = true; applyRate(); showHint(`${SLOW_RATE}×`, true); }, HOLD_MS);
   });
+  // One tap plays or pauses. Two quick taps on the same side skip 3 s.
   tap.addEventListener('pointerup', () => {
     clearTimeout(holdTimer);
     if (held) { endHold(); return; }
     const now = Date.now();
-    if (lastTap.side === downSide && now - lastTap.at < DOUBLE_TAP_MS) {
+    if (pendingTap && pendingTap.side === downSide && now - pendingTap.at < DOUBLE_TAP_MS) {
+      clearTimeout(pendingTap.timer);
+      pendingTap = null;
       skip(downSide === 'left' ? -SKIP_SEC : SKIP_SEC);
-      lastTap = { side: null, at: 0 };
-    } else {
-      lastTap = { side: downSide, at: now };
+      return;
     }
+    if (pendingTap) { clearTimeout(pendingTap.timer); togglePlay(); }
+    const timer = setTimeout(() => { pendingTap = null; togglePlay(); }, DOUBLE_TAP_MS);
+    pendingTap = { side: downSide, at: now, timer };
   });
   tap.addEventListener('pointercancel', () => { clearTimeout(holdTimer); if (held) endHold(); });
-  function endHold() { held = false; applyRate(); showHint('', true); }
+  // After a long press the video goes back to normal speed (1×), and the 0.5× toggle is off.
+  function endHold() {
+    held = false;
+    base = 1;
+    speedBtn.setAttribute('aria-pressed', 'false');
+    applyRate();
+    showHint('', true);
+  }
+  function togglePlay() { if (video.paused) video.play().catch(() => {}); else video.pause(); }
 
   function skip(sec) {
     const max = Number.isFinite(video.duration) ? video.duration : Infinity;
@@ -154,7 +202,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   ink.addEventListener('pointerdown', (e) => { capture(ink, e); stroke = { t: round(video.currentTime, 100), pts: [pointOf(e)] }; });
   ink.addEventListener('pointermove', (e) => { if (stroke) stroke.pts.push(pointOf(e)); });
   const endStroke = () => {
-    if (stroke && stroke.pts.length > 1) { strokes.push(stroke); onDrawingsChange?.(strokes.slice()); }
+    if (stroke && stroke.pts.length > 1) { strokes.push(stroke); onDrawingsChange?.(strokes.slice()); renderMarks(); }
     stroke = null;
     paint();
   };
@@ -165,6 +213,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
       if (Math.abs(strokes[i].t - video.currentTime) <= FRAME_TOLERANCE) {
         strokes.splice(i, 1);
         onDrawingsChange?.(strokes.slice());
+        renderMarks();
         paint();
         return;
       }
@@ -186,6 +235,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     cancelAnimationFrame(raf);
     clearTimeout(holdTimer);
     clearTimeout(hintTimer);
+    clearTimeout(pendingTap?.timer);
     video.pause();
     video.removeAttribute('src');
     video.load();
@@ -193,11 +243,13 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     el.remove();
   }
 
+  renderMarks();
   loop();
   return { el, sheetBody, destroy, drawings: () => strokes.slice() };
 }
 
 const round = (n, step = 10000) => Math.round(n * step) / step;
+const clock = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
 // The card that opens the viewer. A coach with an open request for this video responds there;
 // otherwise the video opens to watch and draw, without the response buttons.

@@ -266,11 +266,19 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 .viewer-round[aria-pressed=true] { background: #fff; color: #000; }
 .viewer-undo { display: none; }
 .viewer.drawing .viewer-undo { display: inline-flex; }
-.viewer-bottom { position: absolute; inset-inline: 0; bottom: 0; z-index: 4; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+.viewer-bottom { position: absolute; inset-inline: 0; bottom: 0; z-index: 4; display: flex; flex-direction: column; gap: 10px;
   padding: 28px 12px calc(env(safe-area-inset-bottom) + 12px); background: linear-gradient(transparent, rgba(0,0,0,.8)); }
-.viewer-bottom button { min-height: 52px; border-radius: 26px; border: 0; background: #fff; color: #000; font: inherit; font-weight: 700;
+.viewer-scrub { display: flex; align-items: center; gap: 10px; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.viewer-track-wrap { position: relative; flex: 1; height: 28px; display: flex; align-items: center; }
+.viewer-track { position: relative; width: 100%; height: 6px; border-radius: 3px; background: rgba(255,255,255,.35); cursor: pointer; touch-action: none; }
+.viewer-fill { height: 100%; width: 0; border-radius: 3px; background: #fff; }
+.viewer-marks { position: absolute; inset: 0; pointer-events: none; }
+.viewer-mark { position: absolute; top: 2px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 2px solid #000; background: #ffd60a; padding: 0; pointer-events: auto; cursor: pointer; }
+.viewer-time { white-space: nowrap; min-width: 84px; text-align: end; }
+.viewer-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.viewer-actions button { min-height: 52px; border-radius: 26px; border: 0; background: #fff; color: #000; font: inherit; font-weight: 700;
   display: inline-flex; align-items: center; justify-content: center; gap: .4rem; cursor: pointer; }
-.viewer-bottom svg { width: 22px; height: 22px; }
+.viewer-actions svg { width: 22px; height: 22px; }
 .viewer-hint { position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%); z-index: 3; font-size: 2rem; font-weight: 800;
   text-shadow: 0 2px 8px rgba(0,0,0,.8); opacity: 0; transition: opacity .2s; pointer-events: none; }
 .viewer-hint.show { opacity: 1; }
