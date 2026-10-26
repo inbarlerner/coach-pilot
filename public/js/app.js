@@ -1,6 +1,7 @@
 // App shell: startup, routing, layout and bottom navigation.
 import { h, clear, icon, errorState, friendlyError } from './ui.js';
 import { init, sb, state, loadProfile, loadSports, refreshUnread, isAdmin } from './api.js';
+import { avatar } from './images.js';
 
 const app = document.getElementById('app');
 
@@ -26,12 +27,12 @@ const ROUTES = [
   [/^\/admin\/lab\/([0-9a-f-]{36})$/, './pages/ailab.js', 'aiLabRunPage', true],
   [/^\/admin\/feedback$/, './pages/ailab.js', 'aiFeedbackPage', true],
 ];
-const NAV = [ // RTL: first = rightmost
-  ['profile', '/me', 'פרופיל', ['/me', '/u/', '/settings', '/admin']],
-  ['inbox', '/inbox', 'אינבוקס', ['/inbox', '/r/']],
-  ['upload', '/upload', 'העלאה', ['/upload']],
-  ['search', '/search', 'חיפוש', ['/search']],
-  ['home', '/home', 'בית', ['/home', '/v/']],
+const NAV = [ // left to right
+  ['home', '/home', 'Home', ['/home', '/v/']],
+  ['search', '/search', 'Search', ['/search']],
+  ['upload', '/upload', 'Upload', ['/upload']],
+  ['inbox', '/inbox', 'Inbox', ['/inbox', '/r/']],
+  ['profile', '/me', 'Profile', ['/me', '/u/', '/settings', '/admin']],
 ];
 
 let cleanup = null;
@@ -60,14 +61,17 @@ function layout(path, title) {
   const top = h('header', { class: 'topbar' },
     h('div', { class: 'title' }, title || ''),
     h('div', { class: 'row' },
-      isAdmin() && h('a', { class: 'btn ghost small', href: '#/admin' }, 'ניהול'),
-      h('a', { class: 'icon-btn', href: '#/notifications', 'aria-label': `התראות${unread ? ` (${unread} חדשות)` : ''}` },
+      isAdmin() && h('a', { class: 'btn ghost small', href: '#/admin' }, 'Admin'),
+      h('a', { class: 'icon-btn', href: '#/notifications', 'aria-label': `Notifications${unread ? ` (${unread} new)` : ''}` },
         icon('bell'), unread ? h('span', { class: 'badge' }, unread > 99 ? '99+' : unread) : null)));
   const main = h('main', { class: 'page', id: 'main' });
-  const nav = h('nav', { class: 'bottom', 'aria-label': 'ניווט ראשי' },
+  const nav = h('nav', { class: 'bottom', 'aria-label': 'Main navigation' },
     NAV.map(([ic, href, label, prefixes]) => {
       const active = prefixes.some((p) => path === p || path.startsWith(p));
-      return h('a', { href: '#' + href, class: (active ? 'active ' : '') + ic, 'aria-current': active ? 'page' : null }, icon(ic), label);
+      const pic = ic === 'profile' && state.profile?.avatar_key ? avatar(state.profile, 28) : icon(ic);
+      const n = ic === 'inbox' ? state.inboxUnread : 0;
+      return h('a', { href: '#' + href, class: (active ? 'active ' : '') + ic, 'aria-current': active ? 'page' : null,
+        'aria-label': n ? `${label} (${n} unread)` : null }, pic, label, n ? h('span', { class: 'badge' }, n > 99 ? '99+' : n) : null);
     }));
   clear(app).append(top, main, nav);
   return { main, setTitle: (t) => { top.querySelector('.title').textContent = t; } };
@@ -110,9 +114,9 @@ async function route() {
 
 function disabledScreen() {
   clear(app).append(h('main', { class: 'page' },
-    h('div', { class: 'state error' }, h('p', null, h('strong', null, 'החשבון הושבת')),
-      h('p', null, 'החשבון הושבת על ידי מנהל המערכת. לבירור אפשר לפנות למנהל הפיילוט.'),
-      h('button', { class: 'btn', onclick: () => sb.auth.signOut() }, 'יציאה'))));
+    h('div', { class: 'state error' }, h('p', null, h('strong', null, 'Account disabled')),
+      h('p', null, 'This account was disabled by an admin. Please contact the pilot admin.'),
+      h('button', { class: 'btn', onclick: () => sb.auth.signOut() }, 'Sign out'))));
 }
 
 export async function refreshBadge() {
@@ -122,7 +126,13 @@ export async function refreshBadge() {
     if (!bell) return;
     bell.querySelector('.badge')?.remove();
     if (state.unread) bell.append(h('span', { class: 'badge' }, state.unread > 99 ? '99+' : state.unread));
-    bell.setAttribute('aria-label', `התראות${state.unread ? ` (${state.unread} חדשות)` : ''}`);
+    bell.setAttribute('aria-label', `Notifications${state.unread ? ` (${state.unread} new)` : ''}`);
+    const inbox = document.querySelector('nav.bottom a.inbox');
+    if (inbox) {
+      inbox.querySelector('.badge')?.remove();
+      if (state.inboxUnread) inbox.append(h('span', { class: 'badge' }, state.inboxUnread > 99 ? '99+' : state.inboxUnread));
+      inbox.setAttribute('aria-label', state.inboxUnread ? `Inbox (${state.inboxUnread} unread)` : 'Inbox');
+    }
   } catch {}
 }
 
@@ -132,29 +142,36 @@ async function start() {
   } catch (e) {
     clear(app).append(h('main', { class: 'page' }, errorState(
       e.message === 'SERVER_NOT_CONFIGURED'
-        ? 'האתר עדיין לא חובר למסד הנתונים. יש להשלים את שלב ההגדרות במדריך ההקמה.'
+        ? 'The site is not connected to the database yet. Finish the settings step in the setup guide.'
         : friendlyError(e), () => location.reload())));
     return;
   }
   try {
-    await loadSports();
-    if (state.user) { await loadProfile(); await refreshUnread(); }
+    if (state.user) {
+      // A saved session whose account no longer exists here: sign out instead of showing broken pages.
+      if (!(await loadProfile())) { await sb.auth.signOut(); state.user = null; state.session = null; }
+      else await refreshUnread();
+    }
   } catch (e) { console.error(e); }
+  // The saved session may have been rejected while loading (e.g. it belongs to another setup).
+  if (state.user && !(await sb.auth.getSession()).data.session) { state.user = null; state.session = null; state.profile = null; }
+  await loadSports().catch((e) => console.error(e));
 
   // Arrived from an email link (password recovery / signup confirmation)
   if (sb.auth.detected.type === 'recovery') location.hash = '#/reset';
   else if (sb.auth.detected.error) {
-    setTimeout(() => import('./ui.js').then(({ toast }) => toast('הקישור אינו תקף או שפג תוקפו. אפשר לבקש קישור חדש.', 'err')), 300);
+    setTimeout(() => import('./ui.js').then(({ toast }) => toast('This link is invalid or has expired. You can request a new one.', 'err')), 300);
   }
 
   sb.auth.onAuthStateChange(async (event, session) => {
     const wasIn = !!state.user;
     state.session = session;
     state.user = session?.user || null;
-    if (event === 'SIGNED_OUT') { state.profile = null; state.unread = 0; return go('/login'); }
+    if (event === 'SIGNED_OUT') { state.profile = null; state.unread = 0; state.inboxUnread = 0; return go('/login'); }
     if (event === 'SIGNED_IN' && !wasIn) {
       await loadProfile().catch(() => {});
       await refreshUnread().catch(() => {});
+      if (!state.sports.length) await loadSports().catch(() => {});
       if (!location.hash.startsWith('#/reset')) go(defaultRoute());
     }
   });

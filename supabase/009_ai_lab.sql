@@ -1,6 +1,7 @@
 -- =====================================================================
--- 007_ai_lab.sql — AI coach lab for admins (Inbar, Jenni)
--- Run in Supabase → SQL Editor AFTER 001–006. Safe to run more than once.
+-- 009_ai_lab.sql — AI coach lab for admins (Inbar, Jenni)
+-- Run in Supabase → SQL Editor AFTER 001–008. Safe to run more than once.
+-- (Was 007_ai_lab.sql before main got its own 007/008; already ran it? Nothing to redo.)
 --
 -- What it sets up (admins only, nobody else can see or touch any of it):
 --   • ai_lab_runs     one AI analysis: settings, the frames sent, cost, the AI's output
@@ -22,7 +23,7 @@ insert into public.app_settings (key, value) values
   ('ai_lab_cap_bytes', 157286400),        -- 150 MB of frames (~100–150 runs), oldest frames removed first
   ('ai_lab_monthly_cents', 3000)          -- $30 per calendar month for the whole lab
 on conflict (key) do nothing;
--- Make room for the lab inside Supabase's free 1 GB: videos 800 MB + lab 150 MB.
+-- Make room for the lab inside Supabase's free 1 GB: videos 800 MB + lab 150 MB (+ small profile photos).
 -- Only if the video cap is still the original default.
 update public.app_settings set value = 838860800 where key = 'storage_cap_bytes' and value = 943718400;
 

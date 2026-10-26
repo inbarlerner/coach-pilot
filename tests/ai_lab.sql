@@ -1,6 +1,6 @@
--- Admin AI lab (007_ai_lab.sql): admin-only access, protected run fields, run lifecycle,
+-- Admin AI lab (009_ai_lab.sql): admin-only access, protected run fields, run lifecycle,
 -- monthly spend limit, frame storage rules, freeing space, deleting runs, feedback.
--- Run on a fresh DB after the stubs, 001, 003, 005, 006 and 007.
+-- Run on a fresh DB after the stubs, 001, 003, 005, 006, 007, 008 and 009.
 \set ON_ERROR_STOP 1
 \set a1 '''00000000-0000-0000-0000-0000000000a1'''
 \set a2 '''00000000-0000-0000-0000-0000000000a2'''

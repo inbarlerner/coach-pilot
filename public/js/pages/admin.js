@@ -1,10 +1,11 @@
 // Admin: coach join requests, users (disable / sample flag), reports, sports.
 import { h, clear, section, empty, tabs, fmtDate, busy, toast, friendlyError, confirmDialog, errorState } from '../ui.js';
-import { sb, state, q, rpc, isAdmin, sportName, loadSports } from '../api.js';
+import { sb, state, q, rpc, isAdmin, sportName, loadSports, languageNames } from '../api.js';
+import { personLink } from '../images.js';
 
 export function adminPage({ main, setTitle, query }) {
-  setTitle('ניהול');
-  if (!isAdmin()) return main.append(errorState('אין לך הרשאת מנהל.'));
+  setTitle('Admin');
+  if (!isAdmin()) return main.append(errorState('You do not have admin access.'));
   let tab = query.get('tab') || 'coaches';
   const body = h('div');
   const render = () => {
@@ -13,11 +14,11 @@ export function adminPage({ main, setTitle, query }) {
       const u = Array.isArray(r) ? r[0] : r;
       if (!u) return;
       const mb = (b) => Math.round(b / 1048576);
-      usage.textContent = `אחסון קבצים: ${mb(u.used_bytes)}MB מתוך ${mb(u.cap_bytes)}MB (${u.file_count} קבצים). כשמגיעים לגבול, הסרטונים הישנים ביותר נמחקים אוטומטית, חוץ מבקשות פתוחות.`;
+      usage.textContent = `File storage: ${mb(u.used_bytes)}MB of ${mb(u.cap_bytes)}MB (${u.file_count} files). At the limit, the oldest videos are removed automatically, except those in open requests.`;
     }).catch(() => {});
-    clear(main).append(h('div', { class: 'row between' }, h('h1', null, 'ניהול'),
-      h('div', { class: 'btn-row' }, h('a', { class: 'btn secondary small', href: '#/admin/lab' }, 'מעבדת מאמן AI'), h('a', { class: 'btn secondary small', href: '#/admin/feedback' }, 'פידבק ל־Claude'))), usage,
-      tabs([['coaches', 'בקשות מאמנים'], ['users', 'משתמשים'], ['reports', 'דיווחים'], ['sports', 'ענפים']], tab, (k) => { tab = k; render(); }), body);
+    clear(main).append(h('div', { class: 'row between' }, h('h1', null, 'Admin'),
+      h('div', { class: 'btn-row' }, h('a', { class: 'btn secondary small', href: '#/admin/lab' }, 'AI coach lab'), h('a', { class: 'btn secondary small', href: '#/admin/feedback' }, 'Feedback for Claude'))), usage,
+      tabs([['coaches', 'Coach applications'], ['users', 'Users'], ['reports', 'Reports'], ['sports', 'Sports']], tab, (k) => { tab = k; render(); }), body);
     ({ coaches, users, reports, sports })[tab](clear(body));
   };
   render();
@@ -39,7 +40,7 @@ function coaches(box) {
   let filter = 'pending';
   const list = h('div');
   const bar = h('div', { class: 'chips', style: { marginBottom: '1rem' } });
-  const drawBar = () => clear(bar).append(...[['pending', 'ממתינים'], ['approved', 'מאושרים'], ['rejected', 'נדחו']].map(([k, l]) =>
+  const drawBar = () => clear(bar).append(...[['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected']].map(([k, l]) =>
     h('button', { class: 'chip' + (filter === k ? ' on' : ''), onclick: () => { filter = k; drawBar(); load(); } }, l)));
   drawBar();
   box.append(bar, list);
@@ -48,33 +49,34 @@ function coaches(box) {
     const [pm, sm] = await details(rows.map((r) => r.id));
     return { rows, pm, sm };
   }, ({ rows, pm, sm }) => rows.length ? h('div', null, rows.map((p) => {
-    const approve = h('button', { class: 'btn small' }, 'אישור');
-    const reject = h('button', { class: 'btn secondary small' }, 'דחייה');
+    const approve = h('button', { class: 'btn small' }, 'Approve');
+    const reject = h('button', { class: 'btn secondary small' }, 'Reject');
     const set = (status, btn) => async () => {
-      if (!(await confirmDialog(status === 'approved' ? `לאשר את ${p.first_name} ${p.last_name} כמאמן?` : `לדחות את ${p.first_name} ${p.last_name}?`,
-        status === 'approved' ? 'המאמן יופיע בחיפוש ויוכל לקבל בקשות.' : 'המשתמש לא יופיע כמאמן ולא יקבל בקשות.', 'אישור'))) return;
+      if (!(await confirmDialog(status === 'approved' ? `Approve ${p.first_name} ${p.last_name} as a coach?` : `Reject ${p.first_name} ${p.last_name}?`,
+        status === 'approved' ? 'The coach will appear in search and can receive requests.' : 'The user will not appear as a coach or receive requests.', 'OK'))) return;
       busy(btn, async () => {
-        try { await rpc('admin_set_coach_status', { p_user: p.id, p_status: status }); toast('עודכן'); load(); }
+        try { await rpc('admin_set_coach_status', { p_user: p.id, p_status: status }); toast('Updated'); load(); }
         catch (e) { toast(friendlyError(e), 'err'); }
       });
     };
     approve.onclick = set('approved', approve);
     reject.onclick = set('rejected', reject);
     return h('div', { class: 'card' },
-      h('div', { class: 'row between' }, h('a', { href: '#/u/' + p.username }, h('strong', null, p.first_name + ' ' + p.last_name)), h('span', { class: 'meta' }, 'נרשם: ' + fmtDate(p.created_at))),
+      h('div', { class: 'row between' }, personLink(p), h('span', { class: 'meta' }, 'Joined: ' + fmtDate(p.created_at))),
       h('dl', { class: 'kv' },
-        h('dt', null, 'שם משתמש'), h('dd', { dir: 'ltr', style: { textAlign: 'right' } }, '@' + p.username),
-        h('dt', null, 'מייל'), h('dd', { dir: 'ltr', style: { textAlign: 'right' } }, pm[p.id]?.email || ''),
-        h('dt', null, 'טלפון'), h('dd', { dir: 'ltr', style: { textAlign: 'right' } }, pm[p.id]?.phone || ''),
-        h('dt', null, 'ענפים'), h('dd', null, (sm[p.id] || []).join(', ') || '—')),
-      h('p', { class: 'pre' }, p.bio || 'ללא תיאור'),
+        h('dt', null, 'Username'), h('dd', null, '@' + p.username),
+        h('dt', null, 'Email'), h('dd', null, pm[p.id]?.email || ''),
+        h('dt', null, 'Phone'), h('dd', null, pm[p.id]?.phone || ''),
+        h('dt', null, 'Sports'), h('dd', null, (sm[p.id] || []).join(', ') || '—'),
+        h('dt', null, 'Languages'), h('dd', null, languageNames(p.languages) || '—')),
+      h('p', { class: 'pre' }, p.bio || 'No bio'),
       h('div', { class: 'btn-row' }, filter !== 'approved' && approve, filter !== 'rejected' && reject));
-  })) : empty(filter === 'pending' ? 'אין בקשות הצטרפות ממתינות' : 'אין משתמשים ברשימה הזו'));
+  })) : empty(filter === 'pending' ? 'No pending coach applications' : 'No users in this list'));
   load();
 }
 
 function users(box) {
-  const qIn = h('input', { type: 'search', placeholder: 'חיפוש לפי שם או שם משתמש' });
+  const qIn = h('input', { type: 'search', placeholder: 'Search by name or username' });
   const list = h('div');
   let t;
   qIn.addEventListener('input', () => { clearTimeout(t); t = setTimeout(load, 350); });
@@ -87,60 +89,60 @@ function users(box) {
     const [pm] = await details(rows.map((r) => r.id));
     return { rows, pm };
   }, ({ rows, pm }) => rows.length ? h('div', null, rows.map((p) => {
-    const dis = h('button', { class: 'btn secondary small' }, p.disabled ? 'הפעלת חשבון' : 'השבתת חשבון');
+    const dis = h('button', { class: 'btn secondary small' }, p.disabled ? 'Enable account' : 'Disable account');
     dis.onclick = async () => {
-      if (!(await confirmDialog(p.disabled ? 'להפעיל מחדש את החשבון?' : 'להשבית את החשבון?', p.disabled ? null : 'המשתמש לא יוכל לבצע פעולות, והתוכן הציבורי שלו יוסתר.', 'אישור'))) return;
-      busy(dis, async () => { try { await rpc('admin_set_disabled', { p_user: p.id, p_disabled: !p.disabled }); toast('עודכן'); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
+      if (!(await confirmDialog(p.disabled ? 'Enable this account again?' : 'Disable this account?', p.disabled ? null : 'The user will not be able to do anything, and their public content will be hidden.', 'OK'))) return;
+      busy(dis, async () => { try { await rpc('admin_set_disabled', { p_user: p.id, p_disabled: !p.disabled }); toast('Updated'); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
     };
-    const sample = h('button', { class: 'btn ghost small' }, p.is_sample ? 'ביטול סימון ״דוגמה״' : 'סימון כ״דוגמה״');
-    sample.onclick = () => busy(sample, async () => { try { await rpc('admin_set_sample', { p_user: p.id, p_sample: !p.is_sample }); toast('עודכן'); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
-    const roleLabel = p.role === 'admin' ? 'מנהל' : p.role === 'coach' ? `מאמן (${({ pending: 'ממתין', approved: 'מאושר', rejected: 'נדחה' })[p.coach_status] || ''})` : 'מתאמן';
+    const sample = h('button', { class: 'btn ghost small' }, p.is_sample ? 'Unmark as sample' : 'Mark as sample');
+    sample.onclick = () => busy(sample, async () => { try { await rpc('admin_set_sample', { p_user: p.id, p_sample: !p.is_sample }); toast('Updated'); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
+    const roleLabel = p.role === 'admin' ? 'Admin' : p.role === 'coach' ? `Coach (${({ pending: 'pending', approved: 'approved', rejected: 'rejected' })[p.coach_status] || ''})` : 'Trainee';
     return h('div', { class: 'card' },
-      h('div', { class: 'row between' }, h('a', { href: '#/u/' + p.username }, h('strong', null, p.first_name + ' ' + p.last_name)),
-        h('div', { class: 'row' }, h('span', { class: 'tag soft' }, roleLabel), p.disabled && h('span', { class: 'tag fill' }, 'מושבת'), p.is_sample && h('span', { class: 'tag' }, 'דוגמה'))),
-      h('p', { class: 'meta', dir: 'ltr', style: { textAlign: 'right' } }, (pm[p.id]?.email || '') + ' · ' + (pm[p.id]?.phone || '')),
+      h('div', { class: 'row between' }, personLink(p),
+        h('div', { class: 'row' }, h('span', { class: 'tag soft' }, roleLabel), p.disabled && h('span', { class: 'tag fill' }, 'Disabled'), p.is_sample && h('span', { class: 'tag' }, 'Sample'))),
+      h('p', { class: 'meta' }, (pm[p.id]?.email || '') + ' · ' + (pm[p.id]?.phone || '')),
       p.id !== state.user.id && h('div', { class: 'btn-row' }, dis, sample));
-  })) : empty('לא נמצאו משתמשים'));
+  })) : empty('No users found'));
   load();
 }
 
 function reports(box) {
   let showResolved = false;
   const list = h('div');
-  const toggle = h('label', { class: 'chip' }, h('input', { type: 'checkbox', onchange: (e) => { showResolved = e.target.checked; load(); } }), 'הצגת דיווחים שטופלו');
+  const toggle = h('label', { class: 'chip' }, h('input', { type: 'checkbox', onchange: (e) => { showResolved = e.target.checked; load(); } }), 'Show handled reports');
   box.append(h('div', { style: { marginBottom: '1rem' } }, toggle), list);
   const load = () => section(list,
     () => q(sb.from('reports').select('*, video:videos(id,title,removed,visibility), reporter:profiles!reports_reporter_id_fkey(first_name,last_name)')
       .eq('resolved', showResolved).order('created_at', { ascending: false })),
     (rows) => rows.length ? h('div', null, rows.map((r) => {
-      const rm = h('button', { class: 'btn small' }, r.video?.removed ? 'שחזור תוכן' : 'הסרת התוכן');
-      rm.onclick = () => busy(rm, async () => { try { await rpc('admin_set_video_removed', { p_video: r.video.id, p_removed: !r.video.removed }); toast('עודכן'); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
-      const ok = h('button', { class: 'btn secondary small' }, 'סימון כטופל ללא הסרה');
+      const rm = h('button', { class: 'btn small' }, r.video?.removed ? 'Restore content' : 'Remove content');
+      rm.onclick = () => busy(rm, async () => { try { await rpc('admin_set_video_removed', { p_video: r.video.id, p_removed: !r.video.removed }); toast('Updated'); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
+      const ok = h('button', { class: 'btn secondary small' }, 'Mark handled without removing');
       ok.onclick = () => busy(ok, async () => { try { await q(sb.from('reports').update({ resolved: true }).eq('id', r.id)); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
       return h('div', { class: 'card' },
-        h('div', null, h('a', { href: '#/v/' + r.video?.id }, h('strong', null, r.video?.title || 'סרטון')), r.video?.removed && [' ', h('span', { class: 'tag fill' }, 'הוסר')]),
-        h('p', { class: 'meta' }, 'דווח על ידי ' + (r.reporter ? r.reporter.first_name + ' ' + r.reporter.last_name : '') + ' · ' + fmtDate(r.created_at)),
+        h('div', null, h('a', { href: '#/v/' + r.video?.id }, h('strong', null, r.video?.title || 'Video')), r.video?.removed && [' ', h('span', { class: 'tag fill' }, 'Removed')]),
+        h('p', { class: 'meta' }, 'Reported by ' + (r.reporter ? r.reporter.first_name + ' ' + r.reporter.last_name : '') + ' · ' + fmtDate(r.created_at)),
         h('p', { class: 'pre' }, r.reason),
         h('div', { class: 'btn-row' }, rm, !r.resolved && ok));
-    })) : empty(showResolved ? 'אין דיווחים שטופלו' : 'אין דיווחים פתוחים'));
+    })) : empty(showResolved ? 'No handled reports' : 'No open reports'));
   load();
 }
 
 function sports(box) {
-  const name = h('input', { type: 'text', id: 'sp_name', placeholder: 'למשל: גלישת גלים' });
-  const add = h('button', { class: 'btn' }, 'הוספת ענף');
+  const name = h('input', { type: 'text', id: 'sp_name', placeholder: 'e.g. Surfing' });
+  const add = h('button', { class: 'btn' }, 'Add sport');
   const list = h('div');
   add.onclick = () => busy(add, async () => {
-    if (!name.value.trim()) return toast('יש להזין שם ענף', 'err');
-    try { await q(sb.from('sports').insert({ name: name.value.trim() })); name.value = ''; await loadSports(true); toast('הענף נוסף'); load(); }
-    catch (e) { toast(/duplicate/.test(e.message) ? 'ענף בשם הזה כבר קיים' : friendlyError(e), 'err'); }
+    if (!name.value.trim()) return toast('Enter a sport name', 'err');
+    try { await q(sb.from('sports').insert({ name: name.value.trim() })); name.value = ''; await loadSports(true); toast('Sport added'); load(); }
+    catch (e) { toast(/duplicate/.test(e.message) ? 'A sport with this name already exists' : friendlyError(e), 'err'); }
   });
-  box.append(h('div', { class: 'card' }, h('div', { class: 'field' }, h('label', { for: 'sp_name' }, 'ענף חדש'), name), add), h('h2', null, 'ענפים קיימים'), list);
+  box.append(h('div', { class: 'card' }, h('div', { class: 'field' }, h('label', { for: 'sp_name' }, 'New sport'), name), add), h('h2', null, 'Existing sports'), list);
   const load = () => section(list, () => q(sb.from('sports').select('*').order('sort').order('name')),
     (rows) => h('div', null, rows.map((s) => {
-      const t = h('button', { class: 'btn secondary small' }, s.active ? 'הסתרה' : 'הפעלה');
+      const t = h('button', { class: 'btn secondary small' }, s.active ? 'Hide' : 'Show');
       t.onclick = () => busy(t, async () => { try { await q(sb.from('sports').update({ active: !s.active }).eq('id', s.id)); await loadSports(true); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
-      return h('div', { class: 'card list-item' }, h('span', null, s.name, !s.active && [' ', h('span', { class: 'tag soft' }, 'מוסתר')]), t);
+      return h('div', { class: 'card list-item' }, h('span', null, s.name, !s.active && [' ', h('span', { class: 'tag soft' }, 'Hidden')]), t);
     })));
   load();
 }

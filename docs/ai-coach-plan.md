@@ -66,7 +66,7 @@ Key points:
 - **Streaming.** Opus can take 30–90 s. The function relays the streamed response to the browser, so the connection doesn't time out and the trainee sees progress. If they close the tab mid-run, the request goes back to `pending` and they can retry. They aren't charged, because credits are only used on `send_analysis`.
 - **"Not analyzable" videos** (wrong sport, too dark, not a person): the AI calls `decline_request` with `unclear` or `video_problem`. This **doesn't use a credit**, which matches the existing billing rule.
 
-## 5. Database — `supabase/008_ai_coach.sql` (new file, never edit 001–007; 007 is the admin lab)
+## 5. Database — `supabase/010_ai_coach.sql` (new file, never edit 001–009; 009 is the admin lab)
 
 - `profiles.is_ai boolean not null default false`, protected by `protect_profile_columns` so users can't set it.
 - `ai_runs` table: `request_id, model, input_tokens, output_tokens, cost_usd_est, status (ok/declined/error), error, created_at`. Readable by the admin only.
@@ -110,7 +110,7 @@ Out of scope here. When added, the charge hooks into `send_analysis` exactly as 
 3. Migration `007` + SQL tests (`tests/ai_coach.sql`): credits, cap, kill switch, claim/release race, storage policies, non-AI user can't call AI functions.
 4. Function + adapter + tests (`tests/functions.test.mjs`, with the provider mocked).
 5. UI changes + e2e (`acceptance_ui.py`, with a mock provider so tests cost nothing).
-6. Rollout: run `007` in the SQL Editor → create the AI coach account (sign up in the app, then an SQL snippet sets `is_ai`/approved) → add Cloudflare secrets → set the Anthropic spend limit → push.
+6. Rollout: run `010` in the SQL Editor → create the AI coach account (sign up in the app, then an SQL snippet sets `is_ai`/approved) → add Cloudflare secrets → set the Anthropic spend limit → push.
 
 ## 10. Risks
 
@@ -173,7 +173,7 @@ Product impact: no new files to store, and no new dependencies (a `<canvas>` ove
 - Opus costs about $0.35 and takes about a minute per analysis; Haiku is about $0.01.
 
 **Rollout:**
-1. Run `supabase/007_ai_lab.sql` in the SQL Editor.
+1. Run `supabase/009_ai_lab.sql` in the SQL Editor.
 2. Add `ANTHROPIC_API_KEY` in Cloudflare Pages → Settings → Variables and Secrets, as type **Secret**, for Production.
 3. Set a monthly limit in the Anthropic Console.
 4. Push. `/api/health` shows `"ai": true` once the key is in place.
