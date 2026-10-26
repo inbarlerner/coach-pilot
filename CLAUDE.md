@@ -36,6 +36,7 @@ public/
   js/api.js          קריאות לפונקציות המסד
   js/ui.js, components.js   עזרי DOM ורכיבים (כולל בוחר שפות)
   js/images.js       תמונת פרופיל (avatar), קאבר לסרטון: בחירת פריים / העלאת תמונה / פריים אקראי
+  js/viewer.js       צפייה מלאה של המאמן (מגע: הקפצה, האטה, עיפרון לפריים) + הצגת שרטוטים בניתוח
   js/pages/          auth, home (פיד), search (מאמנים), upload, inbox,
                      request (מסך בקשה/ניתוח), video, profile, settings,
                      notifications, admin
@@ -53,6 +54,7 @@ supabase/            להריץ לפי הסדר ב־SQL Editor:
   007_photos_languages_english.sql תמונות פרופיל, קאבר, שפות, טקסטים באנגלית
   008_search.sql     חיפוש כללי: search_people, search_videos
   009_ai_lab.sql     מעבדת מאמן AI למנהלות: ריצות, ביקורות, פידבק ל־Claude, דלי ai-lab
+  010_analysis_drawings.sql שרטוטי המאמן על הסרטון נשמרים עם הניתוח (סוג פריט 'drawing')
 tests/               בדיקות SQL (stubs ל־Supabase), פונקציות, ו־e2e בדפדפן
 functions/_lib/ai-coach.js  הליבה של מאמן ה־AI (פרומפט, סכמה, קריאה ל־Claude, מחיר)
 functions/api/ai-lab.js     מריץ ניתוח AI במעבדה (מנהלות בלבד, מפתח ה־API סוד ב־Cloudflare)
@@ -95,6 +97,7 @@ psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f tests/photos_languages.sql
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f supabase/008_search.sql -f tests/search_chat.sql
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f supabase/008_search.sql -f supabase/009_ai_lab.sql -f tests/ai_lab.sql
+psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f supabase/008_search.sql -f supabase/009_ai_lab.sql -f supabase/010_analysis_drawings.sql -f tests/drawings.sql
 python3 tests/e2e/acceptance_ui.py   # Supabase Auth + PostgREST מקומיים + אמולטור אחסון (tests/e2e/server.mjs). שימו לב: הסלקטורים עדיין בעברית ולא עודכנו לממשק האנגלי.
 ```
 בלי psql מקומי אפשר להריץ את בדיקות ה־SQL בקונטיינר `postgres:17-alpine` (docker exec … psql). ל־`tests/e2e/server.mjs` אפשר להגדיר `E2E_PSQL`, ו־Claude מזויף כברירת מחדל (`E2E_AI_REPLY` = קובץ תשובה).

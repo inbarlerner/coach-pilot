@@ -195,6 +195,10 @@ const P = {
   play: '<path d="M8 5v14l11-7z"/>',
   back: '<path d="m15 6-6 6 6 6"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="4"/>',
+  pause: '<path d="M8 5v14M16 5v14"/>',
+  pencil: '<path d="M4 20l4-1L19 8l-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/>',
+  text: '<path d="M5 6h14M12 6v13"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
 };
 export const icon = (name) => {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

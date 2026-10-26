@@ -40,10 +40,11 @@ p { margin: .4rem 0; }
   position: sticky; top: 0; z-index: 20; background: var(--bg);
   border-bottom: 1px solid var(--line);
   display: flex; align-items: center; justify-content: space-between;
-  padding: .5rem 16px; min-height: 56px;
+  padding: .5rem 8px; min-height: 56px;
 }
 .topbar .title { font-weight: 700; font-size: 1.1rem; }
-main.page { max-width: 720px; margin: 0 auto; padding: 16px 16px calc(var(--nav-h) + 32px); }
+main.page { max-width: 720px; margin: 0 auto; padding: 8px 8px calc(var(--nav-h) + 24px); }
+@media (max-width: 639px) { .feed-item { border-radius: 0; border-width: 1px 0; margin-inline: -8px; } }
 main.page.wide { max-width: 980px; }
 .banner { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: .75rem 1rem; margin-bottom: 1rem; }
 .banner.strong { background: var(--strong); color: var(--inverse); border-color: var(--strong); }
@@ -246,6 +247,79 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 .msg-row.mine { justify-content: flex-end; }
 .msg-row .msg { align-self: auto; }
 .tile:has(img.cover:not([hidden])) .tag { background: rgba(255,255,255,.92); color: #111; border-color: transparent; text-shadow: none; }
+
+/* Coach viewer: full screen, the video is the page */
+.viewer { position: fixed; inset: 0; z-index: 50; background: #000; color: #fff; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.viewer-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.viewer-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.viewer.drawing .viewer-ink { pointer-events: auto; touch-action: none; cursor: crosshair; }
+.viewer-tap { position: absolute; inset: 0; touch-action: none; z-index: 2; }
+.viewer.drawing .viewer-tap { pointer-events: none; }
+.viewer-top { position: absolute; top: 0; inset-inline: 0; display: flex; align-items: center; gap: .6rem; z-index: 4;
+  padding: calc(env(safe-area-inset-top) + 10px) 12px 28px; background: linear-gradient(rgba(0,0,0,.65), transparent); pointer-events: none; }
+.viewer-top > * { pointer-events: auto; }
+.viewer-top .title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.viewer-rail { position: absolute; inset-inline-start: 10px; top: 50%; transform: translateY(-50%); z-index: 4; display: flex; flex-direction: column; gap: 12px; }
+.viewer-round { width: 52px; height: 52px; flex: none; border-radius: 50%; border: 0; padding: 0; background: rgba(0,0,0,.55); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; font: 700 .95rem/1 system-ui, sans-serif; cursor: pointer; }
+.viewer-round svg { width: 26px; height: 26px; }
+.viewer-round[aria-pressed=true] { background: #fff; color: #000; }
+.viewer-undo { display: none; }
+.viewer.drawing .viewer-undo { display: inline-flex; }
+.viewer-bottom { position: absolute; inset-inline: 0; bottom: 0; z-index: 4; display: flex; flex-direction: column; gap: 10px;
+  padding: 28px 12px calc(env(safe-area-inset-bottom) + 12px); background: linear-gradient(transparent, rgba(0,0,0,.8)); }
+.viewer-scrub { display: flex; align-items: center; gap: 10px; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.viewer-track-wrap { position: relative; flex: 1; height: 28px; display: flex; align-items: center; }
+.viewer-track { position: relative; width: 100%; height: 6px; border-radius: 3px; background: rgba(255,255,255,.35); cursor: pointer; touch-action: none; }
+.viewer-fill { height: 100%; width: 0; border-radius: 3px; background: #fff; }
+.viewer-marks { position: absolute; inset: 0; pointer-events: none; }
+.viewer-mark { position: absolute; top: 2px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 2px solid #000; background: #ffd60a; padding: 0; pointer-events: auto; cursor: pointer; }
+.viewer-time { white-space: nowrap; min-width: 84px; text-align: end; }
+.viewer-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.viewer-actions button { min-height: 52px; border-radius: 26px; border: 0; background: #fff; color: #000; font: inherit; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem; cursor: pointer; }
+.viewer-actions svg { width: 22px; height: 22px; }
+.viewer-hint { position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%); z-index: 3; font-size: 2rem; font-weight: 800;
+  text-shadow: 0 2px 8px rgba(0,0,0,.8); opacity: 0; transition: opacity .2s; pointer-events: none; }
+.viewer-hint.show { opacity: 1; }
+.viewer-sheet { position: absolute; inset-inline: 0; bottom: 0; z-index: 5; max-height: 80%; overflow: auto; padding: 14px 16px calc(env(safe-area-inset-bottom) + 16px);
+  background: var(--bg); color: var(--text); border-radius: 18px 18px 0 0; box-shadow: 0 -4px 24px rgba(0,0,0,.35); }
+.viewer-sheet[hidden] { display: none; }
+
+/* Cover that opens the viewer (coach request page) */
+.viewer-card { position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; max-height: 70vh; padding: 0; border: 0; border-radius: var(--radius);
+  overflow: hidden; background: #111; color: #fff; cursor: pointer; }
+.viewer-card img.cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.viewer-card-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 64px; height: 64px; }
+.viewer-card-play svg { width: 64px; height: 64px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+.viewer-card-label { position: absolute; bottom: 12px; inset-inline-start: 12px; background: rgba(0,0,0,.7); padding: .35rem .7rem; border-radius: 999px; font-weight: 700; }
+
+/* Drawings shown with a finished analysis */
+.review-stage { position: relative; background: #000; border-radius: 8px; overflow: hidden; }
+.review-video { width: 100%; max-height: 60vh; display: block; background: #000; }
+.review-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* Colours for the pencil, and the explanation line for a frame */
+.viewer-palette { position: absolute; inset-inline-start: 74px; top: 50%; transform: translateY(-50%); z-index: 6;
+  display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 30px; background: rgba(0,0,0,.7); }
+.viewer-palette[hidden] { display: none; }
+.viewer-swatch { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; padding: 0; cursor: pointer; }
+.viewer-note { padding: 0 0 2px; }
+.viewer-note[hidden] { display: none; }
+.viewer-note-input { display: block; width: 100%; min-height: 44px; max-height: 40vh; border: 0; border-radius: 16px; padding: .6rem 1rem;
+  font: inherit; line-height: 1.4; resize: none; overflow-y: auto; background: #fff; color: #000; }
+.viewer-mark.on { background: #fff; }
+.review-note { font-weight: 600; margin: .6rem 0 0; }
+.viewer-caption { display: flex; align-items: flex-start; gap: .6rem; padding: .55rem .8rem; border-radius: 12px; background: rgba(0,0,0,.72); color: #fff; }
+.viewer-caption[hidden] { display: none; }
+.viewer-caption-text { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.viewer-caption.open .viewer-caption-text { white-space: pre-wrap; max-height: 40vh; overflow: auto; }
+.viewer-more { flex: none; border: 0; padding: 0; background: none; color: #ffd60a; font: inherit; font-weight: 700; cursor: pointer; }
+.viewer-more[hidden] { display: none; }
+.review-caption { margin-top: .5rem; background: var(--strong); }
+.viewer-mark.text { background: #fff; }
+.viewer-mark.draw.text { background: #ffd60a; }
+.viewer-mark.text { width: 17px; height: 17px; margin-left: -8px; top: 0; font: 800 10px/13px system-ui, sans-serif; color: #000; text-align: center; padding: 0; }
 
 /* ---------- AI coach lab (admins) ---------- */
 main.page.xwide { max-width: 1280px; }

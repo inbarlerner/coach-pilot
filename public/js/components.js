@@ -2,6 +2,7 @@
 import { h, clear, friendlyError, icon, fmtSize, toast, filePicker } from './ui.js';
 import { mediaUrl, coverUrl, uploadFile, discardUpload, LIMITS, fileType, sizeMB, LANGUAGES, languageNames } from './api.js';
 import { coverImg } from './images.js';
+import { drawingsReview } from './viewer.js';
 
 /**
  * Video player for a protected file.
@@ -63,7 +64,8 @@ function playerTools(v) {
 export const REMOVED_TEXT = 'This video was removed automatically to free up storage. The analysis text and messages were kept.';
 
 // One analysis item (text / audio / video)
-export function analysisItem(item) {
+export function analysisItem(item, videoId) {
+  if (item.kind === 'drawing') return drawingsReview(item, videoId) || h('div');
   if (item.kind === 'text') return h('div', { class: 'card' }, h('div', { class: 'label' }, 'Text'), h('div', { class: 'pre' }, item.body));
   const box = h('div', { class: 'card' }, h('div', { class: 'label' }, item.kind === 'audio' ? 'Voice recording' : 'Video recording'));
   if (item.file_deleted_at) { box.append(h('p', { class: 'muted' }, 'This recording was removed automatically to free up storage.')); return box; }

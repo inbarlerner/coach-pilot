@@ -1,8 +1,9 @@
 // A single analysis request: trainee view, coach analysis workspace, analysis result, follow-up messages.
-import { h, clear, loading, errorState, friendlyError, fmtDate, timeLeft, STATUS, DECLINE, POLICY, busy, toast, confirmDialog, modal } from '../ui.js';
-import { sb, state, q, rpc, action, sportName, languageNames } from '../api.js';
+import { h, clear, icon, loading, errorState, friendlyError, fmtDate, timeLeft, STATUS, DECLINE, POLICY, busy, toast, confirmDialog, modal } from '../ui.js';
+import { sb, state, q, rpc, action, sportName, languageNames, mediaUrl, coverUrl } from '../api.js';
 import { protectedVideo, analysisItem, recorder, languagesLine } from '../components.js';
-import { personLink, avatar } from '../images.js';
+import { personLink, avatar, coverImg } from '../images.js';
+import { coachViewer, readDrawings, isEmptyDrawings } from '../viewer.js';
 import { go, refreshBadge } from '../app.js';
 
 export async function requestPage({ main, setTitle, params }) {
@@ -10,7 +11,12 @@ export async function requestPage({ main, setTitle, params }) {
   const id = params[0];
   let timers = [];
   let recorders = [];
-  const cleanup = () => { timers.forEach(clearInterval); recorders.forEach((r) => r.cleanup && r.cleanup()); timers = []; recorders = []; };
+  let closeViewer = null;
+  let drawings = { strokes: [], notes: [] };   // the coach's pencil work and frame notes; kept while the page is open
+  const cleanup = () => {
+    timers.forEach(clearInterval); recorders.forEach((r) => r.cleanup && r.cleanup()); timers = []; recorders = [];
+    closeViewer?.();
+  };
 
   async function load() {
     cleanup();
@@ -60,16 +66,47 @@ export async function requestPage({ main, setTitle, params }) {
     main.classList.add('wide');
     main.append(h('div', { class: 'two-col' }, left, right));
 
-    left.append(protectedVideo('video', r.video.id, { tools: true, cover: r.video.cover_key }),
+    const coachWorks = isCoachHere && open;
+    left.append(coachWorks ? viewerCard(r, right) : protectedVideo('video', r.video.id, { tools: true, cover: r.video.cover_key }),
       r.video.description && h('div', null, h('h3', null, 'Description'), h('p', { class: 'pre' }, r.video.description)),
       r.question && h('div', null, h('h3', null, 'Question for the coach'), h('p', { class: 'pre' }, r.question)));
 
-    if (isCoachHere && open) return workspace(r, right);
+    if (coachWorks) return workspace(r, right);
     if (r.status === 'completed') return result(r, right, isCoachHere, isTrainee);
     if (isTrainee && ['pending', 'draft'].includes(r.status)) {
       right.append(h('div', { class: 'state' }, h('p', null, h('strong', null, 'Waiting for the coach\'s analysis')),
         h('p', null, 'You\'ll get a notification when the analysis arrives. Deadline: ' + fmtDate(r.deadline_at) + '.')));
     }
+  }
+
+  // ---------- Coach: the video opens full screen; the response panel moves into the viewer's bottom sheet ----------
+  function viewerCard(r, right) {
+    return h('button', { type: 'button', class: 'viewer-card', onclick: () => openViewer(r, right) },
+      coverImg(coverUrl(r.video.cover_key)),
+      h('span', { class: 'viewer-card-play' }, icon('play')),
+      h('span', { class: 'viewer-card-label' }, 'Watch full screen'));
+  }
+  async function openViewer(r, right) {
+    if (closeViewer) return;
+    let src;
+    try { src = await mediaUrl('video', r.video.id); } catch (e) { return toast(friendlyError(e), 'err'); }
+    if (closeViewer) return;
+    const slot = h('div');
+    right.replaceWith(slot);
+    const viewer = coachViewer({
+      src, title: r.video.title,
+      onClose: () => closeViewer?.(),
+      onAction: (kind) => focusResponse(right, kind),
+      drawings, onDrawingsChange: (d) => { drawings = d; },
+      onSave: () => rpc('save_drawings', { p_request: r.id, p_drawings: drawings }).catch((e) => toast(friendlyError(e), 'err')),
+    });
+    viewer.sheetBody.append(right);
+    document.body.append(viewer.el);
+    closeViewer = () => { closeViewer = null; viewer.destroy(); slot.replaceWith(right); };
+  }
+  function focusResponse(root, kind) {
+    if (kind === 'write') return root.querySelector('#a_text')?.focus();
+    root.querySelectorAll('.rec')[kind === 'voice' ? 0 : 1]?.scrollIntoView({ block: 'center' });
   }
 
   // ---------- Coach workspace ----------
@@ -78,12 +115,14 @@ export async function requestPage({ main, setTitle, params }) {
     try { items = await q(sb.from('analysis_items').select('*').eq('request_id', r.id).order('created_at')); }
     catch (e) { return root.append(errorState(friendlyError(e), load)); }
     const textItem = items.find((i) => i.kind === 'text');
+    const savedDrawings = items.find((i) => i.kind === 'drawing');
+    if (savedDrawings && isEmptyDrawings(drawings)) drawings = readDrawings(savedDrawings.body);
     const text = h('textarea', { id: 'a_text', style: { minHeight: '180px' }, placeholder: 'What you saw, what to fix and how to practice' }, textItem?.body || '');
     text.value = textItem?.body || '';
     const mediaList = h('div');
     const renderMedia = () => {
       clear(mediaList);
-      const media = items.filter((i) => i.kind !== 'text');
+      const media = items.filter((i) => i.kind !== 'text' && i.kind !== 'drawing');
       if (!media.length) return;
       mediaList.append(h('h3', null, 'Recordings saved in the draft'));
       media.forEach((it) => {
@@ -95,7 +134,7 @@ export async function requestPage({ main, setTitle, params }) {
             catch (e) { toast(friendlyError(e), 'err'); }
           });
         };
-        mediaList.append(h('div', null, analysisItem(it), h('div', { style: { margin: '.3rem 0 .8rem' } }, del)));
+        mediaList.append(h('div', null, analysisItem(it, r.video.id), h('div', { style: { margin: '.3rem 0 .8rem' } }, del)));
       });
     };
     renderMedia();
@@ -118,17 +157,19 @@ export async function requestPage({ main, setTitle, params }) {
     saveBtn.onclick = () => busy(saveBtn, async () => {
       try {
         await rpc('set_analysis_text', { p_request: r.id, p_text: text.value });
+        await rpc('save_drawings', { p_request: r.id, p_drawings: drawings });
         await rpc('save_draft', { p_request: r.id });
         toast('Draft saved. The request still takes a spot in your quota.');
       } catch (e) { toast(friendlyError(e), 'err'); if (/EXPIRED|NOT_OPEN/.test(e.message)) load(); }
     });
     sendBtn.onclick = async () => {
-      const hasMedia = items.some((i) => i.kind !== 'text');
+      const hasMedia = items.some((i) => i.kind !== 'text' && i.kind !== 'drawing');
       if (!text.value.trim() && !hasMedia) return toast('Add at least one part: text, a voice recording or a video recording.', 'err');
       if (!(await confirmDialog('Send the analysis to the trainee?', 'After sending, the analysis cannot be edited.', 'Send'))) return;
       busy(sendBtn, async () => {
         try {
           await rpc('set_analysis_text', { p_request: r.id, p_text: text.value });
+          await rpc('save_drawings', { p_request: r.id, p_drawings: drawings });
           await rpc('send_analysis', { p_request: r.id });
           toast('Analysis sent to the trainee');
           load();
@@ -170,8 +211,8 @@ export async function requestPage({ main, setTitle, params }) {
       audioRec, h('div', { style: { height: '.75rem' } }), videoRec,
       mediaList,
       h('div', { class: 'card soon', style: { marginTop: '1rem' } },
-        h('div', { class: 'row' }, h('strong', null, 'Advanced analysis tools'), h('span', { class: 'tag' }, 'Soon')),
-        h('p', { class: 'small muted' }, 'Drawing on the video, a combined explainer recording (trainee video + voice + small coach camera) and timed drawings are coming next. They are not active yet.')),
+        h('div', { class: 'row' }, h('strong', null, 'Explainer recording'), h('span', { class: 'tag' }, 'Soon')),
+        h('p', { class: 'small muted' }, 'A combined recording (trainee video + your voice + a small camera of you) is coming next. It is not active yet.')),
       h('div', { class: 'btn-row', style: { marginTop: '1.25rem' } }, sendBtn, saveBtn),
       h('div', { class: 'btn-row', style: { marginTop: '.6rem' } }, declineBtn, cancelBtn));
   }
@@ -182,10 +223,10 @@ export async function requestPage({ main, setTitle, params }) {
     const itemsBox = h('div', null, loading());
     root.append(itemsBox);
     try {
-      const order = { text: 0, video: 1, audio: 2 };
+      const order = { text: 0, video: 1, audio: 2, drawing: 3 };
       const items = (await q(sb.from('analysis_items').select('*').eq('request_id', r.id).order('created_at')))
         .sort((a, b) => order[a.kind] - order[b.kind]);
-      clear(itemsBox).append(...(items.length ? items.map(analysisItem) : [h('p', { class: 'muted' }, 'No analysis parts.')]));
+      clear(itemsBox).append(...(items.length ? items.map((it) => analysisItem(it, r.video.id)) : [h('p', { class: 'muted' }, 'No analysis parts.')]));
     } catch (e) { clear(itemsBox).append(errorState(friendlyError(e))); }
 
     if (!isCoachHere && !isTrainee) return;
