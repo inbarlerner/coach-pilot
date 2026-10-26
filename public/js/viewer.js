@@ -26,6 +26,7 @@ const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch {}
 const roundButton = (label, content, onclick) =>
   h('button', { type: 'button', class: 'viewer-round', 'aria-label': label, title: label, onclick }, content);
 const round = (n, step = 10000) => Math.round(n * step) / step;
+const frameKey = (t) => round(t, 10);   // marks, notes and lookups all use the same 0.1 s key
 const clock = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
 // Saved drawings: { strokes, notes }. Older saves were a plain list of strokes.
@@ -33,7 +34,9 @@ export function readDrawings(raw) {
   let d = raw;
   if (typeof raw === 'string') { try { d = JSON.parse(raw); } catch { d = null; } }
   if (Array.isArray(d)) return { strokes: d, notes: [] };
-  return { strokes: Array.isArray(d?.strokes) ? d.strokes : [], notes: Array.isArray(d?.notes) ? d.notes : [] };
+  const notes = new Map();   // one note per frame; the last one wins (older drafts saved one per keystroke)
+  for (const n of Array.isArray(d?.notes) ? d.notes : []) if (n && n.text) notes.set(frameKey(n.t), { t: frameKey(n.t), text: n.text });
+  return { strokes: Array.isArray(d?.strokes) ? d.strokes : [], notes: [...notes.values()] };
 }
 export const isEmptyDrawings = (d) => !d.strokes.length && !d.notes.length;
 
@@ -59,12 +62,26 @@ export function paintStrokes(ctx, strokes, time, box) {
   }
 }
 
-// The explanation of a frame shows only while that frame is on screen, like its drawings.
-export function showCaption(el, notes, time) {
-  const n = notes.find((x) => Math.abs(x.t - time) <= FRAME_TOLERANCE);
-  const text = n ? n.text : '';
-  if (el.textContent !== text) el.textContent = text;
-  el.hidden = !n;
+// The explanation of a frame, shown in one line under the video only while that frame is on screen
+// (like its drawings). If it is longer than the line, "Read more" pauses the video and opens the full
+// text; playing again closes it.
+export function captionBar(video) {
+  const text = h('span', { class: 'viewer-caption-text' });
+  const more = h('button', { type: 'button', class: 'viewer-more', hidden: true }, 'Read more');
+  const el = h('div', { class: 'viewer-caption', hidden: true }, text, more);
+  let current = null;
+  const fit = () => { more.hidden = el.classList.contains('open') || text.scrollWidth <= text.clientWidth + 1; };
+  more.addEventListener('click', (e) => { e.stopPropagation(); video.pause(); el.classList.add('open'); fit(); });
+  video.addEventListener('play', () => { el.classList.remove('open'); fit(); });
+  el.update = (notes, time, hide = false) => {
+    const n = hide ? null : notes.find((x) => Math.abs(x.t - time) <= FRAME_TOLERANCE);
+    const t = n ? n.text : null;
+    const wasHidden = el.hidden;
+    el.hidden = !n;
+    if (t !== current) { current = t; text.textContent = t || ''; el.classList.remove('open'); fit(); }
+    else if (n && wasHidden) fit();
+  };
+  return el;
 }
 
 // Keeps a canvas the same size as its element on screen (retina aware) and clears it.
@@ -83,7 +100,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   const ink = h('canvas', { class: 'viewer-ink', 'aria-hidden': 'true' });
   const tap = h('div', { class: 'viewer-tap', 'aria-hidden': 'true' });
   const hint = h('div', { class: 'viewer-hint', 'aria-live': 'polite' });
-  const caption = h('div', { class: 'viewer-caption', hidden: true });
+  const caption = captionBar(video);
   const start = readDrawings(drawings || { strokes: [], notes: [] });
   let strokes = start.strokes.slice(), notes = start.notes.slice(), stroke = null;
   let color = DEFAULT_COLOR, paletteOpen = false, longPressed = false, colorTimer = null;
@@ -140,9 +157,9 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   const actions = respond ? h('div', { class: 'viewer-actions' },
     [['write', 'Write', 'text'], ['voice', 'Voice', 'mic'], ['video', 'Video', 'camera']].map(([kind, label, ic]) =>
       h('button', { type: 'button', onclick: () => openSheet(kind) }, icon(ic), label))) : null;
-  const bottom = h('div', { class: 'viewer-bottom' }, noteRow, scrub, actions);
+  const bottom = h('div', { class: 'viewer-bottom' }, noteRow, caption, scrub, actions);
   const el = h('div', { class: 'viewer', role: 'dialog', 'aria-label': 'Video viewer' },
-    video, ink, tap, hint, caption, top, rail, palette, bottom, sheet);
+    video, ink, tap, hint, top, rail, palette, bottom, sheet);
 
   document.body.style.overflow = 'hidden';
   video.addEventListener('play', () => { syncPlay(); hideNote(); });
@@ -163,13 +180,13 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     timeLabel.textContent = `${clock(video.currentTime)} / ${clock(d)}`;
     track.setAttribute('aria-valuetext', timeLabel.textContent);
   }
-  function markTimes() { return [...new Set([...strokes, ...notes].map((s) => round(s.t, 10)))].sort((a, b) => a - b); }
+  function markTimes() { return [...new Set([...strokes, ...notes].map((s) => frameKey(s.t)))].sort((a, b) => a - b); }
   // A dot per frame: yellow = drawing, white with T = text, yellow with T = both.
   function renderMarks() {
     const d = duration();
     clear(marks).append(markTimes().map((t) => {
-      const draws = strokes.some((x) => round(x.t, 10) === t);
-      const texts = notes.some((x) => round(x.t, 10) === t);
+      const draws = strokes.some((x) => frameKey(x.t) === t);
+      const texts = notes.some((x) => frameKey(x.t) === t);
       const kind = [draws && 'draw', texts && 'text'].filter(Boolean).join(' ');
       const label = `Frame at ${clock(t)}: ${[draws && 'drawing', texts && 'text'].filter(Boolean).join(' and ')}`;
       return h('button', {
@@ -191,7 +208,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   // ---------- Explanation for a frame ----------
   function openNote(t) {
     noteAt = t;
-    noteInput.value = notes.find((n) => round(n.t, 10) === t)?.text || '';
+    noteInput.value = notes.find((n) => frameKey(n.t) === t)?.text || '';
     noteRow.hidden = false;
     renderMarks();
   }
@@ -199,7 +216,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   function addText() {
     setDrawing(false);
     video.pause();
-    openNote(round(video.currentTime, 100));
+    openNote(frameKey(video.currentTime));
     noteInput.focus({ preventScroll: true });
   }
   function hideNote() {
@@ -211,7 +228,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   function setNote(t, text) {
     if (t === null) return;
     const clean = text.trim();
-    notes = notes.filter((n) => round(n.t, 10) !== t);
+    notes = notes.filter((n) => frameKey(n.t) !== t);
     if (clean) notes.push({ t, text: clean.slice(0, NOTE_MAX) });
     emit();
     renderMarks();
@@ -330,7 +347,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     const ctx = fitCanvas(ink, r);
     const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
     paintStrokes(ctx, stroke ? [...strokes, stroke] : strokes, video.currentTime, b);
-    showCaption(caption, notes, video.currentTime);
+    caption.update(notes, video.currentTime, noteAt !== null);   // while editing, the edit line shows the text
   }
   function loop() { raf = requestAnimationFrame(loop); paint(); }
 
@@ -384,26 +401,21 @@ async function watchAsCoach(video) {
 export function drawingsReview(item, videoId) {
   const d = readDrawings(item.body);
   if (isEmptyDrawings(d)) return null;
-  const times = [...new Set([...d.strokes, ...d.notes].map((s) => round(s.t, 10)))].sort((a, b) => a - b);
+  const times = [...new Set([...d.strokes, ...d.notes].map((s) => frameKey(s.t)))].sort((a, b) => a - b);
   const video = h('video', { controls: true, playsInline: true, preload: 'metadata', class: 'review-video' });
   const canvas = h('canvas', { class: 'review-ink', 'aria-hidden': 'true' });
-  const caption = h('div', { class: 'viewer-caption', hidden: true });
-  const stage = h('div', { class: 'review-stage' }, video, canvas, caption);
-  const note = h('p', { class: 'review-note' });
-  const showNote = (t) => {
-    const n = d.notes.find((x) => round(x.t, 10) === t);
-    note.textContent = n ? n.text : '';
-    note.hidden = !n;
-  };
+  const caption = captionBar(video);
+  caption.classList.add('review-caption');
+  const stage = h('div', { class: 'review-stage' }, video, canvas);
   const frames = h('div', { class: 'row', style: { marginTop: '.5rem' } }, times.map((t) =>
-    h('button', { type: 'button', class: 'btn secondary small', onclick: () => { video.pause(); video.currentTime = t; showNote(t); paint(); } },
+    h('button', { type: 'button', class: 'btn secondary small', onclick: () => { video.pause(); video.currentTime = t; paint(); } },
       'Frame ' + clock(t))));
   const paint = () => {
     const r = canvas.getBoundingClientRect();
     const ctx = fitCanvas(canvas, r);
     const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
     paintStrokes(ctx, d.strokes, video.currentTime, b);
-    showCaption(caption, d.notes, video.currentTime);
+    caption.update(d.notes, video.currentTime);
   };
   video.addEventListener('timeupdate', paint);
   video.addEventListener('seeked', paint);
@@ -411,8 +423,7 @@ export function drawingsReview(item, videoId) {
   mediaUrl('video', videoId).then((src) => { video.src = src; }).catch(() => {
     stage.replaceWith(h('p', { class: 'muted' }, 'The video is not available, so the drawings cannot be shown.'));
   });
-  showNote(times[0]);
   return h('div', { class: 'card' },
-    h('div', { class: 'label' }, 'Drawings on the video'),
-    stage, frames, note);
+    h('div', { class: 'label' }, 'Drawings and notes on the video'),
+    stage, caption, frames);
 }
