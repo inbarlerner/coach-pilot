@@ -20,6 +20,7 @@ const FRAME_TOLERANCE = 0.12;   // seconds: a drawing belongs to the frame it wa
 export const COLORS = ['#ffd60a', '#ff3b30', '#ffffff', '#34c759', '#0a84ff', '#ff9f0a'];
 const DEFAULT_COLOR = COLORS[0];
 const NOTE_MAX = 300;
+const NOTE_SHOW_SEC = 1.5;      // a frame's text stays on screen this long from its frame
 
 // Pointer capture throws for synthetic or already-ended pointers; the viewer still works without it.
 const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch {} };
@@ -62,8 +63,7 @@ export function paintStrokes(ctx, strokes, time, box) {
   }
 }
 
-// The explanation of a frame, shown in one line under the video only while that frame is on screen
-// (like its drawings). If it is longer than the line, "Read more" pauses the video and opens the full
+// The explanation of a frame, shown in one line under the video for 1.5 s from its frame. If it is longer than the line, "Read more" pauses the video and opens the full
 // text; playing again closes it.
 export function captionBar(video) {
   const text = h('span', { class: 'viewer-caption-text' });
@@ -74,7 +74,10 @@ export function captionBar(video) {
   more.addEventListener('click', (e) => { e.stopPropagation(); video.pause(); el.classList.add('open'); fit(); });
   video.addEventListener('play', () => { el.classList.remove('open'); fit(); });
   el.update = (notes, time, hide = false) => {
-    const n = hide ? null : notes.find((x) => Math.abs(x.t - time) <= FRAME_TOLERANCE);
+    // The text that started most recently and is still within its 1.5 s.
+    const n = hide ? null : notes
+      .filter((x) => time >= x.t - FRAME_TOLERANCE && time <= x.t + NOTE_SHOW_SEC)
+      .sort((a, b) => b.t - a.t)[0];
     const t = n ? n.text : null;
     const wasHidden = el.hidden;
     el.hidden = !n;
@@ -149,9 +152,11 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   const timeLabel = h('span', { class: 'viewer-time' }, '0:00 / 0:00');
   const scrub = h('div', { class: 'viewer-scrub' },
     h('div', { class: 'viewer-track-wrap' }, track, marks), timeLabel);
-  const noteInput = h('input', { type: 'text', class: 'viewer-note-input', maxlength: NOTE_MAX,
+  // Grows with the text, so everything typed stays visible.
+  const noteInput = h('textarea', { class: 'viewer-note-input', maxlength: NOTE_MAX, rows: 1,
     placeholder: 'Why did you mark this frame?', 'aria-label': 'Explanation for this frame' });
-  noteInput.addEventListener('input', () => setNote(noteAt, noteInput.value));
+  const growNote = () => { noteInput.style.height = 'auto'; noteInput.style.height = noteInput.scrollHeight + 'px'; };
+  noteInput.addEventListener('input', () => { growNote(); setNote(noteAt, noteInput.value); });
   noteInput.addEventListener('change', () => saveSoon(0));
   const noteRow = h('div', { class: 'viewer-note', hidden: true }, noteInput);
   const actions = respond ? h('div', { class: 'viewer-actions' },
@@ -210,6 +215,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     noteAt = t;
     noteInput.value = notes.find((n) => frameKey(n.t) === t)?.text || '';
     noteRow.hidden = false;
+    growNote();
     renderMarks();
   }
   // The text tool: pause on this frame and write an explanation for it.

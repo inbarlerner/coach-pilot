@@ -306,7 +306,8 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 .viewer-swatch { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; padding: 0; cursor: pointer; }
 .viewer-note { padding: 0 0 2px; }
 .viewer-note[hidden] { display: none; }
-.viewer-note-input { width: 100%; min-height: 44px; border: 0; border-radius: 22px; padding: 0 16px; font: inherit; background: #fff; color: #000; }
+.viewer-note-input { display: block; width: 100%; min-height: 44px; max-height: 40vh; border: 0; border-radius: 16px; padding: .6rem 1rem;
+  font: inherit; line-height: 1.4; resize: none; overflow-y: auto; background: #fff; color: #000; }
 .viewer-mark.on { background: #fff; }
 .review-note { font-weight: 600; margin: .6rem 0 0; }
 .viewer-caption { display: flex; align-items: flex-start; gap: .6rem; padding: .55rem .8rem; border-radius: 12px; background: rgba(0,0,0,.72); color: #fff; }
