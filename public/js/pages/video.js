@@ -2,7 +2,8 @@
 import { h, clear, loading, errorState, friendlyError, fmtDate, busy, toast, confirmDialog, modal, STATUS } from '../ui.js';
 import { sb, state, q, rpc, action, sportName, isAdmin, isCoach, mediaUrl, coverUrl, uploadFile, discardUpload } from '../api.js';
 import { coachWatchCard } from '../viewer.js';
-import { personLink, coverPicker } from '../images.js';
+import { personLink } from '../images.js';
+import { openVideoEditor } from '../video-editor.js';
 import { protectedVideo, analysisItem } from '../components.js';
 import { go } from '../app.js';
 
@@ -165,30 +166,21 @@ export async function videoPage({ main, setTitle, params, query }) {
     return b;
   }
 
-  // Owner picks a new cover: a frame from the video or a photo.
+  // Owner picks a new cover: a frame from the video or a photo, framed like the profile tile.
   async function changeCover(v) {
     let url;
     try { url = await mediaUrl('video', v.id); } catch (e) { return toast(friendlyError(e), 'err'); }
-    const current = v.cover_key ? await coverUrl(v.cover_key) : null;
-    const picker = coverPicker(url, { current });
-    const saved = await modal((close) => {
-      const save = h('button', { class: 'btn' }, 'Save cover');
-      save.onclick = () => busy(save, async () => {
-        if (!picker.chosen()) return toast('Pick a frame or upload a photo first', 'err');
-        try {
-          const blob = await picker.getBlob();
-          const up = await uploadFile(new File([blob], 'cover.jpg', { type: 'image/jpeg' }), 'cover');
-          let old;
-          try { old = await rpc('set_video_cover', { p_video: v.id, p_key: up.key }); } catch (e) { discardUpload(up.key); throw e; }
-          if (old) discardUpload(old);
-          close(true);
-        } catch (e) { toast(friendlyError(e), 'err'); }
-      });
-      return [h('h2', null, 'Cover image'), picker,
-        h('div', { class: 'btn-row', style: { marginTop: '1rem' } }, save, h('button', { class: 'btn secondary', onclick: () => close(false) }, 'Cancel'))];
-    });
-    picker.cleanup();
-    if (saved) { toast('Cover updated'); load(); }
+    const res = await openVideoEditor(url, { trim: false });
+    if (!res) return;
+    if (!res.cover) return toast('Could not read the video. Upload a photo for the cover instead.', 'err');
+    try {
+      const up = await uploadFile(new File([res.cover], 'cover.jpg', { type: 'image/jpeg' }), 'cover');
+      let old;
+      try { old = await rpc('set_video_cover', { p_video: v.id, p_key: up.key }); } catch (e) { discardUpload(up.key); throw e; }
+      if (old) discardUpload(old);
+      toast('Cover updated');
+      load();
+    } catch (e) { toast(friendlyError(e), 'err'); }
   }
 
   await load();

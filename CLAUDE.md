@@ -37,6 +37,7 @@ public/
   js/ui.js, components.js   עזרי DOM ורכיבים (כולל בוחר שפות)
   js/images.js       תמונת פרופיל (avatar), קאבר לסרטון: בחירת פריים / העלאת תמונה / פריים אקראי
   js/viewer.js       צפייה מלאה של המאמן (מגע: הקפצה, האטה, עיפרון לפריים) + הצגת שרטוטים בניתוח
+  js/video-editor.js מסך עריכה אחרי בחירת סרטון: חיתוך התחלה/סוף (הקלטה מחדש בדפדפן), קאבר עם מסגרת 3:4 כמו בפרופיל, ✕/✓
   js/pages/          auth, home (פיד), search (מאמנים), upload, inbox,
                      request (מסך בקשה/ניתוח), video, profile, settings,
                      notifications, admin
