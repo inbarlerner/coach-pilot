@@ -1,5 +1,5 @@
-// Profile photos and video covers: avatar display, image resizing, frame capture, cover picker.
-import { h, clear, toast, filePicker } from './ui.js';
+// Profile photos and video covers: avatar display, image resizing, cover images. (Cover editing: video-editor.js.)
+import { h } from './ui.js';
 import { avatarUrl } from './api.js';
 
 // Round profile photo, or initials when there is none. `p` is any row with first_name, last_name, avatar_key.
@@ -56,98 +56,6 @@ export async function imageFileToJpeg(file, opts) {
   const img = await loadImage(file);
   try { return await toJpeg(img, img.naturalWidth, img.naturalHeight, opts); }
   finally { URL.revokeObjectURL(img.src); }
-}
-
-// A hidden <video> for grabbing frames from a local file or a (CORS-enabled) link.
-function frameSource(src) {
-  const v = document.createElement('video');
-  v.muted = true; v.playsInline = true; v.preload = 'auto'; v.crossOrigin = 'anonymous';
-  v.setAttribute('playsinline', '');
-  v.src = src;
-  const ready = new Promise((resolve, reject) => {
-    v.addEventListener('loadeddata', () => resolve(v), { once: true });
-    v.addEventListener('error', () => reject(new Error('VIDEO_UNREADABLE')), { once: true });
-    setTimeout(() => reject(new Error('VIDEO_UNREADABLE')), 15000);
-  }).then(knownDuration);
-  return { v, ready };
-}
-// Browser recordings (WebM) often report no duration until the end is reached; find it once.
-async function knownDuration(v) {
-  if (Number.isFinite(v.duration) && v.duration > 0) return v;
-  await new Promise((resolve) => {
-    const done = () => { if (Number.isFinite(v.duration)) { v.removeEventListener('durationchange', done); resolve(); } };
-    v.addEventListener('durationchange', done);
-    v.currentTime = 1e7;
-    setTimeout(resolve, 4000);
-  });
-  if (!Number.isFinite(v.duration)) Object.defineProperty(v, 'duration', { value: 0 });
-  await seek(v, 0);
-  return v;
-}
-function seek(v, t) {
-  return new Promise((resolve) => {
-    const done = () => { v.removeEventListener('seeked', done); resolve(); };
-    v.addEventListener('seeked', done);
-    v.currentTime = Math.max(0, Math.min(t, (v.duration || 0) - 0.05));
-    setTimeout(done, 4000);
-  });
-}
-export async function grabFrame(v, t) {
-  if (t !== undefined) await seek(v, t);
-  return toJpeg(v, v.videoWidth, v.videoHeight);
-}
-
-/**
- * Cover picker for a video. source: a File (new upload) or a signed link (existing video).
- * The user can pick a moment from the video or upload a photo. If they do neither,
- * getBlob() returns a random frame (or null if the browser cannot read the video).
- */
-export function coverPicker(source, { current = null } = {}) {
-  const src = source instanceof Blob ? URL.createObjectURL(source) : source;
-  const { v, ready } = frameSource(src);
-  let chosen = null;          // Blob the user picked
-  const preview = h('div', { class: 'cover-preview' }, current ? h('img', { src: current, alt: 'Current cover' }) : h('span', { class: 'muted small' }, 'No cover yet'));
-  const showBlob = (b) => {
-    const url = URL.createObjectURL(b);
-    clear(preview).append(h('img', { src: url, alt: 'Cover preview' }));
-  };
-  const status = h('p', { class: 'hint' }, 'Pick a moment from the video or upload a photo. If you skip this, a random frame from the video is used.');
-  const panel = h('div');
-
-  const pickFrame = h('button', { type: 'button', class: 'btn secondary small' }, 'Pick from video');
-  const photo = filePicker({ id: 'cover_' + Math.random().toString(36).slice(2, 7), accept: 'image/*', label: 'Upload photo', onChange: async (f) => {
-    if (!f) return;
-    try { chosen = await imageFileToJpeg(f); showBlob(chosen); clear(panel); status.textContent = 'Photo selected as the cover.'; }
-    catch { toast('This image could not be read. Try a JPEG or PNG.', 'err'); }
-    photo.reset();
-  } });
-  pickFrame.onclick = async () => {
-    clear(panel).append(h('p', { class: 'muted small' }, 'Loading video…'));
-    try { await ready; } catch { clear(panel).append(h('p', { class: 'error-text' }, 'This video cannot be previewed in this browser. Upload a photo instead.')); return; }
-    const dur = v.duration || 0;
-    const slider = h('input', { type: 'range', min: 0, max: Math.max(dur, 0.1), step: 0.05, value: Math.min(dur / 2, dur), 'aria-label': 'Moment in the video' });
-    const shown = h('video', { muted: true, playsInline: true, src, crossOrigin: 'anonymous', class: 'cover-scrub' });
-    shown.setAttribute('playsinline', '');
-    const sync = () => { shown.currentTime = Number(slider.value); };
-    slider.addEventListener('input', sync);
-    shown.addEventListener('loadeddata', sync, { once: true });
-    const use = h('button', { type: 'button', class: 'btn small' }, 'Use this frame');
-    use.onclick = async () => {
-      try { chosen = await grabFrame(v, Number(slider.value)); showBlob(chosen); clear(panel); status.textContent = 'Frame selected as the cover.'; }
-      catch { toast('Could not capture this frame. Try another moment or upload a photo.', 'err'); }
-    };
-    clear(panel).append(shown, slider, h('div', { class: 'btn-row' }, use, h('button', { type: 'button', class: 'btn secondary small', onclick: () => clear(panel) }, 'Cancel')));
-  };
-
-  const el = h('div', { class: 'cover-picker' }, preview, status, h('div', { class: 'row' }, pickFrame, photo), panel);
-  el.chosen = () => !!chosen;
-  el.getBlob = async () => {
-    if (chosen) return chosen;
-    try { await ready; return await grabFrame(v, (v.duration || 0) * (0.15 + Math.random() * 0.7)); }
-    catch { return null; }
-  };
-  el.cleanup = () => { if (source instanceof Blob) URL.revokeObjectURL(src); v.removeAttribute('src'); v.load(); };
-  return el;
 }
 
 // Cover image for a video tile or player (signed link resolved later).

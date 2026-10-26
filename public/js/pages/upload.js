@@ -1,8 +1,11 @@
 // Upload a video: choose destination → form → upload with progress → (optional) send to coach.
-import { h, clear, busy, friendlyError, successState, errorState, loading, POLICY, toast, filePicker, plural } from '../ui.js';
+import { h, clear, busy, friendlyError, successState, errorState, loading, POLICY, toast, filePicker, plural, fmtSize } from '../ui.js';
 import { sb, state, q, activeSports, sportName, rpc, uploadFile, discardUpload, fileType, LIMITS, MAX_MB, sizeMB, isCoach } from '../api.js';
-import { avatar, coverPicker } from '../images.js';
+import { avatar } from '../images.js';
+import { openVideoEditor } from '../video-editor.js';
 import { languagesLine } from '../components.js';
+
+const clock = (t) => `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, '0')}`;
 
 export async function uploadPage({ main, setTitle, query }) {
   setTitle('Upload video');
@@ -60,29 +63,34 @@ export async function uploadPage({ main, setTitle, query }) {
     const title = h('input', { type: 'text', id: 'u_title', maxlength: 120, placeholder: 'e.g. Jibe to the left' });
     const desc = h('textarea', { id: 'u_desc', maxlength: 2000, placeholder: 'What\'s in the video, conditions, what you were trying to do' });
     const question = h('textarea', { id: 'u_q', maxlength: 2000, placeholder: 'What do you most want to know from the coach?' });
-    const vis = { private: h('input', { type: 'radio', name: 'vis', value: 'private', checked: true }), public: h('input', { type: 'radio', name: 'vis', value: 'public' }) };
+    const vis = { private: h('input', { type: 'radio', name: 'vis', value: 'private' }), public: h('input', { type: 'radio', name: 'vis', value: 'public', checked: true }) };
     const coachBox = h('div');
-    const coverBox = h('div', null, h('p', { class: 'muted small' }, 'Choose a video first.'));
-    let cover = null;
+    let cover = null;            // cover Blob from the editor
+    let edit = null;             // { original, start, end } so the clip can be edited again
     const err = h('div', { class: 'banner hidden', role: 'alert' });
     const btn = h('button', { class: 'btn block', type: 'submit' }, toCoach ? 'Upload and send to coach' : 'Upload and save');
 
-    fileIn.addEventListener('change', () => {
+    // After choosing a video: the editor (trim + cover) opens; ✓ brings the clip back here.
+    async function editClip(original, prev = {}) {
+      const res = await openVideoEditor(original, prev);
+      if (!res) return !!s.file;            // cancelled: keep what was there before
+      s.file = res.file; cover = res.cover; edit = { original, start: res.start, end: res.end };
+      const thumb = res.cover ? h('img', { src: URL.createObjectURL(res.cover), alt: 'Cover', class: 'clip-thumb' }) : null;
+      clear(fileInfo).append(h('div', { class: 'row', style: { flexWrap: 'nowrap', marginTop: '.5rem' } }, thumb,
+        h('div', null,
+          h('div', null, h('strong', null, `Clip ${clock(res.end - res.start)}`), ` · ${fmtSize(res.file.size)}`),
+          h('button', { type: 'button', class: 'btn secondary small', style: { marginTop: '.35rem' },
+            onclick: () => editClip(edit.original, { start: edit.start, end: edit.end }) }, 'Edit clip and cover'))));
+      return true;
+    }
+    fileIn.addEventListener('change', async () => {
       const f = fileIn.files[0];
       fileErr.classList.add('hidden');
-      s.file = null; fileInfo.textContent = '';
-      if (cover) { cover.cleanup(); cover = null; clear(coverBox).append(h('p', { class: 'muted small' }, 'Choose a video first.')); }
       if (!f) return;
       const t = fileType(f);
       if (!LIMITS.videoTypes.includes(t)) { fileErr.textContent = `This format is not supported. You can upload ${LIMITS.videoFormats}.`; fileErr.classList.remove('hidden'); picker.reset(); return; }
-      if (f.size > MAX_MB * 1048576) {
-        fileErr.textContent = `The file is too large: ${sizeMB(f.size)}MB. The limit is ${MAX_MB}MB per video. Trim it in your phone's gallery (Edit → Trim) or record at a lower quality, then choose it again.`;
-        fileErr.classList.remove('hidden'); picker.reset(); return;
-      }
-      s.file = f;
-      fileInfo.textContent = `${f.name} · ${Math.round(f.size / 1048576 * 10) / 10}MB`;
-      cover = coverPicker(f);
-      clear(coverBox).append(cover);
+      s.file = null; cover = null; edit = null; clear(fileInfo);
+      if (!(await editClip(f))) picker.reset();
     });
 
     let coaches = [];
@@ -130,7 +138,6 @@ export async function uploadPage({ main, setTitle, query }) {
           h('strong', null, `Up to ${MAX_MB}MB per video`), ` · ${LIMITS.videoFormats}. `,
           'With normal phone recording that is usually under a minute. You can trim a longer video in your gallery before uploading.',
           h('br'), h('span', { class: 'small' }, 'When the pilot storage fills up, the oldest videos are removed automatically. Analysis text and messages are kept.'))),
-      h('div', { class: 'field' }, h('div', { class: 'label' }, 'Cover image'), coverBox),
       h('div', { class: 'field' }, h('label', { for: 'u_sport' }, 'Sport'), sport),
       h('div', { class: 'field' }, h('label', { for: 'u_title' }, 'Drill name'), title),
       h('div', { class: 'field' }, h('label', { for: 'u_desc' }, 'Description (optional)'), desc),
@@ -138,10 +145,10 @@ export async function uploadPage({ main, setTitle, query }) {
       toCoach && h('div', { class: 'field' }, h('div', { class: 'label' }, 'Choose a coach'), coachBox),
       h('div', { class: 'field' }, h('div', { class: 'label' }, 'Who can watch?'),
         h('div', { class: 'choices', role: 'radiogroup' },
-          h('label', { class: 'choice' }, vis.private, h('span', null, h('span', { class: 't' }, 'Private (default)'),
-            h('span', { class: 'd' }, toCoach ? 'Only you and the coach you choose.' : 'Only you.'))),
-          h('label', { class: 'choice' }, vis.public, h('span', null, h('span', { class: 't' }, 'Public'),
-            h('span', { class: 'd' }, 'The video and its analysis will be visible in the feed and on your and the coach\'s profiles'))))),
+          h('label', { class: 'choice' }, vis.public, h('span', null, h('span', { class: 't' }, 'Public (default)'),
+            h('span', { class: 'd' }, 'The video and its analysis will be visible in the feed and on your and the coach\'s profiles'))),
+          h('label', { class: 'choice' }, vis.private, h('span', null, h('span', { class: 't' }, 'Private'),
+            h('span', { class: 'd' }, toCoach ? 'Only you and the coach you choose.' : 'Only you.'))))),
       btn);
     clear(body).append(form);
     if (toCoach) {
@@ -231,16 +238,13 @@ export async function uploadPage({ main, setTitle, query }) {
     } catch (e) { clear(box).append(errorState(friendlyError(e), () => stepPickCoachAgain(meta))); }
   }
 
-  // Upload the cover (picked, or a random frame). A missing cover never blocks the video.
-  async function saveCover(videoId, picker) {
-    if (!picker) return;
+  // Upload the cover (picked and framed in the editor, or a random frame). A missing cover never blocks the video.
+  async function saveCover(videoId, blob) {
+    if (!blob) return;
     try {
-      const blob = await picker.getBlob();
-      if (!blob) return;
       const up = await uploadFile(new File([blob], 'cover.jpg', { type: 'image/jpeg' }), 'cover');
       try { await rpc('set_video_cover', { p_video: videoId, p_key: up.key }); } catch (e) { discardUpload(up.key); throw e; }
     } catch (e) { console.warn('cover skipped', e); }
-    finally { picker.cleanup(); }
   }
 
   if (s.dest === 'coach') stepForm(); else stepDest();

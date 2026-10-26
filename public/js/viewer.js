@@ -167,11 +167,29 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     video, ink, tap, hint, top, rail, palette, bottom, sheet);
 
   document.body.style.overflow = 'hidden';
+  // On phones the keyboard covers fixed elements; keep the viewer inside the visible area so the
+  // text line and the response panel sit right above the keyboard.
+  const vv = window.visualViewport;
+  const fitViewport = () => {
+    if (!vv) return;
+    Object.assign(el.style, { top: `${vv.offsetTop}px`, height: `${vv.height}px`, bottom: 'auto' });
+  };
+  vv?.addEventListener('resize', fitViewport);
+  vv?.addEventListener('scroll', fitViewport);
+  fitViewport();
   video.addEventListener('play', () => { syncPlay(); hideNote(); });
   video.addEventListener('pause', syncPlay);
   video.addEventListener('timeupdate', () => { paint(); showProgress(); });
   video.addEventListener('seeked', paint);
-  video.addEventListener('loadedmetadata', () => { showProgress(); renderMarks(); });
+  video.addEventListener('loadedmetadata', () => {
+    // Clips cut in the browser (WebM) may report no length until the end is reached; ask for it once.
+    if (!Number.isFinite(video.duration)) {
+      const back = video.currentTime;
+      video.addEventListener('durationchange', () => { video.currentTime = back; }, { once: true });
+      video.currentTime = 1e7;
+    }
+    showProgress(); renderMarks();
+  });
   video.addEventListener('durationchange', () => { showProgress(); renderMarks(); });
   function syncPlay() { clear(playBtn).append(video.paused ? icon('play') : icon('pause')); }
   function togglePlay() { if (video.paused) video.play().catch(() => {}); else video.pause(); }
@@ -372,6 +390,8 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     video.removeAttribute('src');
     video.load();
     document.body.style.overflow = prevOverflow;
+    vv?.removeEventListener('resize', fitViewport);
+    vv?.removeEventListener('scroll', fitViewport);
     el.remove();
   }
 
