@@ -149,6 +149,7 @@ export function createClient(url, anonKey) {
       return this;
     }
     insert(rows) { this.method = 'POST'; this.body = rows; this.headers.Prefer = 'return=minimal'; return this; }
+    upsert(rows) { this.method = 'POST'; this.body = rows; this.headers.Prefer = 'resolution=merge-duplicates,return=minimal'; return this; }
     update(values) { this.method = 'PATCH'; this.body = values; this.headers.Prefer = 'return=minimal'; return this; }
     delete() { this.method = 'DELETE'; this.headers.Prefer = 'return=minimal'; return this; }
     // Plain operators take the raw value; quoting is only for in-lists (PostgREST rules).

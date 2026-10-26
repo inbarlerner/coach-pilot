@@ -22,6 +22,10 @@ const ROUTES = [
   [/^\/settings$/, './pages/settings.js', 'settingsPage', true],
   [/^\/notifications$/, './pages/notifications.js', 'notificationsPage', true],
   [/^\/admin$/, './pages/admin.js', 'adminPage', true],
+  [/^\/admin\/lab$/, './pages/ailab.js', 'aiLabPage', true],
+  [/^\/admin\/lab\/new$/, './pages/ailab.js', 'aiLabNewPage', true],
+  [/^\/admin\/lab\/([0-9a-f-]{36})$/, './pages/ailab.js', 'aiLabRunPage', true],
+  [/^\/admin\/feedback$/, './pages/ailab.js', 'aiFeedbackPage', true],
 ];
 const NAV = [ // left to right
   ['home', '/home', 'Home', ['/home', '/v/']],

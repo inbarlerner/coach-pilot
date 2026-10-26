@@ -25,7 +25,7 @@
 | DB | Supabase Postgres | RLS, פונקציות RPC, pg_cron כל דקה לפקיעת בקשות |
 | קבצים | Supabase Storage | דלי פרטי `media` (וידאו/קול/קאברים, עד 50MB, קישור חתום לשעה) + דלי ציבורי `avatars` (תמונות פרופיל, עד 2MB) |
 
-משתני סביבה ב־Cloudflare Pages: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (מקבל גם `SUPABASE_ANON_KEY` ישן). `/api/health` מראה אם חסר משהו.
+משתני סביבה ב־Cloudflare Pages: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (מקבל גם `SUPABASE_ANON_KEY` ישן), ו־`ANTHROPIC_API_KEY` כסוד (Secret) למעבדת ה־AI. `/api/health` מראה אם חסר משהו.
 
 ## מבנה הקוד
 ```
@@ -52,7 +52,14 @@ supabase/            להריץ לפי הסדר ב־SQL Editor:
   006_request_coach.sql בקשת הצטרפות כמאמן מחשבון קיים (מסך הגדרות)
   007_photos_languages_english.sql תמונות פרופיל, קאבר, שפות, טקסטים באנגלית
   008_search.sql     חיפוש כללי: search_people, search_videos
+  009_ai_lab.sql     מעבדת מאמן AI למנהלות: ריצות, ביקורות, פידבק ל־Claude, דלי ai-lab
 tests/               בדיקות SQL (stubs ל־Supabase), פונקציות, ו־e2e בדפדפן
+functions/_lib/ai-coach.js  הליבה של מאמן ה־AI (פרומפט, סכמה, קריאה ל־Claude, מחיר)
+functions/api/ai-lab.js     מריץ ניתוח AI במעבדה (מנהלות בלבד, מפתח ה־API סוד ב־Cloudflare)
+public/ai-coach/     כרטיסי התרגילים + coaching-decisions.md + index.json (node scripts/ai-cards-index.mjs אחרי שינוי)
+public/js/pages/ailab.js    מסכי המעבדה (#/admin/lab, /new, /<id>) ופידבק ל־Claude (#/admin/feedback)
+public/js/ai-player.js, ai-text.js  נגן המשוב על הסרטון (ציורים, עצירות, האטה, זום) ותצוגת הטקסט
+lab/                 גרסה מקומית ישנה של המעבדה (node lab/server.mjs). ראו lab/README.md
 ```
 
 ## מודל הנתונים (עיקרי)
@@ -80,13 +87,17 @@ tests/               בדיקות SQL (stubs ל־Supabase), פונקציות, ו
 ## בדיקות
 ```
 node tests/functions.test.mjs
+node tests/ai_coach.test.mjs
+node tests/ai_lab.test.mjs
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f tests/acceptance.sql
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f tests/cleanup.sql
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f tests/request_coach.sql
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f tests/photos_languages.sql
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f supabase/008_search.sql -f tests/search_chat.sql
+psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f supabase/008_search.sql -f supabase/009_ai_lab.sql -f tests/ai_lab.sql
 python3 tests/e2e/acceptance_ui.py   # Supabase Auth + PostgREST מקומיים + אמולטור אחסון (tests/e2e/server.mjs). שימו לב: הסלקטורים עדיין בעברית ולא עודכנו לממשק האנגלי.
 ```
+בלי psql מקומי אפשר להריץ את בדיקות ה־SQL בקונטיינר `postgres:17-alpine` (docker exec … psql). ל־`tests/e2e/server.mjs` אפשר להגדיר `E2E_PSQL`, ו־Claude מזויף כברירת מחדל (`E2E_AI_REPLY` = קובץ תשובה).
 להריץ את כל הבדיקות לפני כל commit.
 
 ## איך עובדים כאן

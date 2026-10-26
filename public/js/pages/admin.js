@@ -16,7 +16,8 @@ export function adminPage({ main, setTitle, query }) {
       const mb = (b) => Math.round(b / 1048576);
       usage.textContent = `File storage: ${mb(u.used_bytes)}MB of ${mb(u.cap_bytes)}MB (${u.file_count} files). At the limit, the oldest videos are removed automatically, except those in open requests.`;
     }).catch(() => {});
-    clear(main).append(h('h1', null, 'Admin'), usage,
+    clear(main).append(h('div', { class: 'row between' }, h('h1', null, 'Admin'),
+      h('div', { class: 'btn-row' }, h('a', { class: 'btn secondary small', href: '#/admin/lab' }, 'AI coach lab'), h('a', { class: 'btn secondary small', href: '#/admin/feedback' }, 'Feedback for Claude'))), usage,
       tabs([['coaches', 'Coach applications'], ['users', 'Users'], ['reports', 'Reports'], ['sports', 'Sports']], tab, (k) => { tab = k; render(); }), body);
     ({ coaches, users, reports, sports })[tab](clear(body));
   };
