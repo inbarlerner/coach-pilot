@@ -1,7 +1,6 @@
 // Home "For You": public videos & analyses, viewer's sports first, simple sport filter.
 import { h, clear, loading, empty, errorState, friendlyError, fmtDate } from '../ui.js';
 import { state, rpc, activeSports, sportName, isCoach } from '../api.js';
-import { coachWatchCard } from '../viewer.js';
 import { protectedVideo } from '../components.js';
 import { personLink } from '../images.js';
 
@@ -59,9 +58,7 @@ export function feedItem(r) {
         r.is_sample && h('span', { class: 'tag' }, 'Sample')),
       h('div', null, sportName(r.sport_id), ' · ', h('strong', null, r.title)),
       h('div', { class: 'meta' }, fmtDate(r.created_at))),
-    isCoach() && r.owner_id !== state.user.id
-      ? coachWatchCard({ id: r.video_id, title: r.title, cover_key: r.cover_key })
-      : protectedVideo('video', r.video_id, { lazy: true, cover: r.cover_key }),
+    protectedVideo('video', r.video_id, { lazy: true, cover: r.cover_key }),
     h('div', { class: 'foot' },
       r.coach_name
         ? h('div', { class: 'row' }, 'Analysis by ', personLink(feedPerson(r.coach_name, r.coach_username, r.coach_avatar), { size: 26 }))

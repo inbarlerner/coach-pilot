@@ -3,7 +3,7 @@ import { h, clear, icon, loading, errorState, friendlyError, fmtDate, timeLeft, 
 import { sb, state, q, rpc, action, sportName, languageNames, mediaUrl, coverUrl } from '../api.js';
 import { protectedVideo, analysisItem, recorder, languagesLine } from '../components.js';
 import { personLink, avatar, coverImg } from '../images.js';
-import { coachViewer, readDrawings, isEmptyDrawings } from '../viewer.js';
+import { coachViewer, readDrawings, isEmptyDrawings, analysisWatchCard } from '../viewer.js';
 import { go, refreshBadge } from '../app.js';
 
 export async function requestPage({ main, setTitle, params }) {
@@ -24,7 +24,7 @@ export async function requestPage({ main, setTitle, params }) {
     let r;
     try {
       r = await q(sb.from('analysis_requests')
-        .select('*, video:videos(id,title,description,sport_id,visibility,owner_id,cover_key),' +
+        .select('*, video:videos(id,title,description,sport_id,visibility,owner_id,cover_key,file_deleted_at),' +
           'trainee:profiles!analysis_requests_trainee_id_fkey(id,first_name,last_name,username,avatar_key,languages),' +
           'coach:profiles!analysis_requests_coach_id_fkey(id,first_name,last_name,username,avatar_key,languages)')
         .eq('id', id).maybeSingle());
@@ -50,12 +50,6 @@ export async function requestPage({ main, setTitle, params }) {
         h('span', { class: 'tag soft' }, r.video.visibility === 'public' ? 'Public' : 'Private')),
       h('div', { class: 'card', style: { margin: '.75rem 0' } }, h('div', { class: 'row between' },
         personBlock(r.trainee, 'Trainee'), personBlock(r.coach, 'Coach'))),
-      h('dl', { class: 'kv' },
-        h('dt', null, 'Sport'), h('dd', null, sportName(r.video.sport_id)),
-        h('dt', null, 'Sent'), h('dd', null, fmtDate(r.created_at)),
-        h('dt', null, 'Respond by'), h('dd', null, fmtDate(r.deadline_at), open ? [' · ', deadlineEl] : ''),
-        r.completed_at && [h('dt', null, 'Analysis sent'), h('dd', null, fmtDate(r.completed_at))],
-        h('dt', null, 'Follow-ups'), h('dd', null, POLICY[r.followup_policy])),
       r.status === 'declined' && h('div', { class: 'banner', role: 'status' }, h('strong', null, 'The request was declined. '), 'Reason: ' + (DECLINE[r.decline_reason] || '') + '. The video and request were kept.'),
       r.status === 'expired' && h('div', { class: 'banner', role: 'status' }, h('strong', null, 'Response time passed. '), 'The coach did not send an analysis by the deadline, so it can no longer be sent for this request. The video and request were kept.'),
       ['pending', 'draft'].includes(r.status) && !open && h('div', { class: 'banner' }, 'The response time has passed. The request will move to Not completed within a minute.'),
@@ -65,14 +59,27 @@ export async function requestPage({ main, setTitle, params }) {
     const right = h('div');
     main.classList.add('wide');
     main.append(h('div', { class: 'two-col' }, left, right));
+    // Request details at the bottom of the page.
+    main.append(h('section', { class: 'request-details' }, h('h2', null, 'Request details'),
+      h('dl', { class: 'kv' },
+        h('dt', null, 'Sport'), h('dd', null, sportName(r.video.sport_id)),
+        h('dt', null, 'Request sent'), h('dd', null, fmtDate(r.created_at)),
+        r.completed_at
+          ? [h('dt', null, 'Analysis sent'), h('dd', null, fmtDate(r.completed_at))]
+          : [h('dt', null, 'Coach responds by'), h('dd', null, fmtDate(r.deadline_at), open ? [' · ', deadlineEl] : '')],
+        h('dt', null, 'Follow-ups'), h('dd', null, POLICY[r.followup_policy]))));
 
     const coachWorks = isCoachHere && open;
-    left.append(coachWorks ? viewerCard(r, right) : protectedVideo('video', r.video.id, { tools: true, cover: r.video.cover_key }),
+    // A finished analysis replaces this placeholder with the full-screen card once its parts are loaded.
+    const player = r.status === 'completed' && !r.video.file_deleted_at
+      ? h('div', { class: 'player' }, h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' })))
+      : protectedVideo('video', r.video.id, { tools: true, cover: r.video.cover_key });
+    left.append(coachWorks ? viewerCard(r, right) : player,
       r.video.description && h('div', null, h('h3', null, 'Description'), h('p', { class: 'pre' }, r.video.description)),
       r.question && h('div', null, h('h3', null, 'Question for the coach'), h('p', { class: 'pre' }, r.question)));
 
     if (coachWorks) return workspace(r, right);
-    if (r.status === 'completed') return result(r, right, isCoachHere, isTrainee);
+    if (r.status === 'completed') return result(r, right, isCoachHere, isTrainee, player);
     if (isTrainee && ['pending', 'draft'].includes(r.status)) {
       right.append(h('div', { class: 'state' }, h('p', null, h('strong', null, 'Waiting for the coach\'s analysis')),
         h('p', null, 'You\'ll get a notification when the analysis arrives. Deadline: ' + fmtDate(r.deadline_at) + '.')));
@@ -119,12 +126,16 @@ export async function requestPage({ main, setTitle, params }) {
     if (savedDrawings && isEmptyDrawings(drawings)) drawings = readDrawings(savedDrawings.body);
     const text = h('textarea', { id: 'a_text', style: { minHeight: '180px' }, placeholder: 'What you saw, what to fix and how to practice' }, textItem?.body || '');
     text.value = textItem?.body || '';
+    // Each recorder holds one attached clip (the first of its kind); older drafts may have more, listed here.
+    const firstAudio = items.find((i) => i.kind === 'audio');
+    const firstVideo = items.find((i) => i.kind === 'video');
+    const inRecorder = new Set([firstAudio?.id, firstVideo?.id]);
     const mediaList = h('div');
     const renderMedia = () => {
       clear(mediaList);
-      const media = items.filter((i) => i.kind !== 'text' && i.kind !== 'drawing');
+      const media = items.filter((i) => (i.kind === 'audio' || i.kind === 'video') && !inRecorder.has(i.id));
       if (!media.length) return;
-      mediaList.append(h('h3', null, 'Recordings saved in the draft'));
+      mediaList.append(h('h3', null, 'More recordings in the analysis'));
       media.forEach((it) => {
         const del = h('button', { class: 'btn secondary small' }, 'Remove');
         del.onclick = async () => {
@@ -142,11 +153,19 @@ export async function requestPage({ main, setTitle, params }) {
     const onSaved = (kind) => async ({ key, contentType }) => {
       const iid = await rpc('add_analysis_media', { p_request: r.id, p_kind: kind, p_storage_key: key, p_content_type: contentType });
       await rpc('save_draft', { p_request: r.id });
-      items.push({ id: iid, kind, storage_key: key, content_type: contentType });
-      renderMedia();
+      const it = { id: iid, kind, storage_key: key, content_type: contentType };
+      items.push(it);
+      inRecorder.add(iid);
+      return it;
     };
-    const audioRec = recorder('audio', onSaved('audio'));
-    const videoRec = recorder('video', onSaved('video'));
+    const onRemove = async (it) => {
+      try { await action('remove_analysis_item', { p_item: it.id }); }
+      catch (e) { if (/EXPIRED|NOT_OPEN/.test(e.message)) load(); throw e; }
+      items = items.filter((x) => x.id !== it.id);
+      inRecorder.delete(it.id);
+    };
+    const audioRec = recorder('audio', { onSaved: onSaved('audio'), onRemove, item: firstAudio });
+    const videoRec = recorder('video', { onSaved: onSaved('video'), onRemove, item: firstVideo });
     recorders.push(audioRec, videoRec);
 
     const saveBtn = h('button', { class: 'btn secondary' }, 'Save draft');
@@ -218,16 +237,28 @@ export async function requestPage({ main, setTitle, params }) {
   }
 
   // ---------- Completed: analysis + follow-ups ----------
-  async function result(r, root, isCoachHere, isTrainee) {
+  // The video opens full screen with the coach's drawings and frame texts (read only); the text and
+  // recordings are listed here and also in the viewer's Analysis panel.
+  async function result(r, root, isCoachHere, isTrainee, player) {
     root.append(h('h2', { style: { marginTop: 0 } }, 'Analysis from ' + r.coach.first_name + ' ' + r.coach.last_name));
     const itemsBox = h('div', null, loading());
     root.append(itemsBox);
     try {
-      const order = { text: 0, video: 1, audio: 2, drawing: 3 };
-      const items = (await q(sb.from('analysis_items').select('*').eq('request_id', r.id).order('created_at')))
-        .sort((a, b) => order[a.kind] - order[b.kind]);
-      clear(itemsBox).append(...(items.length ? items.map((it) => analysisItem(it, r.video.id)) : [h('p', { class: 'muted' }, 'No analysis parts.')]));
-    } catch (e) { clear(itemsBox).append(errorState(friendlyError(e))); }
+      const order = { text: 0, video: 1, audio: 2 };
+      const all = await q(sb.from('analysis_items').select('*').eq('request_id', r.id).order('created_at'));
+      const drawingItem = all.find((it) => it.kind === 'drawing');
+      const items = all.filter((it) => it.kind !== 'drawing').sort((a, b) => order[a.kind] - order[b.kind]);
+      const parts = () => items.map((it) => analysisItem(it, r.video.id));
+      if (!r.video.file_deleted_at) {
+        player.replaceWith(analysisWatchCard(r.video, { drawings: drawingItem?.body, parts: h('div', { class: 'stack' }, parts()) }));
+      }
+      clear(itemsBox).append(
+        drawingItem && !r.video.file_deleted_at && h('p', { class: 'muted small' }, 'Open the video to see the coach\'s drawings and notes at their moments.'),
+        ...(items.length ? parts() : [h('p', { class: 'muted' }, 'No analysis parts.')]));
+    } catch (e) {
+      clear(itemsBox).append(errorState(friendlyError(e)));
+      player.replaceWith(protectedVideo('video', r.video.id, { tools: true, cover: r.video.cover_key }));
+    }
 
     if (!isCoachHere && !isTrainee) return;
     const thread = h('div', { class: 'thread' });

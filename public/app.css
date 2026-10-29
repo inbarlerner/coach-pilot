@@ -285,9 +285,16 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 .viewer-sheet { position: absolute; inset-inline: 0; bottom: 0; z-index: 5; max-height: 80%; overflow: auto; padding: 14px 16px calc(env(safe-area-inset-bottom) + 16px);
   background: var(--bg); color: var(--text); border-radius: 18px 18px 0 0; box-shadow: 0 -4px 24px rgba(0,0,0,.35); }
 .viewer-sheet[hidden] { display: none; }
+.viewer-top-btn { margin-inline-start: auto; flex: none; min-height: 40px; padding: 0 1rem; border: 0; border-radius: 20px; background: #fff; color: #000;
+  font: inherit; font-weight: 700; cursor: pointer; }
+/* Read-only viewer (finished analysis): the playback buttons sit at the bottom, under the timeline */
+.viewer-playbar { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.viewer-playbar button { min-height: 40px; padding: 0 .75rem; border: 2px solid rgba(255,255,255,.6); border-radius: 20px; background: rgba(0,0,0,.55);
+  color: #fff; font: inherit; font-size: .88rem; font-weight: 600; cursor: pointer; }
+.viewer-playbar button[aria-pressed=true] { background: #fff; color: #000; border-color: #fff; }
 
 /* Cover that opens the viewer (coach request page) */
-.viewer-card { position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; max-height: 70vh; padding: 0; border: 0; border-radius: var(--radius);
+.viewer-card { position: relative; display: block; text-decoration: none; width: 100%; aspect-ratio: 3 / 4; max-height: 70vh; padding: 0; border: 0; border-radius: var(--radius);
   overflow: hidden; background: #111; color: #fff; cursor: pointer; }
 .viewer-card img.cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .viewer-card-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 64px; height: 64px; }
@@ -306,6 +313,15 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 .viewer-swatch { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; padding: 0; cursor: pointer; }
 .viewer-note { padding: 0 0 2px; }
 .viewer-note[hidden] { display: none; }
+.viewer-note:not([hidden]) { display: flex; gap: 8px; align-items: flex-start; }
+.viewer-note-del { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; display: inline-flex;
+  align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.viewer-note-del svg { width: 22px; height: 22px; }
+.viewer-note-del[hidden] { display: none; }
+.viewer-undo-bar { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .55rem .6rem .55rem 1rem; border-radius: 12px;
+  background: #fff; color: #000; font-weight: 600; }
+.viewer-undo-bar[hidden] { display: none; }
+.viewer-undo-bar button { flex: none; border: 2px solid #000; border-radius: 18px; background: #000; color: #fff; font: inherit; font-weight: 700; padding: .3rem .9rem; cursor: pointer; }
 .viewer-note-input { display: block; width: 100%; min-height: 44px; max-height: 40vh; border: 0; border-radius: 16px; padding: .6rem 1rem;
   font: inherit; line-height: 1.4; resize: none; overflow-y: auto; background: #fff; color: #000; }
 .viewer-mark.on { background: #fff; }
@@ -383,7 +399,12 @@ main.page.xwide { max-width: 1280px; }
 .crop-area { position: relative; flex: 1; min-height: 0; touch-action: none; overflow: hidden; }
 .crop-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; }
 .crop-frame { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.55); cursor: move; touch-action: none; }
+.strip { position: relative; height: 64px; border-radius: 8px; overflow: hidden; background: #222; cursor: pointer; touch-action: none; }
+.strip-thumbs { display: flex; height: 100%; pointer-events: none; }
+.strip-thumbs canvas { flex: 1 1 0; min-width: 0; height: 100%; object-fit: cover; }
+.strip-head { position: absolute; top: 0; bottom: 0; width: 36px; border: 3px solid #fff; border-radius: 6px; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none; }
 .crop input[type=range] { width: 100%; accent-color: #fff; }
 .crop .btn.secondary { background: transparent; color: #fff; border-color: #fff; }
 .crop .btn { background: #fff; color: #000; border-color: #fff; }
-.clip-thumb { width: 54px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; flex: none; }
+.cover-thumb { width: 96px; aspect-ratio: 3 / 4; flex: none; border-radius: 8px; overflow: hidden; background: var(--surface-2); display: flex; align-items: center; justify-content: center; color: var(--muted, #888); font-size: .85rem; }
+.cover-thumb img { width: 100%; height: 100%; object-fit: cover; }

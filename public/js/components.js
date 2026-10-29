@@ -1,5 +1,5 @@
 // Reusable components: protected video player with analysis tools, media items, recorder.
-import { h, clear, friendlyError, icon, fmtSize, toast, filePicker } from './ui.js';
+import { h, clear, friendlyError, icon, toast, filePicker, confirmDialog } from './ui.js';
 import { mediaUrl, coverUrl, uploadFile, discardUpload, LIMITS, fileType, sizeMB, LANGUAGES, languageNames } from './api.js';
 import { coverImg } from './images.js';
 import { drawingsReview } from './viewer.js';
@@ -89,9 +89,12 @@ export function analysisItem(item, videoId) {
 
 /**
  * Recorder for coach responses: records audio or video in the browser,
- * or falls back to uploading a ready file. Calls onSaved({key, contentType}) after upload.
+ * or falls back to uploading a ready file. There is no save step: once recorded or chosen, the clip is uploaded
+ * and attached to the analysis (onSaved({key, contentType}) returns the new item). It stays attached until the
+ * coach presses Delete (onRemove(item)), which brings back the record / upload controls.
+ * opts.item: a clip already attached (an open draft).
  */
-export function recorder(kind, onSaved) {
+export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
   const purpose = kind === 'audio' ? 'responseAudio' : 'responseVideo';
   const maxMB = kind === 'audio' ? LIMITS.responseAudioMaxMB : LIMITS.responseVideoMaxMB;
   const allowed = kind === 'audio' ? LIMITS.audioTypes : LIMITS.videoTypes;
@@ -101,7 +104,8 @@ export function recorder(kind, onSaved) {
   const fmtTime = (t) => Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
   const box = h('div', { class: 'rec stack' });
   const supported = !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
-  let stream = null, rec = null, chunks = [], timer = null;
+  let stream = null, rec = null, chunks = [], timer = null, localUrl = null;
+  const dropLocal = () => { if (localUrl) URL.revokeObjectURL(localUrl); localUrl = null; };
 
   const stopStream = () => { stream && stream.getTracks().forEach((t) => t.stop()); stream = null; };
 
@@ -153,7 +157,9 @@ export function recorder(kind, onSaved) {
       const type = (rec.mimeType || mime || (kind === 'audio' ? 'audio/webm' : 'video/webm')).split(';')[0];
       const blob = new Blob(chunks, { type });
       stopStream(); clearInterval(timer);
-      review(blob, type);
+      if (blob.size > maxMB * 1048576) return idle(`The recording is too large: ${sizeMB(blob.size)}MB. The limit is ${maxMB}MB per file. Record a shorter one.`);
+      const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
+      upload(new File([blob], 'recording.' + ext, { type: allowed.includes(type) ? type : (kind === 'audio' ? 'audio/webm' : 'video/webm') }));
     };
     rec.start(1000);
     let sec = 0;
@@ -171,20 +177,29 @@ export function recorder(kind, onSaved) {
       h('button', { class: 'btn', type: 'button', onclick: () => rec.state !== 'inactive' && rec.stop() }, 'Stop recording'));
   }
 
-  function review(blob, type) {
-    const url = URL.createObjectURL(blob);
-    const media = kind === 'audio' ? h('audio', { src: url, controls: true, style: { width: '100%' } }) : h('video', { src: url, controls: true, playsInline: true });
-    const tooBig = blob.size > maxMB * 1048576;
+  // The clip is part of the analysis now and goes to the trainee with it.
+  function attached(it) {
+    const player = (url) => (kind === 'audio'
+      ? h('audio', { src: url, controls: true, style: { width: '100%' } })
+      : h('video', { src: url, controls: true, playsInline: true }));
+    const slot = h('div');
+    if (localUrl) slot.append(player(localUrl));
+    else mediaUrl('item', it.id).then((u) => slot.append(player(u))).catch((e) => slot.append(h('p', { class: 'error-text' }, friendlyError(e))));
+    const del = h('button', { class: 'btn secondary', type: 'button' }, 'Delete');
+    del.onclick = async () => {
+      if (!(await confirmDialog(kind === 'audio' ? 'Delete this voice recording?' : 'Delete this video recording?',
+        'It will be removed from the analysis. You can record or upload another one.', 'Delete'))) return;
+      del.disabled = true;
+      try { await onRemove(it); dropLocal(); idle(); toast('Recording deleted'); }
+      catch (e) { del.disabled = false; toast(friendlyError(e), 'err'); }
+    };
     clear(box).append(
-      h('div', { class: 'label' }, 'Review recording (' + fmtSize(blob.size) + ')'),
-      media,
-      tooBig && h('p', { class: 'error-text' }, `The recording is too large: ${sizeMB(blob.size)}MB. The limit is ${maxMB}MB per file. Record a shorter one.`),
-      h('div', { class: 'btn-row' },
-        h('button', { class: 'btn', type: 'button', disabled: tooBig, onclick: () => {
-          const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
-          upload(new File([blob], 'recording.' + ext, { type: allowed.includes(type) ? type : (kind === 'audio' ? 'audio/webm' : 'video/webm') }));
-        } }, 'Save recording'),
-        h('button', { class: 'btn secondary', type: 'button', onclick: () => { URL.revokeObjectURL(url); idle(); } }, 'Delete and record again')));
+      h('div', { class: 'row between' },
+        h('div', { class: 'label' }, kind === 'audio' ? 'Voice recording' : 'Video recording'),
+        h('span', { class: 'tag soft' }, 'Attached')),
+      slot,
+      h('div', { class: 'hint' }, 'It goes to the trainee with the analysis.'),
+      h('div', { class: 'btn-row' }, del));
   }
 
   async function upload(file) {
@@ -198,9 +213,12 @@ export function recorder(kind, onSaved) {
         prog.setAttribute('aria-valuenow', String(Math.round(p * 100)));
         label.textContent = 'Uploading… ' + Math.round(p * 100) + '%';
       });
-      try { await onSaved(res); } catch (e) { discardUpload(res.key); throw e; }
-      idle();
-      toast(kind === 'audio' ? 'Voice recording saved to the draft' : 'Video recording saved to the draft');
+      let it;
+      try { it = await onSaved(res); } catch (e) { discardUpload(res.key); throw e; }
+      dropLocal();
+      localUrl = URL.createObjectURL(file);
+      attached(it);
+      toast(kind === 'audio' ? 'Voice recording attached to the analysis' : 'Video recording attached to the analysis');
     } catch (e) {
       clear(box).append(h('p', { class: 'error-text', role: 'alert' }, 'Upload failed: ' + friendlyError(e)),
         h('div', { class: 'btn-row' },
@@ -209,8 +227,8 @@ export function recorder(kind, onSaved) {
     }
   }
 
-  idle();
-  box.cleanup = () => { stopStream(); clearInterval(timer); };
+  if (item) attached(item); else idle();
+  box.cleanup = () => { stopStream(); clearInterval(timer); dropLocal(); };
   return box;
 }
 

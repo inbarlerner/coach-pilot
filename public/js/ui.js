@@ -198,6 +198,7 @@ const P = {
   pause: '<path d="M8 5v14M16 5v14"/>',
   pencil: '<path d="M4 20l4-1L19 8l-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/>',
   text: '<path d="M5 6h14M12 6v13"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
 };
 export const icon = (name) => {

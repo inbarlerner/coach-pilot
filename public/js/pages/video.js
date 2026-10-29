@@ -1,6 +1,6 @@
 // Single video page: player, owner controls (privacy, delete, send to coach), analysis, comments, report.
 import { h, clear, loading, errorState, friendlyError, fmtDate, busy, toast, confirmDialog, modal, STATUS } from '../ui.js';
-import { sb, state, q, rpc, action, sportName, isAdmin, isCoach, mediaUrl, coverUrl, uploadFile, discardUpload } from '../api.js';
+import { sb, state, q, rpc, action, sportName, isAdmin, mediaUrl, coverUrl, uploadFile, discardUpload } from '../api.js';
 import { coachWatchCard } from '../viewer.js';
 import { personLink } from '../images.js';
 import { openVideoEditor } from '../video-editor.js';
@@ -19,6 +19,14 @@ export async function videoPage({ main, setTitle, params, query }) {
     } catch (e) { return clear(main).append(errorState(friendlyError(e), load)); }
     if (!v) return clear(main).append(errorState('Video not found, or it is private and you do not have access.'));
     const mine = v.owner_id === state.user.id;
+    // Requests on this video. A coach gets the analysis tools only through an open request sent to them.
+    let reqs;
+    try {
+      reqs = await q(sb.from('analysis_requests')
+        .select('id,status,created_at,completed_at,trainee_id,coach_id,coach:profiles!analysis_requests_coach_id_fkey(first_name,last_name,username,avatar_key)')
+        .eq('video_id', v.id).order('created_at', { ascending: false }));
+    } catch (e) { return clear(main).append(errorState(friendlyError(e), load)); }
+    const assigned = reqs.find((r) => r.coach_id === state.user.id && ['pending', 'draft'].includes(r.status));
     clear(main);
 
     main.append(
@@ -28,7 +36,7 @@ export async function videoPage({ main, setTitle, params, query }) {
           v.removed && h('span', { class: 'tag fill' }, 'Removed by admin'))),
       h('h1', null, v.title),
       h('p', { class: 'meta' }, sportName(v.sport_id) + ' · ' + fmtDate(v.created_at)),
-      isCoach() && !mine ? coachWatchCard(v) : protectedVideo('video', v.id, { tools: true, cover: v.cover_key }),
+      assigned ? coachWatchCard(v, assigned.id) : protectedVideo('video', v.id, { tools: true, cover: v.cover_key }),
       v.description && h('p', { class: 'pre', style: { marginTop: '.75rem' } }, v.description));
 
     if (mine) main.append(ownerControls(v));
@@ -37,9 +45,6 @@ export async function videoPage({ main, setTitle, params, query }) {
     const reqBox = h('div');
     main.append(reqBox);
     try {
-      const reqs = await q(sb.from('analysis_requests')
-        .select('id,status,created_at,completed_at,trainee_id,coach_id,coach:profiles!analysis_requests_coach_id_fkey(first_name,last_name,username,avatar_key)')
-        .eq('video_id', v.id).order('created_at', { ascending: false }));
       const visible = reqs.filter((r) => mine || r.coach_id === state.user.id || r.status === 'completed');
       if (visible.length) {
         reqBox.append(h('h2', { id: 'analysis' }, mine ? 'Requests & analyses' : 'Analysis'));
