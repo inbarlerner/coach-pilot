@@ -1,0 +1,47 @@
+schema: spec-driven
+
+# Constraints an agent cannot infer from the code. Full details live in CLAUDE.md.
+context: |
+  Coachit (formerly GetPro; the repo and some code still say GetPro).
+  Web platform: trainees upload sports videos, approved coaches send back an analysis
+  (text, voice, video, drawings), then follow-up messages. Two founders: Jenni owns the
+  backend (database, payments, compliance, privacy), Inbar owns the UI.
+
+  Non-negotiables. Ask before changing any of them:
+  - Free tiers only. No credit card on any service.
+  - No Supabase service-role key anywhere. The browser talks to Supabase as the signed-in
+    user; every permission is enforced in Postgres RLS and storage policies, never only in the UI.
+  - Every state change to requests, analyses and messages goes through a SECURITY DEFINER
+    function that checks permissions on the server.
+  - No build step, no npm dependencies, no CDN. Plain HTML/CSS/JS; the Supabase client is
+    written in-house (public/js/sbclient.js).
+  - Database changes go in a new numbered file in supabase/ (the next number). Never edit a
+    file that already ran in production. Someone runs it by hand in the Supabase SQL Editor
+    after merge.
+  - Payments: charge only inside send_analysis. Never on request, draft, decline or expiry.
+    The coach's terms are snapshotted on each request in `terms`.
+  - A user can only request to become a coach. Nobody can make themselves admin.
+
+  Privacy:
+  - Email and phone live only in profile_private.
+  - Videos and coach recordings sit in the private `media` bucket, served by signed links
+    valid for one hour. Only profile photos go in the public `avatars` bucket.
+
+  Limits: 50MB per file; 900MB storage cap with automatic cleanup of the oldest videos.
+  UI is English, left-to-right, black and white. Merging to main deploys live.
+
+rules:
+  proposal:
+    - "Name the owning track: backend (Jenni), UI (Inbar), or both. If both, define the database function contract first: name, inputs, outputs, errors."
+    - "Include a Security and privacy section: tables and buckets touched, RLS or storage policy changes, any new personal data, who can read it, how long it is kept, and any new third party that receives user data."
+    - State whether a SQL migration is needed and whether billing is affected.
+    - Always state what is out of scope.
+  tasks:
+    - Put the SQL migration and its tests before any UI task.
+    - Each task writes its failing test first and names the tests from CLAUDE.md that must pass.
+
+operations:
+  apply:
+    guidance:
+      - Run every test listed in CLAUDE.md before calling the work done.
+      - Never push or merge. Open a PR for review.
