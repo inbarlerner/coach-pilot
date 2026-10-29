@@ -2,13 +2,15 @@
 // The video fills the screen. One tap plays or pauses; two quick taps on one side jump 3 s.
 // Hold to play at 0.25×; release to go back to 1×. Round buttons on the left: play/pause, 0.5× speed,
 // pencil (hold for colours; tap to draw on the paused frame). The bar under the video shows where we are;
-// a dot marks each frame with drawings, and tapping it opens a line to explain that frame.
+// a dot marks each frame with drawings, and tapping it opens a line to explain that frame, with a bin that deletes
+// that frame's drawing and text (Undo stays on screen for 5 s).
 // Buttons at the bottom open the response panel (write, voice, video) when the coach can respond here.
+// Read only (a finished analysis): no pencil or text tools; the bar at the bottom holds the playback buttons,
+// and tapping a dot jumps to that frame and shows its drawing and text.
 // Drawings are stored normalized to the video picture, so they line up on any screen.
-import { h, clear, icon, toast } from './ui.js';
-import { mediaUrl, coverUrl, q, sb, state } from './api.js';
+import { h, clear, icon, toast, friendlyError } from './ui.js';
+import { mediaUrl, coverUrl } from './api.js';
 import { coverImg } from './images.js';
-import { go } from './app.js';
 
 const SKIP_SEC = 3;
 const SLOW_RATE = 0.25;
@@ -21,6 +23,7 @@ export const COLORS = ['#ffd60a', '#ff3b30', '#ffffff', '#34c759', '#0a84ff', '#
 const DEFAULT_COLOR = COLORS[0];
 const NOTE_MAX = 300;
 const NOTE_SHOW_SEC = 1.5;      // a frame's text stays on screen this long from its frame
+const UNDO_MS = 5000;           // how long "Deleted · Undo" stays after deleting a frame
 
 // Pointer capture throws for synthetic or already-ended pointers; the viewer still works without it.
 const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch {} };
@@ -98,7 +101,8 @@ function fitCanvas(canvas, rect) {
   return ctx;
 }
 
-export function coachViewer({ src, title, onClose, onAction, respond = true, drawings, onDrawingsChange, onSave }) {
+export function coachViewer({ src, title, onClose, onAction, respond = true, readOnly = false, drawings, onDrawingsChange, onSave,
+  sheetTitle = 'Your response', sheetButton = null }) {
   const video = h('video', { class: 'viewer-video', src, playsInline: true, preload: 'auto' });
   const ink = h('canvas', { class: 'viewer-ink', 'aria-hidden': 'true' });
   const tap = h('div', { class: 'viewer-tap', 'aria-hidden': 'true' });
@@ -112,8 +116,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   const prevOverflow = document.body.style.overflow;
 
   const playBtn = roundButton('Play or pause', icon('play'), () => togglePlay());
-  const speedBtn = roundButton('Half speed', '0.5×', toggleSpeed);
-  speedBtn.setAttribute('aria-pressed', 'false');
+  const speedBtn = roundButton('Half speed', '0.5×', () => setBase(base === 1 ? HALF_RATE : 1));
   const pencilBtn = roundButton('Draw on this frame (hold to choose a colour)', icon('pencil'), () => {
     if (longPressed) { longPressed = false; return; }
     setDrawing(!drawing);
@@ -134,14 +137,15 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
       type: 'button', class: 'viewer-swatch', 'aria-label': `Colour ${c}`, style: { background: c },
       onclick: () => pickColor(c),
     })));
-  const rail = h('div', { class: 'viewer-rail' }, playBtn, speedBtn, pencilBtn, textBtn, undoBtn);
+  const rail = readOnly ? null : h('div', { class: 'viewer-rail' }, playBtn, speedBtn, pencilBtn, textBtn, undoBtn);
   const top = h('div', { class: 'viewer-top' },
-    roundButton('Back to the request', icon('back'), () => onClose()),
-    h('span', { class: 'title' }, title));
+    roundButton('Back', icon('back'), () => onClose()),
+    h('span', { class: 'title' }, title),
+    sheetButton && h('button', { type: 'button', class: 'viewer-top-btn', onclick: () => openSheet() }, sheetButton));
   const sheetBody = h('div');
   const sheet = h('div', { class: 'viewer-sheet', hidden: true },
     h('div', { class: 'row between', style: { marginBottom: '.5rem' } },
-      h('strong', null, 'Your response'),
+      h('strong', null, sheetTitle),
       h('button', { type: 'button', class: 'btn ghost small', onclick: closeSheet }, 'Close')),
     sheetBody);
 
@@ -158,13 +162,28 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   const growNote = () => { noteInput.style.height = 'auto'; noteInput.style.height = noteInput.scrollHeight + 'px'; };
   noteInput.addEventListener('input', () => { growNote(); setNote(noteAt, noteInput.value); });
   noteInput.addEventListener('change', () => saveSoon(0));
-  const noteRow = h('div', { class: 'viewer-note', hidden: true }, noteInput);
-  const actions = respond ? h('div', { class: 'viewer-actions' },
-    [['write', 'Write', 'text'], ['voice', 'Voice', 'mic'], ['video', 'Video', 'camera']].map(([kind, label, ic]) =>
-      h('button', { type: 'button', onclick: () => openSheet(kind) }, icon(ic), label))) : null;
-  const bottom = h('div', { class: 'viewer-bottom' }, noteRow, caption, scrub, actions);
-  const el = h('div', { class: 'viewer', role: 'dialog', 'aria-label': 'Video viewer' },
-    video, ink, tap, hint, top, rail, palette, bottom, sheet);
+  const deleteBtn = h('button', { type: 'button', class: 'viewer-note-del', 'aria-label': 'Delete this frame\'s drawing and text',
+    title: 'Delete this frame', onclick: () => deleteFrame(noteAt) }, icon('trash'));
+  const noteRow = h('div', { class: 'viewer-note', hidden: true }, noteInput, deleteBtn);
+  const undoText = h('span');
+  const undoBar = h('div', { class: 'viewer-undo-bar', hidden: true, role: 'status' }, undoText,
+    h('button', { type: 'button', onclick: () => undoDelete() }, 'Undo'));
+  // Read only: the same playback buttons as the video player elsewhere in the app.
+  const playbarPlay = h('button', { type: 'button', onclick: () => togglePlay() }, 'Play / pause');
+  const rateBtns = [[1, 'Normal speed'], [HALF_RATE, 'Half speed'], [SLOW_RATE, 'Quarter speed']].map(([rate, label]) =>
+    h('button', { type: 'button', 'data-rate': rate, 'aria-pressed': String(rate === 1), onclick: () => setBase(rate) }, label));
+  const step = (d) => { video.pause(); seekTo(video.currentTime + d); };
+  const actions = readOnly
+    ? h('div', { class: 'viewer-playbar', role: 'group', 'aria-label': 'Playback' }, playbarPlay,
+      h('button', { type: 'button', title: 'Back 0.1 seconds', onclick: () => step(-0.1) }, '−0.1s'),
+      h('button', { type: 'button', title: 'Forward 0.1 seconds', onclick: () => step(0.1) }, '+0.1s'),
+      rateBtns)
+    : respond ? h('div', { class: 'viewer-actions' },
+      [['write', 'Write', 'text'], ['voice', 'Voice', 'mic'], ['video', 'Video', 'camera']].map(([kind, label, ic]) =>
+        h('button', { type: 'button', onclick: () => openSheet(kind) }, icon(ic), label))) : null;
+  const bottom = h('div', { class: 'viewer-bottom' }, readOnly ? null : [undoBar, noteRow], caption, scrub, actions);
+  const el = h('div', { class: 'viewer' + (readOnly ? ' read-only' : ''), role: 'dialog', 'aria-label': 'Video viewer' },
+    video, ink, tap, hint, top, rail, readOnly ? null : palette, bottom, sheet);
 
   document.body.style.overflow = 'hidden';
   // On phones the keyboard covers fixed elements; keep the viewer inside the visible area so the
@@ -216,7 +235,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
         type: 'button', class: `viewer-mark ${kind}` + (t === noteAt ? ' on' : ''),
         'aria-label': label, title: label,
         style: { left: d ? `${(t / d) * 100}%` : '0%' },
-        onclick: (e) => { e.stopPropagation(); seekTo(t); video.pause(); openNote(t); },
+        onclick: (e) => { e.stopPropagation(); seekTo(t); video.pause(); if (!readOnly) openNote(t); },
       }, texts ? 'T' : null);
     }));
   }
@@ -233,6 +252,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     noteAt = t;
     noteInput.value = notes.find((n) => frameKey(n.t) === t)?.text || '';
     noteRow.hidden = false;
+    deleteBtn.hidden = !frameHasWork(t);
     growNote();
     renderMarks();
   }
@@ -254,10 +274,37 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     const clean = text.trim();
     notes = notes.filter((n) => frameKey(n.t) !== t);
     if (clean) notes.push({ t, text: clean.slice(0, NOTE_MAX) });
+    deleteBtn.hidden = !frameHasWork(t);
     emit();
     renderMarks();
     saveSoon();
   }
+  const frameHasWork = (t) => strokes.some((s) => frameKey(s.t) === t) || notes.some((n) => frameKey(n.t) === t);
+
+  // ---------- Delete a frame: its drawing and text go at once; Undo brings them back for 5 s ----------
+  let removed = null, undoTimer = null;
+  function deleteFrame(t) {
+    if (t === null) return;
+    removed = { strokes: strokes.filter((s) => frameKey(s.t) === t), notes: notes.filter((n) => frameKey(n.t) === t) };
+    strokes = strokes.filter((s) => frameKey(s.t) !== t);
+    notes = notes.filter((n) => frameKey(n.t) !== t);
+    hideNote();
+    afterChange();
+    undoText.textContent = `Deleted the frame at ${clock(t)}`;
+    undoBar.hidden = false;
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(() => { undoBar.hidden = true; removed = null; }, UNDO_MS);
+  }
+  function undoDelete() {
+    if (!removed) return;
+    strokes.push(...removed.strokes);
+    notes.push(...removed.notes);
+    removed = null;
+    clearTimeout(undoTimer);
+    undoBar.hidden = true;
+    afterChange();
+  }
+  function afterChange() { emit(); renderMarks(); saveSoon(0); paint(); }
 
   // ---------- Tap zones: one tap plays or pauses, two quick taps skip, hold for 0.25× ----------
   const sideOf = (e) => (e.clientX < window.innerWidth / 2 ? 'left' : 'right');
@@ -285,9 +332,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   // After a long press the video goes back to normal speed (1×), and the 0.5× toggle is off.
   function endHold() {
     held = false;
-    base = 1;
-    speedBtn.setAttribute('aria-pressed', 'false');
-    applyRate();
+    setBase(1);
     showHint('', true);
   }
   function skip(sec) {
@@ -304,9 +349,10 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
 
   // ---------- Speed ----------
   function applyRate() { video.playbackRate = held ? SLOW_RATE : base; }
-  function toggleSpeed() {
-    base = base === 1 ? HALF_RATE : 1;
+  function setBase(rate) {
+    base = rate;
     speedBtn.setAttribute('aria-pressed', String(base === HALF_RATE));
+    rateBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.rate) === base)));
     applyRate();
   }
 
@@ -376,7 +422,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
   function loop() { raf = requestAnimationFrame(loop); paint(); }
 
   // ---------- Response panel ----------
-  function openSheet(kind) { setDrawing(false); video.pause(); sheet.hidden = false; onAction && onAction(kind); }
+  function openSheet(kind) { setDrawing(false); video.pause(); sheet.hidden = false; onAction && kind && onAction(kind); }
   function closeSheet() { sheet.hidden = true; }
 
   function destroy() {
@@ -386,6 +432,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     clearTimeout(colorTimer);
     clearTimeout(pendingTap?.timer);
     clearTimeout(saveTimer);
+    clearTimeout(undoTimer);
     video.pause();
     video.removeAttribute('src');
     video.load();
@@ -395,61 +442,51 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, dra
     el.remove();
   }
 
+  setBase(1);
   renderMarks();
   loop();
   return { el, sheetBody, destroy, drawings: () => ({ strokes: strokes.slice(), notes: notes.slice() }) };
 }
 
-// The card that opens the viewer. A coach with an open request for this video responds there;
-// otherwise the video opens to watch and draw, without the response buttons.
-export function coachWatchCard(video, { label = 'Watch full screen' } = {}) {
-  return h('button', { type: 'button', class: 'viewer-card', onclick: () => watchAsCoach(video) },
+// The card on a video a coach was asked to analyze: it opens the request, where the analysis tools are.
+// Coaches see these tools only on videos sent to them (an open request), never in the feed or on profiles.
+export function coachWatchCard(video, requestId, { label = 'Analyze this video' } = {}) {
+  return h('a', { class: 'viewer-card', href: '#/r/' + requestId },
     coverImg(coverUrl(video.cover_key)),
     h('span', { class: 'viewer-card-play' }, icon('play')),
     h('span', { class: 'viewer-card-label' }, label));
 }
 
-async function watchAsCoach(video) {
-  try {
-    const open = await q(sb.from('analysis_requests').select('id')
-      .eq('video_id', video.id).eq('coach_id', state.user.id).in('status', ['pending', 'draft']).limit(1));
-    if (open.length) return go('/r/' + open[0].id);
-    const src = await mediaUrl('video', video.id);
-    const viewer = coachViewer({ src, title: video.title, respond: false, onClose: () => viewer.destroy() });
-    document.body.append(viewer.el);
-  } catch (e) {
-    toast('This video cannot be opened right now.', 'err');
-  }
+// A finished analysis, full screen and read only: the video with the coach's drawings and frame texts,
+// a dot on the timeline for each of them, and (when given) the analysis parts in the panel.
+export async function watchAnalysis({ videoId, title, drawings, parts = null }) {
+  let src;
+  try { src = await mediaUrl('video', videoId); } catch (e) { return toast(friendlyError(e), 'err'); }
+  const viewer = coachViewer({
+    src, title, readOnly: true, respond: false, drawings: readDrawings(drawings || { strokes: [], notes: [] }),
+    onClose: () => viewer.destroy(),
+    sheetTitle: 'Coach\'s analysis', sheetButton: parts ? 'Analysis' : null,
+  });
+  if (parts) viewer.sheetBody.append(parts);
+  document.body.append(viewer.el);
+  return viewer;
 }
 
-// Read-only drawings of a finished analysis: the video with the coach's drawings at their frames,
-// and the coach's explanation for each frame.
+export function analysisWatchCard(video, opts, { label = 'Watch with the analysis' } = {}) {
+  return h('button', { type: 'button', class: 'viewer-card', onclick: () => watchAnalysis({ videoId: video.id, title: video.title, ...opts }) },
+    coverImg(coverUrl(video.cover_key)),
+    h('span', { class: 'viewer-card-play' }, icon('play')),
+    h('span', { class: 'viewer-card-label' }, label));
+}
+
+// Drawings of a finished analysis, in a list of analysis parts: opens the video full screen with them.
 export function drawingsReview(item, videoId) {
   const d = readDrawings(item.body);
   if (isEmptyDrawings(d)) return null;
-  const times = [...new Set([...d.strokes, ...d.notes].map((s) => frameKey(s.t)))].sort((a, b) => a - b);
-  const video = h('video', { controls: true, playsInline: true, preload: 'metadata', class: 'review-video' });
-  const canvas = h('canvas', { class: 'review-ink', 'aria-hidden': 'true' });
-  const caption = captionBar(video);
-  caption.classList.add('review-caption');
-  const stage = h('div', { class: 'review-stage' }, video, canvas);
-  const frames = h('div', { class: 'row', style: { marginTop: '.5rem' } }, times.map((t) =>
-    h('button', { type: 'button', class: 'btn secondary small', onclick: () => { video.pause(); video.currentTime = t; paint(); } },
-      'Frame ' + clock(t))));
-  const paint = () => {
-    const r = canvas.getBoundingClientRect();
-    const ctx = fitCanvas(canvas, r);
-    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
-    paintStrokes(ctx, d.strokes, video.currentTime, b);
-    caption.update(d.notes, video.currentTime);
-  };
-  video.addEventListener('timeupdate', paint);
-  video.addEventListener('seeked', paint);
-  video.addEventListener('loadeddata', paint);
-  mediaUrl('video', videoId).then((src) => { video.src = src; }).catch(() => {
-    stage.replaceWith(h('p', { class: 'muted' }, 'The video is not available, so the drawings cannot be shown.'));
-  });
+  const frames = new Set([...d.strokes, ...d.notes].map((s) => frameKey(s.t))).size;
   return h('div', { class: 'card' },
     h('div', { class: 'label' }, 'Drawings and notes on the video'),
-    stage, caption, frames);
+    h('p', { class: 'small muted' }, frames === 1 ? '1 marked frame' : `${frames} marked frames`),
+    h('button', { type: 'button', class: 'btn secondary small', onclick: () => watchAnalysis({ videoId, title: 'Analysis', drawings: d }) },
+      icon('play'), 'Watch with the drawings'));
 }
