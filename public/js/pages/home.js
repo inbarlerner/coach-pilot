@@ -6,8 +6,7 @@ import { personLink } from '../images.js';
 
 const PAGE = 8;
 
-export function homePage({ main, setTitle }) {
-  setTitle('Home');
+export function homePage({ main }) {
   let sport = null, offset = 0, done = false;
   const list = h('div');
   const more = h('div', { class: 'center' });
@@ -16,7 +15,7 @@ export function homePage({ main, setTitle }) {
     main.append(h('div', { class: 'banner' }, h('strong', null, 'Your coach account is waiting for admin approval. '), 'Meanwhile you can watch public content and update your profile.'));
   }
   main.append(h('h1', null, 'For You'),
-    h('div', { class: 'chips', role: 'group', 'aria-label': 'Filter by sport', style: { marginBottom: '1rem' } },
+    h('div', { class: 'chips', role: 'group', 'aria-label': 'Filter by sport', style: { marginBottom: 'var(--space-4)' } },
       [[null, 'All'], ...activeSports().map((s) => [s.id, s.name])].map(([id, name]) =>
         h('button', { class: 'chip' + (sport === id ? ' on' : ''), 'aria-pressed': String(sport === id), onclick: (e) => {
           sport = id;

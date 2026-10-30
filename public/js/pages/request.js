@@ -1,13 +1,12 @@
 // A single analysis request: trainee view, coach analysis workspace, analysis result, follow-up messages.
-import { h, clear, icon, loading, errorState, friendlyError, fmtDate, timeLeft, STATUS, DECLINE, POLICY, busy, toast, confirmDialog, modal } from '../ui.js';
+import { h, clear, icon, loading, errorState, friendlyError, fmtDate, timeLeft, statusTag, DECLINE, POLICY, busy, toast, confirmDialog, confirmDanger, modal } from '../ui.js';
 import { sb, state, q, rpc, action, sportName, languageNames, mediaUrl, coverUrl } from '../api.js';
 import { protectedVideo, analysisItem, recorder, languagesLine } from '../components.js';
 import { personLink, avatar, coverImg } from '../images.js';
 import { coachViewer, readDrawings, isEmptyDrawings, analysisWatchCard } from '../viewer.js';
 import { go, refreshBadge } from '../app.js';
 
-export async function requestPage({ main, setTitle, params }) {
-  setTitle('Analysis request');
+export async function requestPage({ main, params }) {
   const id = params[0];
   let timers = [];
   let recorders = [];
@@ -28,8 +27,8 @@ export async function requestPage({ main, setTitle, params }) {
           'trainee:profiles!analysis_requests_trainee_id_fkey(id,first_name,last_name,username,avatar_key,languages),' +
           'coach:profiles!analysis_requests_coach_id_fkey(id,first_name,last_name,username,avatar_key,languages)')
         .eq('id', id).maybeSingle());
-    } catch (e) { return clear(main).append(errorState(friendlyError(e), load)); }
-    if (!r) return clear(main).append(errorState('Request not found, or you do not have access to it.'));
+    } catch (e) { return clear(main).append(h('h1', null, 'Analysis request'), errorState(friendlyError(e), load)); }
+    if (!r) return clear(main).append(h('h1', null, 'Analysis request'), errorState('Request not found, or you do not have access to it.'));
 
     const me = state.user.id;
     const isCoachHere = r.coach_id === me;
@@ -46,9 +45,9 @@ export async function requestPage({ main, setTitle, params }) {
     main.append(
       h('a', { class: 'btn ghost small', href: '#/inbox' + (isCoachHere ? '?side=received' : '?side=sent') }, '← Back to inbox'),
       h('h1', null, r.video.title),
-      h('div', { class: 'row' }, h('span', { class: 'tag' + (r.status === 'completed' ? ' fill' : '') }, STATUS[r.status]),
+      h('div', { class: 'row' }, statusTag(r.status),
         h('span', { class: 'tag soft' }, r.video.visibility === 'public' ? 'Public' : 'Private')),
-      h('div', { class: 'card', style: { margin: '.75rem 0' } }, h('div', { class: 'row between' },
+      h('div', { class: 'card', style: { margin: 'var(--space-3) 0' } }, h('div', { class: 'row between' },
         personBlock(r.trainee, 'Trainee'), personBlock(r.coach, 'Coach'))),
       r.status === 'declined' && h('div', { class: 'banner', role: 'status' }, h('strong', null, 'The request was declined. '), 'Reason: ' + (DECLINE[r.decline_reason] || '') + '. The video and request were kept.'),
       r.status === 'expired' && h('div', { class: 'banner', role: 'status' }, h('strong', null, 'Response time passed. '), 'The coach did not send an analysis by the deadline, so it can no longer be sent for this request. The video and request were kept.'),
@@ -137,15 +136,15 @@ export async function requestPage({ main, setTitle, params }) {
       if (!media.length) return;
       mediaList.append(h('h3', null, 'More recordings in the analysis'));
       media.forEach((it) => {
-        const del = h('button', { class: 'btn secondary small' }, 'Remove');
+        const del = h('button', { class: 'btn danger small' }, 'Remove');
         del.onclick = async () => {
-          if (!(await confirmDialog('Remove this recording?', 'It will be deleted from the draft.', 'Remove'))) return;
+          if (!(await confirmDanger('Remove this recording?', 'It will be deleted from the draft.', 'Remove'))) return;
           busy(del, async () => {
             try { await action('remove_analysis_item', { p_item: it.id }); items = items.filter((x) => x.id !== it.id); renderMedia(); toast('Recording removed'); }
             catch (e) { toast(friendlyError(e), 'err'); }
           });
         };
-        mediaList.append(h('div', null, analysisItem(it, r.video.id), h('div', { style: { margin: '.3rem 0 .8rem' } }, del)));
+        mediaList.append(h('div', null, analysisItem(it, r.video.id), h('div', { style: { margin: 'var(--space-1) 0 var(--space-3)' } }, del)));
       });
     };
     renderMedia();
@@ -170,8 +169,8 @@ export async function requestPage({ main, setTitle, params }) {
 
     const saveBtn = h('button', { class: 'btn secondary' }, 'Save draft');
     const sendBtn = h('button', { class: 'btn' }, 'Send analysis');
-    const cancelBtn = h('button', { class: 'btn secondary', 'aria-label': 'Discard analysis work' }, '✕ Discard');
-    const declineBtn = h('button', { class: 'btn secondary' }, 'Can\'t analyze');
+    const cancelBtn = h('button', { class: 'btn danger', 'aria-label': 'Discard analysis work' }, '✕ Discard');
+    const declineBtn = h('button', { class: 'btn danger' }, 'Can\'t analyze');
 
     saveBtn.onclick = () => busy(saveBtn, async () => {
       try {
@@ -196,7 +195,7 @@ export async function requestPage({ main, setTitle, params }) {
       });
     };
     cancelBtn.onclick = async () => {
-      if (!(await confirmDialog('Discard your analysis work?', 'The text and recordings will be deleted and the request marked as unread. The trainee\'s request is not cancelled and the response time does not reset.', 'Discard'))) return;
+      if (!(await confirmDanger('Discard your analysis work?', 'The text and recordings will be deleted and the request marked as unread. The trainee\'s request is not cancelled and the response time does not reset.', 'Discard'))) return;
       busy(cancelBtn, async () => {
         try { await action('discard_draft', { p_request: r.id }); toast('Analysis work discarded'); go('/inbox?side=received'); }
         catch (e) { toast(friendlyError(e), 'err'); }
@@ -208,8 +207,8 @@ export async function requestPage({ main, setTitle, params }) {
         return [h('h2', null, 'Can\'t analyze'), h('p', null, 'Choose a reason. The trainee will see it.'),
           h('div', { class: 'choices' }, Object.entries(DECLINE).map(([k, l]) =>
             h('label', { class: 'choice' }, h('input', { type: 'radio', name: 'dr', onchange: () => { pick = k; } }), h('span', { class: 't' }, l)))),
-          h('div', { class: 'btn-row', style: { marginTop: '1rem' } },
-            h('button', { class: 'btn', onclick: () => (pick ? close(pick) : toast('Choose a reason', 'err')) }, 'Confirm decline'),
+          h('div', { class: 'btn-row', style: { marginTop: 'var(--space-4)' } },
+            h('button', { class: 'btn danger', onclick: () => (pick ? close(pick) : toast('Choose a reason', 'err')) }, 'Confirm decline'),
             h('button', { class: 'btn secondary', onclick: () => close(null) }, 'Back'))];
       });
       if (!reason) return;
@@ -227,13 +226,13 @@ export async function requestPage({ main, setTitle, params }) {
         : null,
       h('p', { class: 'muted small' }, 'You can combine text, a voice recording and a video recording. At least one part is required.'),
       h('div', { class: 'field' }, h('label', { for: 'a_text' }, 'Text'), text),
-      audioRec, h('div', { style: { height: '.75rem' } }), videoRec,
+      audioRec, h('div', { style: { height: 'var(--space-3)' } }), videoRec,
       mediaList,
-      h('div', { class: 'card soon', style: { marginTop: '1rem' } },
+      h('div', { class: 'card soon', style: { marginTop: 'var(--space-4)' } },
         h('div', { class: 'row' }, h('strong', null, 'Explainer recording'), h('span', { class: 'tag' }, 'Soon')),
         h('p', { class: 'small muted' }, 'A combined recording (trainee video + your voice + a small camera of you) is coming next. It is not active yet.')),
-      h('div', { class: 'btn-row', style: { marginTop: '1.25rem' } }, sendBtn, saveBtn),
-      h('div', { class: 'btn-row', style: { marginTop: '.6rem' } }, declineBtn, cancelBtn));
+      h('div', { class: 'btn-row', style: { marginTop: 'var(--space-5)' } }, sendBtn, saveBtn),
+      h('div', { class: 'btn-row', style: { marginTop: 'var(--space-2)' } }, declineBtn, cancelBtn));
   }
 
   // ---------- Completed: analysis + follow-ups ----------
@@ -312,7 +311,7 @@ export async function requestPage({ main, setTitle, params }) {
         try { await rpc('send_message', { p_request: r.id, p_body: ta.value }); toast('Message sent'); loadThread(); }
         catch (e) { toast(friendlyError(e), 'err'); loadThread(); }
       });
-      composer.append(h('div', { class: 'field', style: { marginTop: '.75rem' } }, h('label', { for: 'msg_in' }, 'Message'), ta,
+      composer.append(h('div', { class: 'field', style: { marginTop: 'var(--space-3)' } }, h('label', { for: 'msg_in' }, 'Message'), ta,
         HINTS[st.reason] && h('div', { class: 'hint' }, HINTS[st.reason])), send);
     }
     loadThread();

@@ -1,5 +1,5 @@
 // Profiles: trainee (grid; owner sees public/private tabs) and coach (info + performances + analyses).
-import { h, clear, loading, empty, errorState, friendlyError, tabs, section, POLICY, STATUS, icon } from '../ui.js';
+import { h, clear, loading, empty, errorState, friendlyError, tabs, section, POLICY, statusTag, icon } from '../ui.js';
 import { plural } from '../ui.js';
 import { sb, state, q, rpc, sportName, isAdmin, coverUrl } from '../api.js';
 import { avatar, coverImg } from '../images.js';
@@ -11,14 +11,13 @@ export function mePage() {
   else go('/login');
 }
 
-export async function profilePage({ main, setTitle, params, query }) {
+export async function profilePage({ main, params, query }) {
   const username = params[0];
-  setTitle('Profile');
   clear(main).append(loading());
   let p;
   try { p = await q(sb.from('profiles').select('*').eq('username', username).maybeSingle()); }
-  catch (e) { return clear(main).append(errorState(friendlyError(e), () => profilePage({ main, setTitle, params, query }))); }
-  if (!p) return clear(main).append(errorState('User not found.'));
+  catch (e) { return clear(main).append(h('h1', null, 'Profile'), errorState(friendlyError(e), () => profilePage({ main, params, query }))); }
+  if (!p) return clear(main).append(h('h1', null, 'Profile'), errorState('User not found.'));
   const mine = p.id === state.user.id;
   const coachApproved = p.role === 'coach' && p.coach_status === 'approved';
   clear(main);
@@ -27,10 +26,10 @@ export async function profilePage({ main, setTitle, params, query }) {
   const sportsRow = h('p', { class: 'meta' });
   main.append(
     h('div', { class: 'row between' },
-      h('div', { class: 'row', style: { gap: '.85rem', flexWrap: 'nowrap' } },
+      h('div', { class: 'row', style: { gap: 'var(--space-3)', flexWrap: 'nowrap' } },
         mine ? h('a', { href: '#/settings', 'aria-label': 'Change profile photo' }, avatar(p, 72)) : avatar(p, 72),
         h('div', null,
-          h('h1', { style: { marginBottom: '.1rem' } }, p.first_name + ' ' + p.last_name),
+          h('h1', { style: { marginBottom: 'var(--space-1)' } }, p.first_name + ' ' + p.last_name),
           h('p', { class: 'meta' }, '@' + p.username))),
       h('div', { class: 'row' },
         p.is_sample && h('span', { class: 'tag' }, 'Sample'),
@@ -41,7 +40,7 @@ export async function profilePage({ main, setTitle, params, query }) {
     languagesLine(p.languages));
 
   if (mine) {
-    main.append(h('div', { class: 'btn-row', style: { margin: '.5rem 0 1rem' } },
+    main.append(h('div', { class: 'btn-row', style: { margin: 'var(--space-2) 0 var(--space-4)' } },
       h('a', { class: 'btn secondary small', href: '#/settings' }, p.role === 'coach' ? 'Coach settings & profile' : 'Edit profile'),
       isAdmin() && h('a', { class: 'btn secondary small', href: '#/admin' }, 'Admin'),
       h('button', { class: 'btn secondary small', onclick: () => sb.auth.signOut() }, 'Sign out')));
@@ -97,7 +96,7 @@ function traineeProfile(main, p, mine, query) {
       const vids = await q(sb.from('videos').select('*').eq('owner_id', p.id).eq('visibility', vis).order('created_at', { ascending: false }));
       const st = mine ? await latestStatusMap(vids.map((v) => v.id)) : {};
       return { vids, st, vis };
-    }, ({ vids, st, vis }) => videoGrid(vids, (v) => st[v.id] && h('span', { class: 'tag soft' }, STATUS[st[v.id]]))
+    }, ({ vids, st, vis }) => videoGrid(vids, (v) => st[v.id] && statusTag(st[v.id]))
       || empty(vis === 'public' ? 'No public videos' : 'No private videos',
         mine ? (vis === 'public' ? 'Videos you choose to make public show up here.' : 'Private videos are visible only to you (and the coach you sent them to).') : null,
         mine && h('a', { class: 'btn', href: '#/upload' }, 'Upload a video')));

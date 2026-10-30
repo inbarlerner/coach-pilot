@@ -1,5 +1,5 @@
 // Reusable components: protected video player with analysis tools, media items, recorder.
-import { h, clear, friendlyError, icon, toast, filePicker, confirmDialog } from './ui.js';
+import { h, clear, friendlyError, icon, toast, filePicker, confirmDanger } from './ui.js';
 import { mediaUrl, coverUrl, uploadFile, discardUpload, LIMITS, fileType, sizeMB, LANGUAGES, languageNames } from './api.js';
 import { coverImg } from './images.js';
 import { drawingsReview } from './viewer.js';
@@ -76,7 +76,7 @@ export function analysisItem(item, videoId) {
       const url = await mediaUrl('item', item.id);
       const el = item.kind === 'audio'
         ? h('audio', { src: url, controls: true, style: { width: '100%' } })
-        : h('video', { src: url, controls: true, playsInline: true, style: { width: '100%', maxHeight: '60vh', background: '#000', borderRadius: '8px' } });
+        : h('video', { src: url, controls: true, playsInline: true, style: { width: '100%', maxHeight: '60vh', background: '#000', borderRadius: 'var(--radius)' } });
       clear(slot).append(el);
       el.play().catch(() => {});
     } catch (e) {
@@ -136,7 +136,7 @@ export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
       if (f.size > maxMB * 1048576) return idle(`The file is too large: ${sizeMB(f.size)}MB. The limit is ${maxMB}MB per file. Trim it or record here instead.`);
       upload(f);
     } });
-    return h('div', null, h('div', { class: 'small', style: { fontWeight: 600, marginBottom: '.3rem' } }, 'Or upload a ready ' + (kind === 'audio' ? 'audio' : 'video') + ` file (up to ${maxMB}MB)`), picker);
+    return h('div', null, h('div', { class: 'small', style: { fontWeight: 600, marginBottom: 'var(--space-1)' } }, 'Or upload a ready ' + (kind === 'audio' ? 'audio' : 'video') + ` file (up to ${maxMB}MB)`), picker);
   }
 
   async function startRec() {
@@ -185,9 +185,9 @@ export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
     const slot = h('div');
     if (localUrl) slot.append(player(localUrl));
     else mediaUrl('item', it.id).then((u) => slot.append(player(u))).catch((e) => slot.append(h('p', { class: 'error-text' }, friendlyError(e))));
-    const del = h('button', { class: 'btn secondary', type: 'button' }, 'Delete');
+    const del = h('button', { class: 'btn danger', type: 'button' }, 'Delete');
     del.onclick = async () => {
-      if (!(await confirmDialog(kind === 'audio' ? 'Delete this voice recording?' : 'Delete this video recording?',
+      if (!(await confirmDanger(kind === 'audio' ? 'Delete this voice recording?' : 'Delete this video recording?',
         'It will be removed from the analysis. You can record or upload another one.', 'Delete'))) return;
       del.disabled = true;
       try { await onRemove(it); dropLocal(); idle(); toast('Recording deleted'); }
