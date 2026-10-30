@@ -1,13 +1,12 @@
 // A single analysis request: trainee view, coach analysis workspace, analysis result, follow-up messages.
-import { h, clear, icon, loading, errorState, friendlyError, fmtDate, timeLeft, STATUS, DECLINE, POLICY, busy, toast, confirmDialog, modal } from '../ui.js';
+import { h, clear, icon, loading, errorState, friendlyError, fmtDate, timeLeft, statusTag, DECLINE, POLICY, busy, toast, confirmDialog, confirmDanger, modal } from '../ui.js';
 import { sb, state, q, rpc, action, sportName, languageNames, mediaUrl, coverUrl } from '../api.js';
 import { protectedVideo, analysisItem, recorder, languagesLine } from '../components.js';
 import { personLink, avatar, coverImg, FORMER_COACH } from '../images.js';
-import { coachViewer, readDrawings, isEmptyDrawings } from '../viewer.js';
+import { coachViewer, readDrawings, isEmptyDrawings, analysisWatchCard } from '../viewer.js';
 import { go, refreshBadge } from '../app.js';
 
-export async function requestPage({ main, setTitle, params }) {
-  setTitle('Analysis request');
+export async function requestPage({ main, params }) {
   const id = params[0];
   let timers = [];
   let recorders = [];
@@ -24,12 +23,12 @@ export async function requestPage({ main, setTitle, params }) {
     let r;
     try {
       r = await q(sb.from('analysis_requests')
-        .select('*, video:videos(id,title,description,sport_id,visibility,owner_id,cover_key),' +
+        .select('*, video:videos(id,title,description,sport_id,visibility,owner_id,cover_key,file_deleted_at),' +
           'trainee:profiles!analysis_requests_trainee_id_fkey(id,first_name,last_name,username,avatar_key,languages),' +
           'coach:profiles!analysis_requests_coach_id_fkey(id,first_name,last_name,username,avatar_key,languages)')
         .eq('id', id).maybeSingle());
-    } catch (e) { return clear(main).append(errorState(friendlyError(e), load)); }
-    if (!r) return clear(main).append(errorState('Request not found, or you do not have access to it.'));
+    } catch (e) { return clear(main).append(h('h1', null, 'Analysis request'), errorState(friendlyError(e), load)); }
+    if (!r) return clear(main).append(h('h1', null, 'Analysis request'), errorState('Request not found, or you do not have access to it.'));
     r.coach ||= FORMER_COACH;   // the coach deleted their account
 
     const me = state.user.id;
@@ -47,16 +46,10 @@ export async function requestPage({ main, setTitle, params }) {
     main.append(
       h('a', { class: 'btn ghost small', href: '#/inbox' + (isCoachHere ? '?side=received' : '?side=sent') }, '← Back to inbox'),
       h('h1', null, r.video.title),
-      h('div', { class: 'row' }, h('span', { class: 'tag' + (r.status === 'completed' ? ' fill' : '') }, STATUS[r.status]),
+      h('div', { class: 'row' }, statusTag(r.status),
         h('span', { class: 'tag soft' }, r.video.visibility === 'public' ? 'Public' : 'Private')),
-      h('div', { class: 'card', style: { margin: '.75rem 0' } }, h('div', { class: 'row between' },
+      h('div', { class: 'card', style: { margin: 'var(--space-3) 0' } }, h('div', { class: 'row between' },
         personBlock(r.trainee, 'Trainee'), personBlock(r.coach, 'Coach'))),
-      h('dl', { class: 'kv' },
-        h('dt', null, 'Sport'), h('dd', null, sportName(r.video.sport_id)),
-        h('dt', null, 'Sent'), h('dd', null, fmtDate(r.created_at)),
-        h('dt', null, 'Respond by'), h('dd', null, fmtDate(r.deadline_at), open ? [' · ', deadlineEl] : ''),
-        r.completed_at && [h('dt', null, 'Analysis sent'), h('dd', null, fmtDate(r.completed_at))],
-        h('dt', null, 'Follow-ups'), h('dd', null, POLICY[r.followup_policy])),
       r.status === 'declined' && h('div', { class: 'banner', role: 'status' }, h('strong', null, 'The request was declined. '), 'Reason: ' + (DECLINE[r.decline_reason] || '') + '. The video and request were kept.'),
       r.status === 'expired' && h('div', { class: 'banner', role: 'status' }, h('strong', null, 'Response time passed. '), 'The coach did not send an analysis by the deadline, so it can no longer be sent for this request. The video and request were kept.'),
       ['pending', 'draft'].includes(r.status) && !open && h('div', { class: 'banner' }, 'The response time has passed. The request will move to Not completed within a minute.'),
@@ -66,14 +59,27 @@ export async function requestPage({ main, setTitle, params }) {
     const right = h('div');
     main.classList.add('wide');
     main.append(h('div', { class: 'two-col' }, left, right));
+    // Request details at the bottom of the page.
+    main.append(h('section', { class: 'request-details' }, h('h2', null, 'Request details'),
+      h('dl', { class: 'kv' },
+        h('dt', null, 'Sport'), h('dd', null, sportName(r.video.sport_id)),
+        h('dt', null, 'Request sent'), h('dd', null, fmtDate(r.created_at)),
+        r.completed_at
+          ? [h('dt', null, 'Analysis sent'), h('dd', null, fmtDate(r.completed_at))]
+          : [h('dt', null, 'Coach responds by'), h('dd', null, fmtDate(r.deadline_at), open ? [' · ', deadlineEl] : '')],
+        h('dt', null, 'Follow-ups'), h('dd', null, POLICY[r.followup_policy]))));
 
     const coachWorks = isCoachHere && open;
-    left.append(coachWorks ? viewerCard(r, right) : protectedVideo('video', r.video.id, { tools: true, cover: r.video.cover_key }),
+    // A finished analysis replaces this placeholder with the full-screen card once its parts are loaded.
+    const player = r.status === 'completed' && !r.video.file_deleted_at
+      ? h('div', { class: 'player' }, h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' })))
+      : protectedVideo('video', r.video.id, { autoplay: true, cover: r.video.cover_key });
+    left.append(coachWorks ? viewerCard(r, right) : player,
       r.video.description && h('div', null, h('h3', null, 'Description'), h('p', { class: 'pre' }, r.video.description)),
       r.question && h('div', null, h('h3', null, 'Question for the coach'), h('p', { class: 'pre' }, r.question)));
 
     if (coachWorks) return workspace(r, right);
-    if (r.status === 'completed') return result(r, right, isCoachHere, isTrainee);
+    if (r.status === 'completed') return result(r, right, isCoachHere, isTrainee, player);
     if (isTrainee && ['pending', 'draft'].includes(r.status)) {
       right.append(h('div', { class: 'state' }, h('p', null, h('strong', null, 'Waiting for the coach\'s analysis')),
         h('p', null, 'You\'ll get a notification when the analysis arrives. Deadline: ' + fmtDate(r.deadline_at) + '.')));
@@ -120,22 +126,26 @@ export async function requestPage({ main, setTitle, params }) {
     if (savedDrawings && isEmptyDrawings(drawings)) drawings = readDrawings(savedDrawings.body);
     const text = h('textarea', { id: 'a_text', style: { minHeight: '180px' }, placeholder: 'What you saw, what to fix and how to practice' }, textItem?.body || '');
     text.value = textItem?.body || '';
+    // Each recorder holds one attached clip (the first of its kind); older drafts may have more, listed here.
+    const firstAudio = items.find((i) => i.kind === 'audio');
+    const firstVideo = items.find((i) => i.kind === 'video');
+    const inRecorder = new Set([firstAudio?.id, firstVideo?.id]);
     const mediaList = h('div');
     const renderMedia = () => {
       clear(mediaList);
-      const media = items.filter((i) => i.kind !== 'text' && i.kind !== 'drawing');
+      const media = items.filter((i) => (i.kind === 'audio' || i.kind === 'video') && !inRecorder.has(i.id));
       if (!media.length) return;
-      mediaList.append(h('h3', null, 'Recordings saved in the draft'));
+      mediaList.append(h('h3', null, 'More recordings in the analysis'));
       media.forEach((it) => {
-        const del = h('button', { class: 'btn secondary small' }, 'Remove');
+        const del = h('button', { class: 'btn danger small' }, 'Remove');
         del.onclick = async () => {
-          if (!(await confirmDialog('Remove this recording?', 'It will be deleted from the draft.', 'Remove'))) return;
+          if (!(await confirmDanger('Remove this recording?', 'It will be deleted from the draft.', 'Remove'))) return;
           busy(del, async () => {
             try { await action('remove_analysis_item', { p_item: it.id }); items = items.filter((x) => x.id !== it.id); renderMedia(); toast('Recording removed'); }
             catch (e) { toast(friendlyError(e), 'err'); }
           });
         };
-        mediaList.append(h('div', null, analysisItem(it, r.video.id), h('div', { style: { margin: '.3rem 0 .8rem' } }, del)));
+        mediaList.append(h('div', null, analysisItem(it, r.video.id), h('div', { style: { margin: 'var(--space-1) 0 var(--space-3)' } }, del)));
       });
     };
     renderMedia();
@@ -143,17 +153,25 @@ export async function requestPage({ main, setTitle, params }) {
     const onSaved = (kind) => async ({ key, contentType }) => {
       const iid = await rpc('add_analysis_media', { p_request: r.id, p_kind: kind, p_storage_key: key, p_content_type: contentType });
       await rpc('save_draft', { p_request: r.id });
-      items.push({ id: iid, kind, storage_key: key, content_type: contentType });
-      renderMedia();
+      const it = { id: iid, kind, storage_key: key, content_type: contentType };
+      items.push(it);
+      inRecorder.add(iid);
+      return it;
     };
-    const audioRec = recorder('audio', onSaved('audio'));
-    const videoRec = recorder('video', onSaved('video'));
+    const onRemove = async (it) => {
+      try { await action('remove_analysis_item', { p_item: it.id }); }
+      catch (e) { if (/EXPIRED|NOT_OPEN/.test(e.message)) load(); throw e; }
+      items = items.filter((x) => x.id !== it.id);
+      inRecorder.delete(it.id);
+    };
+    const audioRec = recorder('audio', { onSaved: onSaved('audio'), onRemove, item: firstAudio });
+    const videoRec = recorder('video', { onSaved: onSaved('video'), onRemove, item: firstVideo });
     recorders.push(audioRec, videoRec);
 
     const saveBtn = h('button', { class: 'btn secondary' }, 'Save draft');
     const sendBtn = h('button', { class: 'btn' }, 'Send analysis');
-    const cancelBtn = h('button', { class: 'btn secondary', 'aria-label': 'Discard analysis work' }, '✕ Discard');
-    const declineBtn = h('button', { class: 'btn secondary' }, 'Can\'t analyze');
+    const cancelBtn = h('button', { class: 'btn danger', 'aria-label': 'Discard analysis work' }, '✕ Discard');
+    const declineBtn = h('button', { class: 'btn danger' }, 'Can\'t analyze');
 
     saveBtn.onclick = () => busy(saveBtn, async () => {
       try {
@@ -178,7 +196,7 @@ export async function requestPage({ main, setTitle, params }) {
       });
     };
     cancelBtn.onclick = async () => {
-      if (!(await confirmDialog('Discard your analysis work?', 'The text and recordings will be deleted and the request marked as unread. The trainee\'s request is not cancelled and the response time does not reset.', 'Discard'))) return;
+      if (!(await confirmDanger('Discard your analysis work?', 'The text and recordings will be deleted and the request marked as unread. The trainee\'s request is not cancelled and the response time does not reset.', 'Discard'))) return;
       busy(cancelBtn, async () => {
         try { await action('discard_draft', { p_request: r.id }); toast('Analysis work discarded'); go('/inbox?side=received'); }
         catch (e) { toast(friendlyError(e), 'err'); }
@@ -190,8 +208,8 @@ export async function requestPage({ main, setTitle, params }) {
         return [h('h2', null, 'Can\'t analyze'), h('p', null, 'Choose a reason. The trainee will see it.'),
           h('div', { class: 'choices' }, Object.entries(DECLINE).filter(([k]) => k !== 'coach_left').map(([k, l]) =>
             h('label', { class: 'choice' }, h('input', { type: 'radio', name: 'dr', onchange: () => { pick = k; } }), h('span', { class: 't' }, l)))),
-          h('div', { class: 'btn-row', style: { marginTop: '1rem' } },
-            h('button', { class: 'btn', onclick: () => (pick ? close(pick) : toast('Choose a reason', 'err')) }, 'Confirm decline'),
+          h('div', { class: 'btn-row', style: { marginTop: 'var(--space-4)' } },
+            h('button', { class: 'btn danger', onclick: () => (pick ? close(pick) : toast('Choose a reason', 'err')) }, 'Confirm decline'),
             h('button', { class: 'btn secondary', onclick: () => close(null) }, 'Back'))];
       });
       if (!reason) return;
@@ -209,26 +227,38 @@ export async function requestPage({ main, setTitle, params }) {
         : null,
       h('p', { class: 'muted small' }, 'You can combine text, a voice recording and a video recording. At least one part is required.'),
       h('div', { class: 'field' }, h('label', { for: 'a_text' }, 'Text'), text),
-      audioRec, h('div', { style: { height: '.75rem' } }), videoRec,
+      audioRec, h('div', { style: { height: 'var(--space-3)' } }), videoRec,
       mediaList,
-      h('div', { class: 'card soon', style: { marginTop: '1rem' } },
+      h('div', { class: 'card soon', style: { marginTop: 'var(--space-4)' } },
         h('div', { class: 'row' }, h('strong', null, 'Explainer recording'), h('span', { class: 'tag' }, 'Soon')),
         h('p', { class: 'small muted' }, 'A combined recording (trainee video + your voice + a small camera of you) is coming next. It is not active yet.')),
-      h('div', { class: 'btn-row', style: { marginTop: '1.25rem' } }, sendBtn, saveBtn),
-      h('div', { class: 'btn-row', style: { marginTop: '.6rem' } }, declineBtn, cancelBtn));
+      h('div', { class: 'btn-row', style: { marginTop: 'var(--space-5)' } }, sendBtn, saveBtn),
+      h('div', { class: 'btn-row', style: { marginTop: 'var(--space-2)' } }, declineBtn, cancelBtn));
   }
 
   // ---------- Completed: analysis + follow-ups ----------
-  async function result(r, root, isCoachHere, isTrainee) {
+  // The video opens full screen with the coach's drawings and frame texts (read only); the text and
+  // recordings are listed here and also in the viewer's Analysis panel.
+  async function result(r, root, isCoachHere, isTrainee, player) {
     root.append(h('h2', { style: { marginTop: 0 } }, 'Analysis from ' + r.coach.first_name + ' ' + r.coach.last_name));
     const itemsBox = h('div', null, loading());
     root.append(itemsBox);
     try {
-      const order = { text: 0, video: 1, audio: 2, drawing: 3 };
-      const items = (await q(sb.from('analysis_items').select('*').eq('request_id', r.id).order('created_at')))
-        .sort((a, b) => order[a.kind] - order[b.kind]);
-      clear(itemsBox).append(...(items.length ? items.map((it) => analysisItem(it, r.video.id)) : [h('p', { class: 'muted' }, 'No analysis parts.')]));
-    } catch (e) { clear(itemsBox).append(errorState(friendlyError(e))); }
+      const order = { text: 0, video: 1, audio: 2 };
+      const all = await q(sb.from('analysis_items').select('*').eq('request_id', r.id).order('created_at'));
+      const drawingItem = all.find((it) => it.kind === 'drawing');
+      const items = all.filter((it) => it.kind !== 'drawing').sort((a, b) => order[a.kind] - order[b.kind]);
+      const parts = () => items.map((it) => analysisItem(it, r.video.id));
+      if (!r.video.file_deleted_at) {
+        player.replaceWith(analysisWatchCard(r.video, { drawings: drawingItem?.body, parts: h('div', { class: 'stack' }, parts()) }));
+      }
+      clear(itemsBox).append(
+        drawingItem && !r.video.file_deleted_at && h('p', { class: 'muted small' }, 'Open the video to see the coach\'s drawings and notes at their moments.'),
+        ...(items.length ? parts() : [h('p', { class: 'muted' }, 'No analysis parts.')]));
+    } catch (e) {
+      clear(itemsBox).append(errorState(friendlyError(e)));
+      player.replaceWith(protectedVideo('video', r.video.id, { autoplay: true, cover: r.video.cover_key }));
+    }
 
     if (!isCoachHere && !isTrainee) return;
     const thread = h('div', { class: 'thread' });
@@ -264,7 +294,7 @@ export async function requestPage({ main, setTitle, params }) {
       WAIT_TRAINEE: 'You can reply only if the trainee sends a follow-up message.',
       CHAT24_ENDED: 'The 24-hour chat window has ended.',
       ACCOUNT_DISABLED: 'The account is disabled.',
-      COACH_LEFT: 'This coach has left Coachit, so follow-up messages are closed. The analysis stays here for you.',
+      COACH_LEFT: 'This coach has left CoachIt, so follow-up messages are closed. The analysis stays here for you.',
     };
     const HINTS = {
       ONE_TRAINEE: 'You can send only one follow-up message. Include everything that matters to you.',
@@ -283,7 +313,7 @@ export async function requestPage({ main, setTitle, params }) {
         try { await rpc('send_message', { p_request: r.id, p_body: ta.value }); toast('Message sent'); loadThread(); }
         catch (e) { toast(friendlyError(e), 'err'); loadThread(); }
       });
-      composer.append(h('div', { class: 'field', style: { marginTop: '.75rem' } }, h('label', { for: 'msg_in' }, 'Message'), ta,
+      composer.append(h('div', { class: 'field', style: { marginTop: 'var(--space-3)' } }, h('label', { for: 'msg_in' }, 'Message'), ta,
         HINTS[st.reason] && h('div', { class: 'hint' }, HINTS[st.reason])), send);
     }
     loadThread();

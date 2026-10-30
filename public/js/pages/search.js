@@ -7,13 +7,12 @@ import { addPeople } from './upload.js';
 
 const TABS = [['all', 'All'], ['people', 'People'], ['videos', 'Videos'], ['coaches', 'Coaches']];
 
-export function searchPage({ main, setTitle, query }) {
-  setTitle('Search');
+export function searchPage({ main, query }) {
   let tab = TABS.some(([k]) => k === query.get('tab')) ? query.get('tab') : 'all';
   const qIn = h('input', { type: 'search', id: 's_q', placeholder: 'Search drills, videos, trainees, coaches…', value: query.get('q') || '', autocomplete: 'off' });
   const sport = h('select', { id: 's_sport', 'aria-label': 'Sport' }, h('option', { value: '' }, 'All sports'), activeSports().map((s) => h('option', { value: s.id }, s.name)));
   const sportBox = h('div', { class: 'field' }, sport);
-  const bar = h('div', { class: 'chips', role: 'group', 'aria-label': 'What to search', style: { marginBottom: '1rem' } });
+  const bar = h('div', { class: 'chips', role: 'group', 'aria-label': 'What to search', style: { marginBottom: 'var(--space-4)' } });
   const results = h('div');
   let t;
 
@@ -63,7 +62,7 @@ const ROLE = (p) => p.role === 'admin' ? 'Admin'
 
 function personRow(p) {
   return h('a', { class: 'card link list-item', href: '#/u/' + p.username },
-    h('div', { class: 'row', style: { flexWrap: 'nowrap', gap: '.75rem' } }, avatar(p, 44),
+    h('div', { class: 'row', style: { flexWrap: 'nowrap', gap: 'var(--space-3)' } }, avatar(p, 44),
       h('div', null, h('strong', null, p.first_name + ' ' + p.last_name),
         h('div', { class: 'meta' }, '@' + p.username + ' · ' + ROLE(p)),
         languagesLine(p.languages))),

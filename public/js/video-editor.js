@@ -1,5 +1,5 @@
-// Full-screen editor shown after choosing a video: trim the start and end, pick and frame the cover.
-// ✕ cancels, ✓ confirms. Trimming (or a file over the size limit) re-records the chosen part in the
+// Full-screen editor shown after choosing a video: trim the start and end (✓ goes on to the upload page,
+// where coverChooser picks the cover). On an existing video it picks and frames the cover. ✕ cancels, ✓ confirms. Trimming (or a file over the size limit) re-records the chosen part in the
 // browser at up to 1280px, which also makes it smaller. The cover is cropped to the profile tile (3:4).
 import { h, clear, icon, toast } from './ui.js';
 import { MAX_MB, sizeMB } from './api.js';
@@ -27,11 +27,12 @@ async function knownDuration(v) {
 
 /**
  * Opens the editor. source: a File (new upload) or a link (existing video, cover only).
- * options.trim: show the trim bar (default true for files). options.start/end: previous trim.
+ * options.trim: show the trim bar (default true for files). options.cover: show the cover tools (default: when not trimming).
+ * options.start/end: previous trim.
  * Resolves to { file, cover, start, end } or null when cancelled. file is the original file when it
  * was not trimmed and fits the limit; cover is a JPEG Blob (or null if no frame could be read).
  */
-export function openVideoEditor(source, { trim = source instanceof Blob, start: s0 = 0, end: e0 = null } = {}) {
+export function openVideoEditor(source, { trim = source instanceof Blob, cover: withCover = !trim, start: s0 = 0, end: e0 = null } = {}) {
   return new Promise((resolve) => {
     const isFile = source instanceof Blob;
     const src = isFile ? URL.createObjectURL(source) : source;
@@ -42,8 +43,8 @@ export function openVideoEditor(source, { trim = source instanceof Blob, start: 
 
     // ---------- Layout ----------
     const cancelBtn = h('button', { type: 'button', class: 'ed-round', 'aria-label': 'Cancel' }, '✕');
-    const doneBtn = h('button', { type: 'button', class: 'ed-round ed-done', 'aria-label': 'Done' }, '✓');
-    const title = h('div', { class: 'ed-title' }, trim ? 'Edit video' : 'Cover image');
+    const doneBtn = h('button', { type: 'button', class: 'ed-round ed-done', 'aria-label': withCover ? 'Done' : 'Next' }, '✓');
+    const title = h('div', { class: 'ed-title' }, withCover ? (trim ? 'Edit video' : 'Cover image') : 'Trim video');
     const playBtn = h('button', { type: 'button', class: 'ed-play', 'aria-label': 'Play or pause' }, icon('play'));
     const stage = h('div', { class: 'ed-stage' }, video, playBtn);
 
@@ -57,20 +58,20 @@ export function openVideoEditor(source, { trim = source instanceof Blob, start: 
     const trimBox = trim ? h('section', { class: 'ed-section' }, h('div', { class: 'ed-label' }, 'Trim'), track, trimInfo, sizeWarn) : null;
 
     const coverThumb = h('div', { class: 'ed-cover-thumb' }, h('span', null, 'Auto'));
-    const useFrame = h('button', { type: 'button', class: 'btn secondary small' }, 'Use this frame');
+    const useFrame = h('button', { type: 'button', class: 'btn secondary small' }, 'Choose from video');
     const photoIn = h('input', { type: 'file', accept: 'image/*', class: 'visually-hidden', id: 'ed_photo' });
     const photoBtn = h('label', { for: 'ed_photo', class: 'btn secondary small', role: 'button', tabindex: '0' }, 'Upload photo');
     const coverBox = h('section', { class: 'ed-section' },
       h('div', { class: 'ed-label' }, 'Cover'),
       h('div', { class: 'row', style: { gap: '.75rem', flexWrap: 'nowrap' } }, coverThumb,
         h('div', { class: 'stack', style: { flex: 1 } },
-          h('p', { class: 'ed-hint' }, 'Move the video to a moment you like and tap "Use this frame", or upload a photo. Then place the frame: that part shows on your profile. If you skip this, a random frame is used.'),
+          h('p', { class: 'ed-hint' }, 'Pick a moment from the video, or upload a photo. Then place the frame: that part shows on your profile. If you skip this, a random frame is used.'),
           h('div', { class: 'row' }, useFrame, photoIn, photoBtn))));
 
     const progress = h('div', { class: 'ed-progress', hidden: true }, h('div', { class: 'spinner' }), h('p'));
     const el = h('div', { class: 'ed', role: 'dialog', 'aria-label': title.textContent },
       h('div', { class: 'ed-top' }, cancelBtn, title, doneBtn),
-      h('div', { class: 'ed-body' }, stage, trimBox, coverBox),
+      h('div', { class: 'ed-body' }, stage, trimBox, withCover ? coverBox : null),
       progress);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -148,9 +149,7 @@ export function openVideoEditor(source, { trim = source instanceof Blob, start: 
     };
     useFrame.onclick = async () => {
       video.pause();
-      const frame = await frameBlob(video);
-      if (!frame) return toast('Could not read this frame. Try another moment or upload a photo.', 'err');
-      const cropped = await cropImage(frame);
+      const cropped = await coverFromVideo(src, { at: video.currentTime, crossOrigin: !isFile });
       if (cropped) showCover(cropped);
     };
     photoIn.addEventListener('change', async () => {
@@ -195,9 +194,31 @@ export function openVideoEditor(source, { trim = source instanceof Blob, start: 
         const frame = await frameBlob(video);
         c = frame ? await centerCrop(frame) : null;
       }
-      finish({ file: out, cover: c, start, end });
+      finish({ file: out, cover: c, auto: !cover, start, end });
     };
   });
+}
+
+// ---------- Cover on the upload page ----------
+// "Choose from video" opens the clip with a filmstrip to pick the moment; "Upload photo" takes a picture instead.
+// Both end in the framing step (3:4, like the profile tile).
+// cover: the current cover Blob (a random frame until the user picks one). onChange(blob) after each pick.
+export function coverChooser(file, { cover = null, onChange } = {}) {
+  const url = URL.createObjectURL(file);
+  const thumb = h('div', { class: 'cover-thumb' });
+  const show = (blob) => clear(thumb).append(blob ? h('img', { src: URL.createObjectURL(blob), alt: 'Cover' }) : h('span', null, 'Auto'));
+  const picked = (blob) => { if (!blob) return; show(blob); onChange && onChange(blob); };
+  const fromVideo = h('button', { type: 'button', class: 'btn secondary small' }, 'Choose from video');
+  fromVideo.onclick = async () => picked(await coverFromVideo(url));
+  const photoIn = h('input', { type: 'file', accept: 'image/*', class: 'visually-hidden', id: 'cover_photo' });
+  photoIn.addEventListener('change', async () => { const f = photoIn.files[0]; photoIn.value = ''; if (f) picked(await cropImage(f)); });
+  show(cover);
+  return h('div', { class: 'cover-chooser' },
+    h('div', { class: 'row', style: { gap: '.75rem', flexWrap: 'nowrap', alignItems: 'flex-start' } }, thumb,
+      h('div', { class: 'stack', style: { flex: 1 } },
+        h('p', { class: 'hint', style: { margin: 0 } }, 'This shows on your profile and in the feed. Pick a moment from the video, or upload a photo. If you skip this, a random frame is used.'),
+        h('div', { class: 'row' }, fromVideo, photoIn,
+          h('label', { for: 'cover_photo', class: 'btn secondary small', role: 'button', tabindex: '0' }, 'Upload photo')))));
 }
 
 // ---------- Frames and cropping ----------
@@ -230,21 +251,91 @@ async function centerCrop(blob) {
   return cropTo(img, (W - sw) / 2, (H - sh) / 2, sw, sh);
 }
 
-// Instagram-style framing: drag the frame (and resize it with the slider) over the picture.
-function cropImage(blob) {
-  return new Promise(async (resolve) => {
-    let img;
-    try { img = await loadImg(blob); } catch { toast('This image could not be read. Try a JPEG or PNG.', 'err'); return resolve(null); }
-    const W = img.naturalWidth, H = img.naturalHeight;
-    const pic = h('img', { src: img.src, alt: '', class: 'crop-img', draggable: false });
+// A photo: frame it (3:4).
+async function cropImage(blob) {
+  let img;
+  try { img = await loadImg(blob); } catch { toast('This image could not be read. Try a JPEG or PNG.', 'err'); return null; }
+  const pic = h('img', { src: img.src, alt: '', class: 'crop-img', draggable: false });
+  return framer({ media: pic, source: img, W: img.naturalWidth, H: img.naturalHeight });
+}
+
+// A frame from the video: the filmstrip under the picture runs over the whole clip; drag along it to pick
+// the moment, then drag and size the frame. at: where to start (seconds).
+export async function coverFromVideo(src, { at = 0, crossOrigin = false } = {}) {
+  const make = () => {
+    const v = h('video', { src, muted: true, playsInline: true, preload: 'auto', class: 'crop-img' });
+    v.setAttribute('playsinline', '');
+    if (crossOrigin) v.crossOrigin = 'anonymous';
+    return v;
+  };
+  const video = make();
+  await once(video, 'loadedmetadata');
+  const duration = await knownDuration(video);
+  video.currentTime = Math.min(at, duration);
+  await Promise.race([once(video, 'seeked'), new Promise((r) => setTimeout(r, 1500))]);
+
+  const thumbs = h('div', { class: 'strip-thumbs' });
+  const headEl = h('div', { class: 'strip-head' });
+  const strip = h('div', { class: 'strip', role: 'slider', 'aria-label': 'Moment in the video', tabindex: '0' }, thumbs, headEl);
+  const timeEl = h('span', { class: 'ed-hint', style: { color: '#fff' } });
+  const showHead = () => {
+    const f = duration ? video.currentTime / duration : 0;
+    headEl.style.left = `calc(${f * 100}% - ${f * 36}px)`;   // the head (36px wide) stays inside the strip
+    timeEl.textContent = `${clock(video.currentTime)} / ${clock(duration)}`;
+    strip.setAttribute('aria-valuetext', timeEl.textContent);
+  };
+  const seek = (e) => {
+    const r = strip.getBoundingClientRect();
+    if (!duration) return;
+    video.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration;
+    showHead();
+  };
+  strip.addEventListener('pointerdown', (e) => { e.preventDefault(); capture(strip, e); seek(e); strip.dragging = true; });
+  strip.addEventListener('pointermove', (e) => { if (strip.dragging) seek(e); });
+  for (const ev of ['pointerup', 'pointercancel']) strip.addEventListener(ev, () => { strip.dragging = false; });
+  strip.addEventListener('keydown', (e) => {
+    const d = { ArrowLeft: -0.1, ArrowRight: 0.1 }[e.key];
+    if (d) { video.currentTime = Math.max(0, Math.min(duration, video.currentTime + d)); showHead(); }
+  });
+  showHead();
+  fillStrip(make(), duration, thumbs);
+
+  return framer({
+    media: video, source: video, W: video.videoWidth, H: video.videoHeight,
+    hint: 'Drag along the strip to pick the moment, then drag the frame to choose what shows on your profile.',
+    extra: h('div', { class: 'stack' }, strip, timeEl),
+  });
+}
+
+// Small pictures across the whole clip, drawn one after another from a second copy of the video.
+async function fillStrip(v, duration, box) {
+  const N = 8;
+  try {
+    await once(v, 'loadedmetadata');
+    for (let i = 0; i < N && box.isConnected !== false; i++) {
+      v.currentTime = ((i + 0.5) / N) * duration;
+      await Promise.race([once(v, 'seeked'), new Promise((r) => setTimeout(r, 1500))]);
+      const c = document.createElement('canvas');
+      c.height = 64; c.width = Math.round((64 * v.videoWidth) / v.videoHeight) || 48;
+      c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+      box.append(c);
+    }
+  } catch {}
+  v.removeAttribute('src'); v.load();
+}
+
+// Instagram-style framing over a photo or a video: drag the frame (and resize it with the slider) over the picture.
+function framer({ media, source, W, H, hint = 'Drag the frame to choose what shows on your profile.', extra = null }) {
+  return new Promise((resolve) => {
     const frame = h('div', { class: 'crop-frame', 'aria-label': 'Part shown on your profile' });
-    const area = h('div', { class: 'crop-area' }, pic, frame);
+    const area = h('div', { class: 'crop-area' }, media, frame);
     const zoom = h('input', { type: 'range', min: 0.35, max: 1, step: 0.01, value: 1, 'aria-label': 'Frame size' });
     const cancel = h('button', { type: 'button', class: 'btn secondary' }, 'Cancel');
     const use = h('button', { type: 'button', class: 'btn' }, 'Use');
     const sheet = h('div', { class: 'crop', role: 'dialog', 'aria-label': 'Frame the cover' },
-      h('p', { class: 'ed-hint', style: { color: '#fff', textAlign: 'center' } }, 'Drag the frame to choose what shows on your profile.'),
+      h('p', { class: 'ed-hint', style: { color: '#fff', textAlign: 'center' } }, hint),
       area,
+      extra,
       h('label', { class: 'ed-hint', style: { color: '#fff' } }, 'Frame size', zoom),
       h('div', { class: 'btn-row' }, cancel, use));
     document.body.append(sheet);
@@ -281,9 +372,18 @@ function cropImage(blob) {
       fx = cx - fw / 2; fy = cy - fw / COVER_RATIO / 2;
       clamp(); draw();
     });
-    const close = (v) => { watch.disconnect(); sheet.remove(); resolve(v); };
+    const close = (v) => {
+      watch.disconnect(); sheet.remove();
+      if (media.tagName === 'VIDEO') { media.removeAttribute('src'); media.load(); }
+      resolve(v);
+    };
     cancel.onclick = () => close(null);
-    use.onclick = async () => close(await cropTo(img, fx, fy, fw, fw / COVER_RATIO));
+    use.onclick = async () => {
+      let blob = null;
+      try { blob = await cropTo(source, fx, fy, fw, fw / COVER_RATIO); } catch {}
+      if (!blob) return toast('Could not read this frame. Try another moment or upload a photo.', 'err');
+      close(blob);
+    };
   });
 }
 

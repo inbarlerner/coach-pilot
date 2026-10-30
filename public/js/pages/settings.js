@@ -4,9 +4,9 @@ import { sb, state, q, rpc, activeSports, loadProfile, isCoach, isAdmin, uploadF
 import { avatar, imageFileToJpeg } from '../images.js';
 import { languagePicker } from '../components.js';
 
-export async function settingsPage({ main, setTitle }) {
-  setTitle('Settings');
-  clear(main).append(loading());
+export async function settingsPage({ main }) {
+  const title = h('h1', null, 'Settings');
+  clear(main).append(title, loading());
   const p = state.profile;
   let priv, interests, coachSet, coachSports;
   try {
@@ -20,8 +20,8 @@ export async function settingsPage({ main, setTitle }) {
         q(sb.from('coach_sports').select('sport_id').eq('coach_id', p.id)),
       ]);
     }
-  } catch (e) { return clear(main).append(errorState(friendlyError(e), () => settingsPage({ main, setTitle }))); }
-  clear(main);
+  } catch (e) { return clear(main).append(title, errorState(friendlyError(e), () => settingsPage({ main }))); }
+  clear(main).append(title);
 
   const chips = (name, sel) => h('div', { class: 'chips' }, activeSports().map((s) =>
     h('label', { class: 'chip' }, h('input', { type: 'checkbox', name, value: String(s.id), checked: sel.includes(s.id) }), s.name)));
@@ -39,7 +39,7 @@ export async function settingsPage({ main, setTitle }) {
     const bio = h('textarea', { id: 'cs_bio', maxlength: 1000 });
     bio.value = p.bio || '';
     const save = h('button', { class: 'btn block' }, 'Save coach settings');
-    const form = h('div', { class: 'card', style: { marginTop: '1rem' } },
+    const form = h('div', { class: 'card', style: { marginTop: 'var(--space-4)' } },
       h('h2', { style: { marginTop: 0 } }, 'Coach settings'),
       p.coach_status !== 'approved' && h('p', { class: 'banner' }, p.coach_status === 'pending' ? 'Your account is waiting for admin approval. You can set this up in advance.' : 'Your coach application was not approved.'),
       h('div', { class: 'field' }, h('label', { for: 'cs_quota' }, 'Active request quota'), quota,
@@ -82,7 +82,7 @@ export async function settingsPage({ main, setTitle }) {
     const bio = h('textarea', { id: 'ap_bio', maxlength: 1000 });
     bio.value = p.bio || '';
     const send = h('button', { class: 'btn block' }, 'Send coach application');
-    const form = h('div', { class: 'card', style: { marginTop: '1rem' } },
+    const form = h('div', { class: 'card', style: { marginTop: 'var(--space-4)' } },
       h('h2', { style: { marginTop: 0 } }, p.role === 'coach' ? 'Apply again as a coach' : 'Join as a coach'),
       h('p', { class: 'hint' }, 'An admin reviews the application. Until it is approved you won\'t appear in search or receive requests.'),
       h('div', { class: 'field' }, h('div', { class: 'label' }, 'Sports I coach'), sportsBox),
@@ -96,7 +96,7 @@ export async function settingsPage({ main, setTitle }) {
         await rpc('request_coach', { p_bio: bio.value.trim(), p_sports: cs });
         await loadProfile();
         toast('Application sent to the admin');
-        settingsPage({ main, setTitle });
+        settingsPage({ main });
       } catch (e) { toast(friendlyError(e), 'err'); }
     });
     main.append(form);
@@ -109,7 +109,7 @@ export async function settingsPage({ main, setTitle }) {
   const sportsBox = chips('sports', interests.map((r) => r.sport_id));
   const langs = languagePicker(p.languages || []);
   const save = h('button', { class: 'btn block' }, 'Save details');
-  const card = h('div', { class: 'card', style: { marginTop: '1rem' } },
+  const card = h('div', { class: 'card', style: { marginTop: 'var(--space-4)' } },
     h('h2', { style: { marginTop: 0 } }, 'Personal details'),
     h('div', { class: 'field' }, h('label', { for: 'p_first' }, 'First name'), first),
     h('div', { class: 'field' }, h('label', { for: 'p_last' }, 'Last name'), last),
@@ -117,7 +117,7 @@ export async function settingsPage({ main, setTitle }) {
     h('div', { class: 'field' }, h('div', { class: 'label' }, 'Email'), h('p', null, priv.email)),
     h('div', { class: 'field' }, h('label', { for: 'p_phone' }, 'Phone'), phone, h('div', { class: 'hint' }, 'Your phone and email are not shown to other users.')),
     h('div', { class: 'field' }, h('div', { class: 'label' }, 'Languages I speak'),
-      h('div', { class: 'hint', style: { marginTop: 0, marginBottom: '.4rem' } }, p.role === 'coach' ? 'Shown on your profile and to trainees choosing a coach.' : 'Shown to coaches who answer you.'), langs),
+      h('div', { class: 'hint', style: { marginTop: 0, marginBottom: 'var(--space-1)' } }, p.role === 'coach' ? 'Shown on your profile and to trainees choosing a coach.' : 'Shown to coaches who answer you.'), langs),
     h('div', { class: 'field' }, h('div', { class: 'label' }, 'Sports I\'m interested in (affects the feed order)'), sportsBox),
     save);
   save.onclick = () => busy(save, async () => {
@@ -138,7 +138,7 @@ export async function settingsPage({ main, setTitle }) {
     } catch (e) { toast(friendlyError(e), 'err'); }
   });
   main.append(card,
-    h('div', { class: 'btn-row', style: { marginTop: '1rem' } },
+    h('div', { class: 'btn-row', style: { marginTop: 'var(--space-4)' } },
       h('a', { class: 'btn secondary', href: '#/me' }, 'Back to profile'),
       h('a', { class: 'btn secondary', href: '#/forgot' }, 'Change password'),
       h('button', { class: 'btn secondary', onclick: () => sb.auth.signOut() }, 'Sign out')),
@@ -148,13 +148,13 @@ export async function settingsPage({ main, setTitle }) {
 // ---------- Delete account (privacy policy: "Deleting your account and data") ----------
 function deleteCard() {
   const p = state.profile;
-  const card = h('div', { class: 'card', style: { marginTop: '1.5rem' } }, h('h2', { style: { marginTop: 0 } }, 'Delete account'));
+  const card = h('div', { class: 'card', style: { marginTop: 'var(--space-5)' } }, h('h2', { style: { marginTop: 0 } }, 'Delete account'));
   if (isAdmin()) {
     card.append(h('p', { class: 'hint' }, 'Admin accounts cannot be deleted from the app, so the platform always has an admin. Email coachitapp@gmail.com.'));
     return card;
   }
   const typed = h('input', { type: 'text', id: 'del_confirm', autocomplete: 'off', autocapitalize: 'characters', spellcheck: false });
-  const btn = h('button', { class: 'btn block', type: 'button' }, 'Delete my account');
+  const btn = h('button', { class: 'btn danger block', type: 'button' }, 'Delete my account');
   card.append(
     h('p', null, 'This permanently deletes your profile, photo, email, phone, videos, comments and your requests with coaches, including their analyses of your videos. It cannot be undone.'),
     p.role === 'coach' && h('p', null, 'As a coach: your open requests are cancelled and the trainees are told. Trainees keep the written analyses and messages you already sent them, shown as from a "Former coach". Your voice and video recordings are deleted.'),
@@ -181,7 +181,7 @@ function photoCard() {
   const input = h('input', { type: 'file', id: 'ph_in', accept: 'image/*', class: 'visually-hidden' });
   const choose = h('label', { for: 'ph_in', class: 'btn secondary small', role: 'button', tabindex: '0',
     onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } } }, p.avatar_key ? 'Change photo' : 'Add photo');
-  const remove = h('button', { class: 'btn ghost small', hidden: !p.avatar_key }, 'Remove photo');
+  const remove = h('button', { class: 'btn danger small', hidden: !p.avatar_key }, 'Remove photo');
   const labels = () => { choose.textContent = state.profile.avatar_key ? 'Change photo' : 'Add photo'; remove.hidden = !state.profile.avatar_key; };
   const set = async (key) => {
     let old;
@@ -210,7 +210,7 @@ function photoCard() {
   }).then(labels));
   return h('div', { class: 'card' },
     h('h2', { style: { marginTop: 0 } }, 'Profile photo'),
-    h('div', { class: 'row', style: { gap: '1rem' } }, pic,
+    h('div', { class: 'row', style: { gap: 'var(--space-4)' } }, pic,
       h('div', { class: 'stack' }, h('p', { class: 'hint', style: { margin: 0 } }, 'Shown next to your name everywhere in the app.'),
         h('div', { class: 'row' }, input, choose, remove))));
 }

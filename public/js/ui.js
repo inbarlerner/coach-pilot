@@ -83,23 +83,27 @@ export function modal(build) {
     f && f.focus();
   });
 }
-export const confirmDialog = (title, text, okText = 'OK', cancelText = 'Cancel') =>
+export const confirmDialog = (title, text, okText = 'OK', cancelText = 'Cancel', okClass = 'btn') =>
   modal((close) => [
     h('h2', null, title),
     text && h('p', null, text),
-    h('div', { class: 'btn-row', style: { marginTop: '1rem' } },
-      h('button', { class: 'btn', onclick: () => close(true) }, okText),
+    h('div', { class: 'btn-row', style: { marginTop: 'var(--space-4)' } },
+      h('button', { class: okClass, onclick: () => close(true) }, okText),
       h('button', { class: 'btn secondary', onclick: () => close(false) }, cancelText)),
   ]);
+// For confirms that delete, decline or discard something.
+export const confirmDanger = (title, text, okText, cancelText) => confirmDialog(title, text, okText, cancelText, 'btn danger');
 
 // ---------- Buttons with busy state ----------
 export async function busy(btn, fn) {
   if (btn.disabled) return;
   const old = [...btn.childNodes];
+  btn.style.minWidth = btn.offsetWidth + 'px';   // keeps its width; grows only if the busy text would not fit
   btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
   btn.replaceChildren(h('span', { class: 'spinner sm', 'aria-hidden': 'true' }), ' One moment…');
   try { return await fn(); }
-  finally { btn.disabled = false; btn.replaceChildren(...old); }
+  finally { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.style.minWidth = ''; btn.replaceChildren(...old); }
 }
 
 // ---------- Formatting ----------
@@ -122,7 +126,9 @@ export const STATUS = {
   declined: 'Declined',
   expired: 'Response time passed',
 };
-export const DECLINE = { unclear: 'Video is unclear', not_my_field: 'Not my field', video_problem: 'Problem with the video', coach_left: 'The coach closed their Coachit account' };
+// The word always stays: our red and green are equally dark, so colour alone says nothing to color-blind users.
+export const statusTag = (status) => h('span', { class: 'tag status-' + status }, STATUS[status]);
+export const DECLINE = { unclear: 'Video is unclear', not_my_field: 'Not my field', video_problem: 'Problem with the video', coach_left: 'The coach closed their CoachIt account' };
 export const POLICY = {
   none: 'No follow-up messages',
   one: 'One follow-up message from the trainee, with one reply',
@@ -169,11 +175,11 @@ const ERR = {
   USERNAME_TAKEN: 'This username is taken. Try another one.',
   BAD_PHONE: 'Invalid phone number.',
   ALREADY_SET_UP: 'Your account is already set up.',
-  COACH_LEFT: 'This coach has left Coachit, so follow-up messages are closed.',
+  COACH_LEFT: 'This coach has left CoachIt, so follow-up messages are closed.',
   ADMIN_CANNOT_DELETE: 'Admin accounts cannot be deleted from the app. Email coachitapp@gmail.com.',
   FILES_REMAIN: 'Some of your files could not be removed yet. Try again, or email coachitapp@gmail.com.',
   DELETION_NOT_STARTED: 'Account deletion did not start. Try again.',
-  CONSENT_REQUIRED: 'Coachit is for people 18 or older. Confirm your age and the Privacy Policy to continue.',
+  CONSENT_REQUIRED: 'CoachIt is for people 18 or older. Confirm your age and the Privacy Policy to continue.',
   profiles_languages_check: 'Choose languages from the list.',
   NETWORK: 'No network connection. Check your connection and try again.',
   'Invalid login credentials': 'Wrong email or password.',
@@ -206,10 +212,14 @@ const P = {
   bell: '<path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   play: '<path d="M8 5v14l11-7z"/>',
   back: '<path d="m15 6-6 6 6 6"/>',
+  chevron: '<path d="m6 9 6 6 6-6"/>',
+  sound: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9a4 4 0 0 1 0 6"/>',
+  muted: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 10 4 4M21 10l-4 4"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="4"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   pencil: '<path d="M4 20l4-1L19 8l-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/>',
   text: '<path d="M5 6h14M12 6v13"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
 };
 export const icon = (name) => {

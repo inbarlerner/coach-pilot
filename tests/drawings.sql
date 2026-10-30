@@ -43,6 +43,12 @@ select save_drawings(:'r1', '{"strokes":[{"t":2.0,"c":"#ff3b30","pts":[[0.5,0.5]
 select pg_temp.ok((select count(*) from analysis_items where request_id = :'r1' and kind = 'drawing') = 1, 'D3 saving again replaces the drawings');
 select pg_temp.fails($$select save_drawings('$$ || :'r1' || $$', '[{"t":1}]')$$, 'BAD_DRAWINGS', 'D4 drawings must be an object with lists');
 select pg_temp.ok((select body::jsonb->'notes'->0->>'text' from analysis_items where request_id = :'r1' and kind = 'drawing') = 'Hips too far back', 'D4b the coach note is saved with the drawings');
+-- Deleting one frame in the viewer saves the drawings without it.
+select save_drawings(:'r1', '{"strokes":[{"t":2.0,"c":"#ff3b30","pts":[[0.5,0.5],[0.6,0.6]]},{"t":5.0,"pts":[[0.1,0.1],[0.2,0.2]]}],"notes":[{"t":2.0,"text":"Hips"}]}');
+select save_drawings(:'r1', '{"strokes":[{"t":5.0,"pts":[[0.1,0.1],[0.2,0.2]]}],"notes":[]}');
+select pg_temp.ok((select jsonb_array_length(body::jsonb->'strokes') = 1 and jsonb_array_length(body::jsonb->'notes') = 0
+  from analysis_items where request_id = :'r1' and kind = 'drawing'), 'D4c the coach deletes a frame''s drawing and text from the draft');
+select save_drawings(:'r1', '{"strokes":[{"t":2.0,"c":"#ff3b30","pts":[[0.5,0.5],[0.6,0.6]]}],"notes":[{"t":2.0,"text":"Hips too far back"}]}');
 select set_analysis_text(:'r1', 'Keep your weight back');
 select send_analysis(:'r1');
 reset role;
@@ -51,4 +57,7 @@ select pg_temp.ok((select status from analysis_requests where id = :'r1') = 'com
 select pg_temp.as_user(:tr); set role authenticated;
 select pg_temp.ok((select count(*) from analysis_items where request_id = :'r1' and kind = 'drawing') = 1, 'D6 trainee sees the drawings once completed');
 select pg_temp.fails($$select save_drawings('$$ || :'r1' || $$', '{"strokes":[],"notes":[]}')$$, 'NOT_FOUND', 'D7 trainee cannot change drawings');
+reset role;
+select pg_temp.as_user(:co); set role authenticated;
+select pg_temp.fails($$select save_drawings('$$ || :'r1' || $$', '{"strokes":[],"notes":[]}')$$, 'NOT_OPEN', 'D7b the coach cannot delete drawings after the analysis was sent');
 reset role;

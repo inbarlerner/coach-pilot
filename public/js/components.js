@@ -1,22 +1,36 @@
 // Reusable components: protected video player with analysis tools, media items, recorder.
-import { h, clear, friendlyError, icon, fmtSize, toast, filePicker } from './ui.js';
+import { h, clear, friendlyError, icon, toast, filePicker, confirmDanger } from './ui.js';
 import { mediaUrl, coverUrl, uploadFile, discardUpload, LIMITS, fileType, sizeMB, LANGUAGES, languageNames } from './api.js';
 import { coverImg } from './images.js';
 import { drawingsReview } from './viewer.js';
 
 /**
  * Video player for a protected file.
- * opts.tools: show speed / step controls (coach analysis view).
- * opts.lazy: show a "watch" button first (saves data in the feed).
+ * opts.lazy: load and play when scrolled into view, muted and looping (the feed).
+ * opts.onOpen(time): a tap opens the video elsewhere (the feed's full-screen player) instead of showing controls.
+ * opts.autoplay: play as soon as it opens.
  * opts.cover: cover key; shown as the poster until the video plays.
  */
 export function protectedVideo(kind, id, opts = {}) {
   const wrap = h('div', { class: 'player' });
+  if (opts.onOpen) {
+    const open = () => opts.onOpen(wrap.querySelector('video')?.currentTime || 0);
+    wrap.classList.add('opens');
+    wrap.setAttribute('role', 'button');
+    wrap.tabIndex = 0;
+    wrap.setAttribute('aria-label', 'Open video full screen');
+    wrap.addEventListener('click', (e) => { if (!e.target.closest('a, button')) open(); });
+    wrap.addEventListener('keydown', (e) => { if (e.target === wrap && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } });
+  }
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;   // these viewers keep the Watch button
+  const auto = (opts.lazy || opts.autoplay) && !still;
+  let inView = false;
   const start = async () => {
-    clear(wrap).append(h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' }), 'Loading video…'));
+    // A cover already on screen stays until the video is ready, so the feed doesn't flash.
+    if (!auto || !opts.cover || !opts.lazy) clear(wrap).append(h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' }), 'Loading video…'));
     try {
       const url = await mediaUrl(kind, id);
-      const v = h('video', { src: url, controls: true, playsInline: true, preload: 'metadata' });
+      const v = h('video', { src: url, controls: !opts.onOpen, playsInline: true, preload: 'metadata' });
       if (opts.cover) coverUrl(opts.cover).then((u) => { if (u) v.poster = u; });
       v.setAttribute('playsinline', '');
       v.addEventListener('error', () => {
@@ -25,8 +39,15 @@ export function protectedVideo(kind, id, opts = {}) {
           h('a', { class: 'btn small', href: url, target: '_blank', rel: 'noopener' }, 'Open in a new window')));
       });
       clear(wrap).append(v);
-      if (opts.tools) wrap.append(playerTools(v));
-      if (opts.autoplay) v.play().catch(() => {});
+      if (opts.lazy) {
+        // Browsers block sound until a tap, so the feed plays muted; the full-screen player has the sound.
+        v.muted = true;
+        v.loop = true;
+        if (auto ? inView : opts.autoplay) playOnly(v);
+      } else if (opts.autoplay && !still) {
+        // Reached by a tap, so sound is usually allowed; muted if the browser says no.
+        v.play().catch(() => { v.muted = true; return v.play(); }).catch(() => {});
+      }
     } catch (e) {
       if (e.message === 'FILE_REMOVED') {
         return clear(wrap).append(h('div', { class: 'player-placeholder' }, REMOVED_TEXT));
@@ -38,27 +59,40 @@ export function protectedVideo(kind, id, opts = {}) {
   if (opts.lazy) {
     wrap.append(h('div', { class: 'player-placeholder' + (opts.cover ? ' has-cover' : '') },
       opts.cover && coverImg(coverUrl(opts.cover)),
-      h('button', { class: 'btn', onclick: () => { opts.autoplay = true; start(); } }, icon('play'), 'Watch video')));
+      still && h('button', { class: 'btn', onclick: () => { if (opts.onOpen) return opts.onOpen(0); opts.autoplay = true; start(); } }, icon('play'), 'Watch video')));
+    if (auto) {
+      new IntersectionObserver(([e]) => {
+        inView = e.isIntersecting;
+        if (inView) onScreen.add(wrap); else onScreen.delete(wrap);
+        if (held) return;
+        const v = wrap.querySelector('video');
+        if (!inView) { v?.pause(); if (v === playing) { playing = null; playTopVisible(); } }
+        else if (v) playOnly(v);
+        else start();
+      }, { threshold: 0.6 }).observe(wrap);
+    }
   } else start();
   return wrap;
 }
 
-function playerTools(v) {
-  const speeds = [[1, 'Normal speed'], [0.5, 'Half speed'], [0.25, 'Quarter speed']];
-  const speedBtns = speeds.map(([s, label]) => {
-    const b = h('button', { type: 'button', 'aria-pressed': String(s === 1), onclick: () => {
-      v.playbackRate = s;
-      speedBtns.forEach((x) => x.setAttribute('aria-pressed', 'false'));
-      b.setAttribute('aria-pressed', 'true');
-    } }, label);
-    return b;
-  });
-  const step = (d) => { v.pause(); v.currentTime = Math.max(0, Math.min(v.duration || 0, v.currentTime + d)); };
-  return h('div', { class: 'player-bar', role: 'group', 'aria-label': 'Viewing tools' },
-    h('button', { type: 'button', onclick: () => (v.paused ? v.play() : v.pause()) }, 'Play / pause'),
-    h('button', { type: 'button', onclick: () => step(-0.1), title: 'Back 0.1 seconds' }, '−0.1s'),
-    h('button', { type: 'button', onclick: () => step(0.1), title: 'Forward 0.1 seconds' }, '+0.1s'),
-    ...speedBtns);
+// Only one feed video plays at a time.
+let playing = null, held = false;
+const onScreen = new Set();
+// When the playing video leaves, another one on screen takes over; it may have been paused by playOnly.
+function playTopVisible() {
+  const v = [...onScreen].map((w) => w.querySelector('video')).find(Boolean);
+  if (v) playOnly(v);
+}
+function playOnly(v) {
+  if (playing && playing !== v) playing.pause();
+  playing = v;
+  if (!held) v.play().catch(() => {});
+}
+// While the full-screen player is open, the feed behind it stays quiet.
+export function holdFeed(on) {
+  held = on;
+  if (on) playing?.pause();
+  else playTopVisible();
 }
 
 export const REMOVED_TEXT = 'This video was removed automatically to free up storage. The analysis text and messages were kept.';
@@ -76,7 +110,7 @@ export function analysisItem(item, videoId) {
       const url = await mediaUrl('item', item.id);
       const el = item.kind === 'audio'
         ? h('audio', { src: url, controls: true, style: { width: '100%' } })
-        : h('video', { src: url, controls: true, playsInline: true, style: { width: '100%', maxHeight: '60vh', background: '#000', borderRadius: '8px' } });
+        : h('video', { src: url, controls: true, playsInline: true, style: { width: '100%', maxHeight: '60vh', background: '#000', borderRadius: 'var(--radius)' } });
       clear(slot).append(el);
       el.play().catch(() => {});
     } catch (e) {
@@ -89,9 +123,12 @@ export function analysisItem(item, videoId) {
 
 /**
  * Recorder for coach responses: records audio or video in the browser,
- * or falls back to uploading a ready file. Calls onSaved({key, contentType}) after upload.
+ * or falls back to uploading a ready file. There is no save step: once recorded or chosen, the clip is uploaded
+ * and attached to the analysis (onSaved({key, contentType}) returns the new item). It stays attached until the
+ * coach presses Delete (onRemove(item)), which brings back the record / upload controls.
+ * opts.item: a clip already attached (an open draft).
  */
-export function recorder(kind, onSaved) {
+export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
   const purpose = kind === 'audio' ? 'responseAudio' : 'responseVideo';
   const maxMB = kind === 'audio' ? LIMITS.responseAudioMaxMB : LIMITS.responseVideoMaxMB;
   const allowed = kind === 'audio' ? LIMITS.audioTypes : LIMITS.videoTypes;
@@ -101,7 +138,8 @@ export function recorder(kind, onSaved) {
   const fmtTime = (t) => Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
   const box = h('div', { class: 'rec stack' });
   const supported = !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
-  let stream = null, rec = null, chunks = [], timer = null;
+  let stream = null, rec = null, chunks = [], timer = null, localUrl = null;
+  const dropLocal = () => { if (localUrl) URL.revokeObjectURL(localUrl); localUrl = null; };
 
   const stopStream = () => { stream && stream.getTracks().forEach((t) => t.stop()); stream = null; };
 
@@ -132,7 +170,7 @@ export function recorder(kind, onSaved) {
       if (f.size > maxMB * 1048576) return idle(`The file is too large: ${sizeMB(f.size)}MB. The limit is ${maxMB}MB per file. Trim it or record here instead.`);
       upload(f);
     } });
-    return h('div', null, h('div', { class: 'small', style: { fontWeight: 600, marginBottom: '.3rem' } }, 'Or upload a ready ' + (kind === 'audio' ? 'audio' : 'video') + ` file (up to ${maxMB}MB)`), picker);
+    return h('div', null, h('div', { class: 'small', style: { fontWeight: 600, marginBottom: 'var(--space-1)' } }, 'Or upload a ready ' + (kind === 'audio' ? 'audio' : 'video') + ` file (up to ${maxMB}MB)`), picker);
   }
 
   async function startRec() {
@@ -153,7 +191,9 @@ export function recorder(kind, onSaved) {
       const type = (rec.mimeType || mime || (kind === 'audio' ? 'audio/webm' : 'video/webm')).split(';')[0];
       const blob = new Blob(chunks, { type });
       stopStream(); clearInterval(timer);
-      review(blob, type);
+      if (blob.size > maxMB * 1048576) return idle(`The recording is too large: ${sizeMB(blob.size)}MB. The limit is ${maxMB}MB per file. Record a shorter one.`);
+      const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
+      upload(new File([blob], 'recording.' + ext, { type: allowed.includes(type) ? type : (kind === 'audio' ? 'audio/webm' : 'video/webm') }));
     };
     rec.start(1000);
     let sec = 0;
@@ -171,20 +211,29 @@ export function recorder(kind, onSaved) {
       h('button', { class: 'btn', type: 'button', onclick: () => rec.state !== 'inactive' && rec.stop() }, 'Stop recording'));
   }
 
-  function review(blob, type) {
-    const url = URL.createObjectURL(blob);
-    const media = kind === 'audio' ? h('audio', { src: url, controls: true, style: { width: '100%' } }) : h('video', { src: url, controls: true, playsInline: true });
-    const tooBig = blob.size > maxMB * 1048576;
+  // The clip is part of the analysis now and goes to the trainee with it.
+  function attached(it) {
+    const player = (url) => (kind === 'audio'
+      ? h('audio', { src: url, controls: true, style: { width: '100%' } })
+      : h('video', { src: url, controls: true, playsInline: true }));
+    const slot = h('div');
+    if (localUrl) slot.append(player(localUrl));
+    else mediaUrl('item', it.id).then((u) => slot.append(player(u))).catch((e) => slot.append(h('p', { class: 'error-text' }, friendlyError(e))));
+    const del = h('button', { class: 'btn danger', type: 'button' }, 'Delete');
+    del.onclick = async () => {
+      if (!(await confirmDanger(kind === 'audio' ? 'Delete this voice recording?' : 'Delete this video recording?',
+        'It will be removed from the analysis. You can record or upload another one.', 'Delete'))) return;
+      del.disabled = true;
+      try { await onRemove(it); dropLocal(); idle(); toast('Recording deleted'); }
+      catch (e) { del.disabled = false; toast(friendlyError(e), 'err'); }
+    };
     clear(box).append(
-      h('div', { class: 'label' }, 'Review recording (' + fmtSize(blob.size) + ')'),
-      media,
-      tooBig && h('p', { class: 'error-text' }, `The recording is too large: ${sizeMB(blob.size)}MB. The limit is ${maxMB}MB per file. Record a shorter one.`),
-      h('div', { class: 'btn-row' },
-        h('button', { class: 'btn', type: 'button', disabled: tooBig, onclick: () => {
-          const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
-          upload(new File([blob], 'recording.' + ext, { type: allowed.includes(type) ? type : (kind === 'audio' ? 'audio/webm' : 'video/webm') }));
-        } }, 'Save recording'),
-        h('button', { class: 'btn secondary', type: 'button', onclick: () => { URL.revokeObjectURL(url); idle(); } }, 'Delete and record again')));
+      h('div', { class: 'row between' },
+        h('div', { class: 'label' }, kind === 'audio' ? 'Voice recording' : 'Video recording'),
+        h('span', { class: 'tag soft' }, 'Attached')),
+      slot,
+      h('div', { class: 'hint' }, 'It goes to the trainee with the analysis.'),
+      h('div', { class: 'btn-row' }, del));
   }
 
   async function upload(file) {
@@ -198,9 +247,12 @@ export function recorder(kind, onSaved) {
         prog.setAttribute('aria-valuenow', String(Math.round(p * 100)));
         label.textContent = 'Uploading… ' + Math.round(p * 100) + '%';
       });
-      try { await onSaved(res); } catch (e) { discardUpload(res.key); throw e; }
-      idle();
-      toast(kind === 'audio' ? 'Voice recording saved to the draft' : 'Video recording saved to the draft');
+      let it;
+      try { it = await onSaved(res); } catch (e) { discardUpload(res.key); throw e; }
+      dropLocal();
+      localUrl = URL.createObjectURL(file);
+      attached(it);
+      toast(kind === 'audio' ? 'Voice recording attached to the analysis' : 'Video recording attached to the analysis');
     } catch (e) {
       clear(box).append(h('p', { class: 'error-text', role: 'alert' }, 'Upload failed: ' + friendlyError(e)),
         h('div', { class: 'btn-row' },
@@ -209,8 +261,8 @@ export function recorder(kind, onSaved) {
     }
   }
 
-  idle();
-  box.cleanup = () => { stopStream(); clearInterval(timer); };
+  if (item) attached(item); else idle();
+  box.cleanup = () => { stopStream(); clearInterval(timer); dropLocal(); };
   return box;
 }
 

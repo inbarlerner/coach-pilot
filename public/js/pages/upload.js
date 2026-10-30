@@ -2,13 +2,12 @@
 import { h, clear, busy, friendlyError, successState, errorState, loading, POLICY, toast, filePicker, plural, fmtSize } from '../ui.js';
 import { sb, state, q, activeSports, sportName, rpc, uploadFile, discardUpload, fileType, LIMITS, MAX_MB, sizeMB, isCoach } from '../api.js';
 import { avatar } from '../images.js';
-import { openVideoEditor } from '../video-editor.js';
+import { openVideoEditor, coverChooser } from '../video-editor.js';
 import { languagesLine } from '../components.js';
 
 const clock = (t) => `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, '0')}`;
 
-export async function uploadPage({ main, setTitle, query }) {
-  setTitle('Upload video');
+export async function uploadPage({ main, query }) {
   const welcome = query.get('welcome') === '1';
   const presetCoach = query.get('coach');
 
@@ -42,7 +41,7 @@ export async function uploadPage({ main, setTitle, query }) {
           h('span', null, h('span', { class: 't' }, 'AI virtual coach ', h('span', { class: 'tag' }, 'Soon')),
             h('span', { class: 'd' }, 'Not available yet. You cannot send videos to it right now.'))),
         destChoice('coach', 'Human coach', 'An approved coach receives the video and sends an analysis.')),
-      h('div', { style: { marginTop: '1rem' } },
+      h('div', { style: { marginTop: 'var(--space-4)' } },
         h('button', { class: 'btn block', onclick: () => { if (!s.dest) return toast('Choose where the video goes', 'err'); stepForm(); } }, 'Continue')));
   }
   function destChoice(v, t, d) {
@@ -65,22 +64,26 @@ export async function uploadPage({ main, setTitle, query }) {
     const question = h('textarea', { id: 'u_q', maxlength: 2000, placeholder: 'What do you most want to know from the coach?' });
     const vis = { private: h('input', { type: 'radio', name: 'vis', value: 'private' }), public: h('input', { type: 'radio', name: 'vis', value: 'public', checked: true }) };
     const coachBox = h('div');
-    let cover = null;            // cover Blob from the editor
+    let cover = null;            // cover Blob: a random frame, until the user picks one below
+    let coverPicked = false;     // the user chose the cover; keep it when the clip is trimmed again
     let edit = null;             // { original, start, end } so the clip can be edited again
-    const err = h('div', { class: 'banner hidden', role: 'alert' });
+    const coverBox = h('div', { class: 'field', hidden: true });
+    const err = h('div', { class: 'banner error hidden', role: 'alert' });
     const btn = h('button', { class: 'btn block', type: 'submit' }, toCoach ? 'Upload and send to coach' : 'Upload and save');
 
-    // After choosing a video: the editor (trim + cover) opens; ✓ brings the clip back here.
+    // After choosing a video the trim screen opens; ✓ brings the clip back to this page, where the cover is chosen.
     async function editClip(original, prev = {}) {
       const res = await openVideoEditor(original, prev);
       if (!res) return !!s.file;            // cancelled: keep what was there before
-      s.file = res.file; cover = res.cover; edit = { original, start: res.start, end: res.end };
-      const thumb = res.cover ? h('img', { src: URL.createObjectURL(res.cover), alt: 'Cover', class: 'clip-thumb' }) : null;
-      clear(fileInfo).append(h('div', { class: 'row', style: { flexWrap: 'nowrap', marginTop: '.5rem' } }, thumb,
-        h('div', null,
-          h('div', null, h('strong', null, `Clip ${clock(res.end - res.start)}`), ` · ${fmtSize(res.file.size)}`),
-          h('button', { type: 'button', class: 'btn secondary small', style: { marginTop: '.35rem' },
-            onclick: () => editClip(edit.original, { start: edit.start, end: edit.end }) }, 'Edit clip and cover'))));
+      s.file = res.file; edit = { original, start: res.start, end: res.end };
+      if (!coverPicked) cover = res.cover;
+      clear(fileInfo).append(h('div', { class: 'row', style: { marginTop: 'var(--space-2)' } },
+        h('div', null, h('strong', null, `Clip ${clock(res.end - res.start)}`), ` · ${fmtSize(res.file.size)}`),
+        h('button', { type: 'button', class: 'btn secondary small',
+          onclick: () => editClip(edit.original, { start: edit.start, end: edit.end }) }, 'Trim again')));
+      clear(coverBox).append(h('div', { class: 'label' }, 'Cover image'),
+        coverChooser(res.file, { cover, onChange: (b) => { cover = b; coverPicked = true; } }));
+      coverBox.hidden = false;
       return true;
     }
     fileIn.addEventListener('change', async () => {
@@ -89,7 +92,7 @@ export async function uploadPage({ main, setTitle, query }) {
       if (!f) return;
       const t = fileType(f);
       if (!LIMITS.videoTypes.includes(t)) { fileErr.textContent = `This format is not supported. You can upload ${LIMITS.videoFormats}.`; fileErr.classList.remove('hidden'); picker.reset(); return; }
-      s.file = null; cover = null; edit = null; clear(fileInfo);
+      s.file = null; cover = null; coverPicked = false; edit = null; clear(fileInfo); clear(coverBox); coverBox.hidden = true;
       if (!(await editClip(f))) picker.reset();
     });
 
@@ -134,10 +137,11 @@ export async function uploadPage({ main, setTitle, query }) {
       h('button', { type: 'button', class: 'btn ghost small', onclick: stepDest }, '← Change destination'),
       err,
       h('div', { class: 'field' }, h('div', { class: 'label' }, 'Video file'), picker, fileInfo, fileErr,
-        h('div', { class: 'banner', style: { marginTop: '.5rem', marginBottom: 0 } },
+        h('div', { class: 'banner', style: { marginTop: 'var(--space-2)', marginBottom: 0 } },
           h('strong', null, `Up to ${MAX_MB}MB per video`), ` · ${LIMITS.videoFormats}. `,
           'With normal phone recording that is usually under a minute. You can trim a longer video in your gallery before uploading.',
           h('br'), h('span', { class: 'small' }, 'When the pilot storage fills up, the oldest videos are removed automatically. Analysis text and messages are kept.'))),
+      coverBox,
       h('div', { class: 'field' }, h('label', { for: 'u_sport' }, 'Sport'), sport),
       h('div', { class: 'field' }, h('label', { for: 'u_title' }, 'Drill name'), title),
       h('div', { class: 'field' }, h('label', { for: 'u_desc' }, 'Description (optional)'), desc),
@@ -233,7 +237,7 @@ export async function uploadPage({ main, setTitle, query }) {
       const list = (await rpc('search_coaches', { p_query: '', p_sport: meta.sport })).filter((c) => c.available && c.id !== state.user.id);
       clear(box);
       if (!list.length) return box.append(h('div', { class: 'state empty' }, 'No coach is available in this sport right now. The video is saved, and you can send it later from the video page.', h('a', { class: 'btn', href: '#/v/' + s.videoId }, 'Go to video')));
-      list.forEach((c) => box.append(h('button', { class: 'btn secondary block', style: { marginBottom: '.5rem' }, onclick: () => { s.coachId = c.id; stepUpload(meta); } },
+      list.forEach((c) => box.append(h('button', { class: 'btn secondary block', style: { marginBottom: 'var(--space-2)' }, onclick: () => { s.coachId = c.id; stepUpload(meta); } },
         `${c.first_name} ${c.last_name} · up to ${c.response_hours} hours`)));
     } catch (e) { clear(box).append(errorState(friendlyError(e), () => stepPickCoachAgain(meta))); }
   }
@@ -278,7 +282,7 @@ export async function sendExistingVideo(video, onDone) {
         close(rid); onDone && onDone(rid);
       } catch (e) { toast(friendlyError(e), 'err'); }
     });
-    return [h('h2', null, 'Send video for analysis'), box, h('div', { class: 'field', style: { marginTop: '1rem' } }, h('label', null, 'Question for the coach'), qa),
+    return [h('h2', null, 'Send video for analysis'), box, h('div', { class: 'field', style: { marginTop: 'var(--space-4)' } }, h('label', null, 'Question for the coach'), qa),
       h('p', { class: 'hint' }, 'Sending does not change the video\'s privacy.'),
       h('div', { class: 'btn-row' }, send, h('button', { class: 'btn secondary', onclick: () => close(null) }, 'Cancel'))];
   });

@@ -103,7 +103,7 @@ select pg_temp.ok(jsonb_array_length((:'dana_files'::jsonb)->'media') = 2, 'C1 b
 select pg_temp.fails($$select finish_account_deletion()$$, 'FILES_REMAIN', 'C2 cannot finish while files are left');
 reset role;
 select pg_temp.ok((select status = 'declined' and decline_reason = 'coach_left' from analysis_requests where id = :'r2'), 'C3 open request cancelled');
-select pg_temp.ok(exists (select 1 from notifications where user_id = :t2 and request_id = :'r2' and type = 'declined' and body like '%closed their Coachit account%'), 'C4 trainee of the open request told');
+select pg_temp.ok(exists (select 1 from notifications where user_id = :t2 and request_id = :'r2' and type = 'declined' and body like '%closed their CoachIt account%'), 'C4 trainee of the open request told');
 select pg_temp.ok((select count(*) = 0 from analysis_items where request_id = :'r2'), 'C5 draft work on the open request removed');
 select pg_temp.ok((select array_agg(kind::text order by kind) = '{drawing,text}' from analysis_items where request_id = :'r1'), 'C6 completed analysis keeps text and drawings, voice removed');
 select pg_temp.ok((select deleting_at is not null from profiles where id = :co), 'C7 profile flagged as deleting');

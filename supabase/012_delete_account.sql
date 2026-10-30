@@ -114,7 +114,7 @@ begin
              closed_at = now(), trainee_read = false, coach_read = true
        where id = r.id;
       perform notify(r.trainee_id, 'declined', r.id,
-        full_name(me) || ' closed their Coachit account and cannot analyze this video. You can send it to another coach.');
+        full_name(me) || ' closed their CoachIt account and cannot analyze this video. You can send it to another coach.');
     end loop;
     -- As a coach: my voice/video recordings go; text and drawings stay with the trainee
     delete from analysis_items i using analysis_requests q
@@ -124,7 +124,7 @@ begin
     for r in select coach_id from analysis_requests
               where trainee_id = me and status in ('pending','draft') and coach_id is not null loop
       perform notify(r.coach_id, 'request_removed', null,
-        full_name(me) || ' closed their Coachit account, so their request was removed.');
+        full_name(me) || ' closed their CoachIt account, so their request was removed.');
     end loop;
     -- coaches' recordings on my requests live in the coaches' folders: let me remove them
     insert into storage_release (name, user_id)

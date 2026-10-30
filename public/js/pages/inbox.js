@@ -1,5 +1,5 @@
 // Inbox: active / completed / not completed. Coaches can switch between received and sent.
-import { h, clear, section, empty, tabs, fmtDate, timeLeft, STATUS, DECLINE } from '../ui.js';
+import { h, clear, section, empty, tabs, fmtDate, timeLeft, statusTag, DECLINE } from '../ui.js';
 import { sb, state, q, isCoach, sportName } from '../api.js';
 import { avatar, FORMER_COACH } from '../images.js';
 
@@ -9,8 +9,7 @@ const BOX = {
   failed: { label: 'Not completed', statuses: ['declined', 'expired'] },
 };
 
-export function inboxPage({ main, setTitle, query }) {
-  setTitle('Inbox');
+export function inboxPage({ main, query }) {
   const coach = isCoach();
   let side = query.get('side') || (coach ? 'received' : 'sent');
   let box = query.get('box') || 'active';
@@ -20,7 +19,7 @@ export function inboxPage({ main, setTitle, query }) {
     clear(main);
     main.append(h('h1', null, 'Inbox'));
     if (coach) {
-      main.append(h('div', { class: 'chips', role: 'group', 'aria-label': 'Request type', style: { marginBottom: '.5rem' } },
+      main.append(h('div', { class: 'chips', role: 'group', 'aria-label': 'Request type', style: { marginBottom: 'var(--space-2)' } },
         [['received', 'Requests I received'], ['sent', 'Requests I sent']].map(([k, l]) =>
           h('button', { class: 'chip' + (side === k ? ' on' : ''), 'aria-pressed': String(side === k), onclick: () => { side = k; render(); } }, l))));
       if (state.profile.coach_status !== 'approved' && side === 'received') {
@@ -56,7 +55,7 @@ export function inboxPage({ main, setTitle, query }) {
       const other = side === 'received' ? r.trainee : (r.coach || FORMER_COACH);
       return h('a', { class: 'card link' + (read ? '' : ' unread'), href: '#/r/' + r.id },
         h('div', { class: 'list-item' },
-          h('div', { class: 'row', style: { alignItems: 'flex-start', flexWrap: 'nowrap', gap: '.75rem' } },
+          h('div', { class: 'row', style: { alignItems: 'flex-start', flexWrap: 'nowrap', gap: 'var(--space-3)' } },
             avatar(other, 44),
             h('div', null,
               h('div', null, h('strong', null, r.video?.title || 'Video'), ' · ', sportName(r.video?.sport_id)),
@@ -65,8 +64,8 @@ export function inboxPage({ main, setTitle, query }) {
                 box === 'active' ? ' · Deadline: ' + fmtDate(r.deadline_at) + ' (' + timeLeft(r.deadline_at) + ')' : ''),
               r.status === 'declined' && h('div', { class: 'meta' }, 'Reason: ' + (DECLINE[r.decline_reason] || '')),
               r.status === 'expired' && h('div', { class: 'meta' }, 'Reason: the coach did not respond in time'),
-              h('div', { class: 'row', style: { marginTop: '.3rem' } },
-                h('span', { class: 'tag' + (r.status === 'completed' ? ' fill' : '') }, STATUS[r.status]),
+              h('div', { class: 'row', style: { marginTop: 'var(--space-1)' } },
+                statusTag(r.status),
                 !read && h('span', { class: 'tag soft' }, 'Unread')))),
           !read && h('span', { class: 'dot', 'aria-label': 'Unread' })));
     }));
