@@ -288,6 +288,9 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     move(e.deltaY > 0 ? 1 : -1);
   };
   el.addEventListener('wheel', onWheel, { passive: true });
+  // At the top of the page, iPhones treat a finger moving down as a pull on the page and cancel our swipe.
+  // The analysis keeps its own scrolling.
+  el.addEventListener('touchmove', (e) => { if (!e.target.closest('.fp-panel')) e.preventDefault(); }, { passive: false });
   document.addEventListener('keydown', onKey);
 
   // ---------- Open and close. The phone's back button closes the player instead of leaving the feed. ----------
@@ -307,6 +310,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     window.removeEventListener('popstate', onPop);
     document.removeEventListener('keydown', onKey);
     document.body.style.overflow = prevOverflow;
+    document.documentElement.classList.remove('fp-open');
     video.pause();
     video.removeAttribute('src');
     video.load();
@@ -317,6 +321,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
 
   const prevOverflow = document.body.style.overflow;
   document.body.style.overflow = 'hidden';
+  document.documentElement.classList.add('fp-open');
   holdFeed(true);
   history.pushState({ feedPlayer: true }, '');
   window.addEventListener('popstate', onPop);

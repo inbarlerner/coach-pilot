@@ -271,6 +271,10 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 /* Feed player: full screen on top of .viewer; swipes move the video and bring in the analysis */
 .player.opens { cursor: pointer; }
 .fp { overscroll-behavior: none; }
+html.fp-open, html.fp-open body { overscroll-behavior: none; }
+/* Swipes may start over the bottom band too; only the position bar itself takes the touch */
+.fp .viewer-bottom { pointer-events: none; }
+.fp .viewer-scrub { pointer-events: auto; }
 .fp-video.fp-sliding, .fp-panel.fp-sliding { transition: transform .18s ease-out; }
 @media (prefers-reduced-motion: reduce) { .fp-video.fp-sliding, .fp-panel.fp-sliding { transition: none; } }
 .fp-heading { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
