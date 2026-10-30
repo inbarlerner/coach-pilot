@@ -297,10 +297,15 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
   padding: calc(env(safe-area-inset-top) + var(--space-3)) var(--space-4) calc(env(safe-area-inset-bottom) + var(--space-5));
   background: linear-gradient(rgba(0,0,0,.15), rgba(0,0,0,.45)); color: var(--white); user-select: text; -webkit-user-select: text; }
 .fp-panel > * { width: 100%; max-width: 720px; margin-inline: auto; flex: none; }
-.fp-panel > .fp-back { width: fit-content; margin-inline: max(0px, calc((100% - 720px) / 2)) auto; background: var(--white); color: var(--deep); }
+.fp-top { display: flex; gap: var(--space-2); align-items: flex-start; }
+.fp-top .fp-head { flex: 1; min-width: 0; }
+.fp-close { flex: none; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: rgba(0,0,0,.62); color: var(--white); border: 1px solid rgba(255,255,255,.16); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.fp-close svg { width: 22px; height: 22px; }
+.fp-close:focus-visible { outline-color: var(--white); }
 .fp-boxes { margin-top: auto; display: grid; gap: var(--space-3); }
 .fp-boxes .stack > * + * { margin-top: var(--space-3); }
-.fp-panel .card { --fill: var(--white); background: rgba(0,0,0,.62); color: var(--white); border-color: transparent;
+.fp-panel .card { --fill: var(--white); background: rgba(0,0,0,.62); color: var(--white); border: 1px solid rgba(255,255,255,.16);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .fp-panel h2 { margin: 0 0 var(--space-1); }
 .fp-panel .muted, .fp-panel .meta { color: var(--mint); }

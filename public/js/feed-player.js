@@ -39,9 +39,12 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   const track = h('div', { class: 'viewer-track', role: 'slider', 'aria-label': 'Video position', tabindex: '0' }, fill);
   const time = h('span', { class: 'viewer-time' }, '0:00 / 0:00');
   const hint = h('div', { class: 'fp-hint', hidden: true }, 'Swipe right for the analysis. Swipe down for the next video.');
+  // Title box and close button on top, the analysis itself at the bottom.
+  const panelHead = h('div', { class: 'card fp-head' });
   const panelBody = h('div', { class: 'fp-boxes' });
   const panel = h('div', { class: 'fp-panel', role: 'region', 'aria-label': 'Analysis', hidden: true },
-    h('button', { type: 'button', class: 'btn small fp-back', onclick: () => closePanel() }, icon('back'), 'Back to video'),
+    h('div', { class: 'fp-top' }, panelHead,
+      h('button', { type: 'button', class: 'fp-close', 'aria-label': 'Back to video', title: 'Back to video', onclick: () => closePanel() }, icon('close'))),
     panelBody);
   const el = h('div', { class: 'viewer fp', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Video player' },
     video, tap, state, message,
@@ -189,8 +192,8 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   async function renderPanel() {
     const r = rows[i], forIndex = i;
     clear(panelBody);
-    if (!r.request_id) return panelBody.append(h('div', { class: 'card' }, h('h2', null, r.title), h('p', { class: 'muted' }, 'No analysis')));
-    panelBody.append(h('div', { class: 'card' }, h('h2', null, 'Analysis from ' + r.coach_name), h('p', { class: 'meta' }, r.title)));
+    if (!r.request_id) return clear(panelHead).append(h('h2', null, r.title), h('p', { class: 'muted' }, 'No analysis'));
+    clear(panelHead).append(h('h2', null, 'Analysis from ' + r.coach_name), h('p', { class: 'meta' }, r.title));
     const list = h('div', { class: 'stack' }, loading());
     panelBody.append(list);
     try {
