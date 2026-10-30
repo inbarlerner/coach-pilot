@@ -1,7 +1,8 @@
 // Profile editing for everyone (photo, details, languages) + coach settings (quota, response time, follow-up policy, sports, bio).
 import { h, clear, loading, errorState, friendlyError, busy, toast, POLICY, icon } from '../ui.js';
 import { sb, state, q, rpc, activeSports, loadProfile, isCoach, isAdmin, uploadFile, discardUpload, deleteAccount, AVATARS } from '../api.js';
-import { avatar, imageFileToJpeg } from '../images.js';
+import { avatar } from '../images.js';
+import { cropAvatar } from '../avatar-crop.js';
 import { languagePicker } from '../components.js';
 import { getTheme, setTheme } from '../theme.js';
 
@@ -212,7 +213,8 @@ function photoCard() {
     if (!f) return;
     busy(choose, async () => {
       try {
-        const blob = await imageFileToJpeg(f, { max: 400, square: true });
+        const blob = await cropAvatar(f);   // move and zoom inside the circle; null = cancelled
+        if (!blob) return;
         const up = await uploadFile(new File([blob], 'photo.jpg', { type: 'image/jpeg' }), 'avatar');
         await set(up.key);
         toast('Photo updated');

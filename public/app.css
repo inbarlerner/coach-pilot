@@ -613,6 +613,27 @@ main.page.xwide { max-width: 1280px; }
 .crop .btn.secondary { background: transparent; color: #fff; border-color: #fff; }
 .crop .btn { background: #fff; color: #000; border-color: #fff; }
 
+/* Profile photo editor (avatar-crop.js): a deep screen, the circle stays still and the photo moves under it.
+   On deep, primary turns white and secondary stays mint (brand rule). */
+body.no-scroll { overflow: hidden; }
+.acrop { position: fixed; inset: 0; z-index: 90; background: var(--deep); color: var(--white); display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
+  padding: calc(env(safe-area-inset-top) + var(--space-4)) var(--space-4) calc(env(safe-area-inset-bottom) + var(--space-4)); overflow-y: auto; }
+.acrop > * { width: 100%; max-width: 420px; }
+.acrop:focus { outline: none; }
+.acrop h2 { margin: 0; color: var(--white); }
+.acrop-hint { margin: 0; font-size: 14px; }
+.acrop-stage { position: relative; aspect-ratio: 1; flex: none; overflow: hidden; border-radius: var(--radius); touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+/* Shrinks on short windows so the zoom slider and buttons stay on screen (about 260px for the rest). */
+.acrop > .acrop-stage { width: min(100%, 420px, max(200px, calc(100vh - 260px))); width: min(100%, 420px, max(200px, calc(100dvh - 260px))); }
+.acrop-stage:active { cursor: grabbing; }
+.acrop-stage:focus-visible { outline: 3px solid var(--white); outline-offset: 3px; }
+.acrop-img { position: absolute; left: 0; top: 0; max-width: none; width: auto; height: auto; transform-origin: 0 0; pointer-events: none; -webkit-user-drag: none; }
+.acrop-ring { position: absolute; border-radius: 50%; border: 2px solid var(--white); box-shadow: 0 0 0 9999px var(--scrim); pointer-events: none; }
+.acrop-zoom { display: flex; align-items: center; gap: var(--space-3); font-size: 20px; font-weight: 700; }
+.acrop-zoom input { flex: 1; accent-color: var(--white); min-height: var(--tap-small); }
+.acrop .btn { background: var(--white); color: var(--deep); }
+.acrop .btn.secondary { background: var(--mint); color: var(--deep); }
+
 /* Privacy policy (public/privacy.html), age consent at sign-up */
 .legal h2 { margin-top: var(--space-6); }
 .legal ul { padding-left: var(--space-5); }
