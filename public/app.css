@@ -202,6 +202,17 @@ input[type=file] { font: inherit; width: 100%; padding: var(--space-3); border-r
 }
 .chip input { position: absolute; opacity: 0; pointer-events: none; }
 .chip.on, .chip:has(input:checked) { background: var(--deep); color: var(--white); }
+/* Languages: pills for the common ones, then a search box whose list opens under it (in the page flow, so the
+   bottom nav never covers it). Role tokens with today's colours as fallback, ready for the dark theme. */
+.lang-search { position: relative; margin-top: var(--space-3); }
+.lang-search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: var(--muted, var(--bottle)); pointer-events: none; }
+.lang-search .lang-input { padding-left: 44px; }
+.lang-list { list-style: none; margin: var(--space-1) 0 0; padding: var(--space-1); max-height: 232px; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--field, var(--white)); border: 2px solid var(--field-line, var(--deep)); border-radius: var(--radius); }
+.lang-list li { min-height: var(--tap-small); display: flex; align-items: center; padding: 0 var(--space-3); border-radius: var(--radius); cursor: pointer; font-weight: 600; }
+.lang-list li[aria-selected=true] { background: var(--strong, var(--deep)); color: var(--on-strong, var(--white)); }
+@media (hover: hover) { .lang-list li[role=option]:hover:not([aria-selected=true]) { background: var(--fill-on-bg, var(--mint)); } }
+.lang-list .lang-empty { cursor: default; font-weight: 400; color: var(--muted, var(--bottle)); }
 
 /* Tags. The plain tag is the outlined one. */
 .tag { display: inline-block; padding: 0 var(--space-3); border-radius: var(--pill); border: 1px solid var(--deep); color: var(--deep); font-size: 14px; font-weight: 700; line-height: 1.5; }
