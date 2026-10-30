@@ -211,12 +211,20 @@ input[type=file] { font: inherit; width: 100%; padding: var(--space-3); border-r
 
 .choices { display: grid; gap: var(--space-2); }
 .choice {
-  display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) var(--space-4);
+  display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4);
   margin: 0; border-radius: var(--radius); cursor: pointer;
 }
-.choice input { width: 22px; height: 22px; margin: 2px 0 0; flex: none; accent-color: var(--accent); }
+/* Own radio circle (the browser's one can't be styled): field-coloured circle, dot when chosen. Theme tokens keep it right in dark mode */
+.choice input[type=radio] {
+  appearance: none; -webkit-appearance: none; width: 22px; height: 22px; margin: 0; flex: none;
+  border: 2px solid var(--field-line); border-radius: 50%; background: var(--field);
+  display: grid; place-content: center; cursor: inherit;
+}
+.choice input[type=radio]::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--field-line); transform: scale(0); transition: transform .12s; }
+.choice input[type=radio]:checked::before { transform: scale(1); }
 .choice:has(input:checked) { background: var(--strong); color: var(--on-strong); --fill: var(--fill-on-bg); }
-.choice:has(input:checked) input { accent-color: var(--on-strong); }
+.choice:has(input:checked) input[type=radio] { border-color: var(--on-strong); background: var(--on-strong); }
+.choice:has(input:checked) input[type=radio]::before { background: var(--strong); }
 .choice:has(input:checked) .d { color: var(--on-strong); }
 .choice:has(input:checked) .tag:not(.soft):not(.fill) { border-color: var(--on-strong); color: var(--on-strong); }
 .choice:has(input:checked) .tag.fill { background: var(--on-strong); color: var(--strong); border-color: var(--on-strong); }
