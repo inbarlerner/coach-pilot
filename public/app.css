@@ -308,7 +308,7 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
    Dark-on-video like the other video overlays, so black is allowed here. */
 .fp-panel { position: absolute; inset: 0; z-index: 6; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; transform: translateX(-100%);
   display: flex; flex-direction: column; gap: var(--space-3);
-  padding: calc(env(safe-area-inset-top) + var(--space-3)) var(--space-4) calc(env(safe-area-inset-bottom) + var(--space-5));
+  padding: calc(env(safe-area-inset-top) + var(--space-7)) var(--space-4) calc(env(safe-area-inset-bottom) + var(--space-5));
   background: linear-gradient(rgba(0,0,0,.15), rgba(0,0,0,.45)); color: var(--white); user-select: text; -webkit-user-select: text; }
 .fp-panel > * { width: 100%; max-width: 720px; margin-inline: auto; flex: none; }
 .fp-top { display: flex; gap: var(--space-2); align-items: flex-start; }
@@ -322,6 +322,8 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 .fp-panel .card { --fill: var(--white); background: rgba(0,0,0,.62); color: var(--white); border: 1px solid rgba(255,255,255,.16);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .fp-panel h2 { margin: 0 0 var(--space-1); }
+.fp-head .meta { margin: var(--space-2) 0 0; }
+.fp-head .person { color: inherit; }
 /* Analysis boxes in the overlay: white play button, mint quotation marks */
 .fp-panel .an-quote blockquote::before, .fp-panel .an-quote blockquote::after { color: var(--mint); }
 .fp-panel .an-play-btn { background: var(--white); color: var(--deep); }

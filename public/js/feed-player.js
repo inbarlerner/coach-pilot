@@ -5,6 +5,7 @@
 import { h, clear, icon, friendlyError, errorState, loading } from './ui.js';
 import { sb, q, mediaUrl, coverUrl } from './api.js';
 import { holdFeed, analysisItem, REMOVED_TEXT } from './components.js';
+import { personLink, FORMER_COACH } from './images.js';
 
 const NEXT_DIRECTION = 1;       // 1: a finger moving down goes to the next video. -1: a finger moving up does.
 const AXIS_PX = 12;             // how far a finger moves before the swipe's direction is decided
@@ -193,7 +194,10 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     const r = rows[i], forIndex = i;
     clear(panelBody);
     if (!r.request_id) return clear(panelHead).append(h('h2', null, r.title), h('p', { class: 'muted' }, 'No analysis'));
-    clear(panelHead).append(h('h2', null, 'Analysis from ' + r.coach_name), h('p', { class: 'meta' }, r.title));
+    // The coach as in the feed: "Analysis by", photo, name (not a link here, so the player stays open).
+    const [first_name, ...rest] = (r.coach_name || '').split(' ');
+    const coach = r.coach_name ? { first_name, last_name: rest.join(' '), avatar_key: r.coach_avatar } : FORMER_COACH;
+    clear(panelHead).append(h('div', { class: 'row' }, 'Analysis by ', personLink(coach, { size: 26 })), h('p', { class: 'meta' }, r.title));
     const list = h('div', { class: 'stack' }, loading());
     panelBody.append(list);
     try {
