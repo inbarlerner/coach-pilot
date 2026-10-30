@@ -166,6 +166,18 @@ input[type=text], input[type=email], input[type=password], input[type=tel], inpu
   background: var(--white); border: 2px solid var(--deep); border-radius: var(--radius);
 }
 textarea { min-height: 110px; resize: vertical; }
+/* Password box with an eye button inside, on the right */
+.pw { position: relative; }
+.pw input { padding-right: 56px; }
+.pw input::-ms-reveal { display: none; }   /* Edge's own eye icon would double up */
+.pw-toggle {
+  position: absolute; right: var(--space-1); top: 50%; transform: translateY(-50%);
+  width: var(--tap-small); height: var(--tap-small); padding: 0; border: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--deep); cursor: pointer;
+}
+.pw-toggle svg { width: 22px; height: 22px; }
+@media (hover: hover) { .pw-toggle:hover { background: var(--mint); } }   /* phones keep :hover after a tap */
 input[aria-invalid=true], textarea[aria-invalid=true] { border-style: dashed; }
 label.btn { margin-bottom: 0; }
 .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; border: 0 !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; inset-inline-start: 0; }
