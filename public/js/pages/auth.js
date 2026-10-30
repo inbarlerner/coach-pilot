@@ -15,11 +15,11 @@ function field(label, input, hint) {
   };
   return wrap;
 }
-const formError = () => h('div', { class: 'banner hidden', role: 'alert' });
+const formError = () => h('div', { class: 'banner error hidden', role: 'alert' });
 const showFormError = (el, msg) => { el.textContent = msg; el.classList.remove('hidden'); el.scrollIntoView({ block: 'center' }); };
 
 function header(title, sub) {
-  return [h('h1', null, title), sub && h('p', { class: 'muted' }, sub)];
+  return [h('div', { class: 'wordmark auth-mark' }, 'CoachIt.'), h('h1', { class: 'hero' }, title), sub && h('p', { class: 'muted' }, sub)];
 }
 
 export function loginPage({ main }) {
@@ -39,7 +39,7 @@ export function loginPage({ main }) {
     });
   });
   main.append(...header('Sign in', 'Video analysis by real coaches — pilot version'), form,
-    h('hr', { style: { margin: '1.5rem 0', border: 0, borderTop: '1px solid var(--line)' } }),
+    h('hr', { style: { margin: 'var(--space-5) 0', border: 0, borderTop: '1px solid var(--line)' } }),
     h('p', { class: 'center' }, 'No account yet?'),
     h('div', { class: 'btn-row' },
       h('a', { class: 'btn secondary', href: '#/signup?as=trainee' }, 'Sign up as a trainee'),
@@ -92,7 +92,7 @@ export function signupPage({ main, query }) {
       h('div', { class: 'field' }, h('div', { class: 'label' }, 'Account type'), roleSwitch),
       F.first, F.last, F.user, F.email, F.phone, F.pass,
       h('div', { class: 'field' }, h('div', { class: 'label' }, 'Which languages do you speak?'),
-        h('div', { class: 'hint', style: { marginTop: 0, marginBottom: '.4rem' } },
+        h('div', { class: 'hint', style: { marginTop: 0, marginBottom: 'var(--space-1)' } },
           role === 'coach' ? 'Trainees see these on your profile and when they send you a video.' : 'Coaches see these when they answer you.'),
         langs, langsErr),
       h('div', { class: 'field' }, h('div', { class: 'label' }, 'Sports I\'m interested in'), interests, interestsErr),

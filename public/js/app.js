@@ -56,10 +56,10 @@ export function defaultRoute() {
   return '/home';
 }
 
-function layout(path, title) {
+function layout(path) {
   const unread = state.unread;
   const top = h('header', { class: 'topbar' },
-    h('div', { class: 'title' }, title || ''),
+    h('div', { class: 'wordmark' }, 'CoachIt.'),
     h('div', { class: 'row' },
       isAdmin() && h('a', { class: 'btn ghost small', href: '#/admin' }, 'Admin'),
       h('a', { class: 'icon-btn', href: '#/notifications', 'aria-label': `Notifications${unread ? ` (${unread} new)` : ''}` },
@@ -74,7 +74,7 @@ function layout(path, title) {
         'aria-label': n ? `${label} (${n} unread)` : null }, pic, label, n ? h('span', { class: 'badge' }, n > 99 ? '99+' : n) : null);
     }));
   clear(app).append(top, main, nav);
-  return { main, setTitle: (t) => { top.querySelector('.title').textContent = t; } };
+  return { main };
 }
 
 async function route() {
@@ -102,7 +102,7 @@ async function route() {
       if (seq === routeSeq) cleanup = c; else if (c) c();
     } else {
       const shell = layout(path);
-      const c = (await page[fn]({ main: shell.main, setTitle: shell.setTitle, params, query })) || null;
+      const c = (await page[fn]({ main: shell.main, params, query })) || null;
       if (seq === routeSeq) cleanup = c; else if (c) c();
     }
     if (seq === routeSeq) window.scrollTo(0, 0);

@@ -1,11 +1,10 @@
 // Admin: coach join requests, users (disable / sample flag), reports, sports.
-import { h, clear, section, empty, tabs, fmtDate, busy, toast, friendlyError, confirmDialog, errorState } from '../ui.js';
+import { h, clear, section, empty, tabs, fmtDate, busy, toast, friendlyError, confirmDialog, confirmDanger, errorState } from '../ui.js';
 import { sb, state, q, rpc, isAdmin, sportName, loadSports, languageNames } from '../api.js';
 import { personLink } from '../images.js';
 
-export function adminPage({ main, setTitle, query }) {
-  setTitle('Admin');
-  if (!isAdmin()) return main.append(errorState('You do not have admin access.'));
+export function adminPage({ main, query }) {
+  if (!isAdmin()) return main.append(h('h1', null, 'Admin'), errorState('You do not have admin access.'));
   let tab = query.get('tab') || 'coaches';
   const body = h('div');
   const render = () => {
@@ -39,7 +38,7 @@ async function details(ids) {
 function coaches(box) {
   let filter = 'pending';
   const list = h('div');
-  const bar = h('div', { class: 'chips', style: { marginBottom: '1rem' } });
+  const bar = h('div', { class: 'chips', style: { marginBottom: 'var(--space-4)' } });
   const drawBar = () => clear(bar).append(...[['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected']].map(([k, l]) =>
     h('button', { class: 'chip' + (filter === k ? ' on' : ''), onclick: () => { filter = k; drawBar(); load(); } }, l)));
   drawBar();
@@ -50,9 +49,9 @@ function coaches(box) {
     return { rows, pm, sm };
   }, ({ rows, pm, sm }) => rows.length ? h('div', null, rows.map((p) => {
     const approve = h('button', { class: 'btn small' }, 'Approve');
-    const reject = h('button', { class: 'btn secondary small' }, 'Reject');
+    const reject = h('button', { class: 'btn danger small' }, 'Reject');
     const set = (status, btn) => async () => {
-      if (!(await confirmDialog(status === 'approved' ? `Approve ${p.first_name} ${p.last_name} as a coach?` : `Reject ${p.first_name} ${p.last_name}?`,
+      if (!(await (status === 'approved' ? confirmDialog : confirmDanger)(status === 'approved' ? `Approve ${p.first_name} ${p.last_name} as a coach?` : `Reject ${p.first_name} ${p.last_name}?`,
         status === 'approved' ? 'The coach will appear in search and can receive requests.' : 'The user will not appear as a coach or receive requests.', 'OK'))) return;
       busy(btn, async () => {
         try { await rpc('admin_set_coach_status', { p_user: p.id, p_status: status }); toast('Updated'); load(); }
@@ -89,9 +88,9 @@ function users(box) {
     const [pm] = await details(rows.map((r) => r.id));
     return { rows, pm };
   }, ({ rows, pm }) => rows.length ? h('div', null, rows.map((p) => {
-    const dis = h('button', { class: 'btn secondary small' }, p.disabled ? 'Enable account' : 'Disable account');
+    const dis = h('button', { class: p.disabled ? 'btn secondary small' : 'btn danger small' }, p.disabled ? 'Enable account' : 'Disable account');
     dis.onclick = async () => {
-      if (!(await confirmDialog(p.disabled ? 'Enable this account again?' : 'Disable this account?', p.disabled ? null : 'The user will not be able to do anything, and their public content will be hidden.', 'OK'))) return;
+      if (!(await (p.disabled ? confirmDialog : confirmDanger)(p.disabled ? 'Enable this account again?' : 'Disable this account?', p.disabled ? null : 'The user will not be able to do anything, and their public content will be hidden.', 'OK'))) return;
       busy(dis, async () => { try { await rpc('admin_set_disabled', { p_user: p.id, p_disabled: !p.disabled }); toast('Updated'); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
     };
     const sample = h('button', { class: 'btn ghost small' }, p.is_sample ? 'Unmark as sample' : 'Mark as sample');
@@ -110,12 +109,12 @@ function reports(box) {
   let showResolved = false;
   const list = h('div');
   const toggle = h('label', { class: 'chip' }, h('input', { type: 'checkbox', onchange: (e) => { showResolved = e.target.checked; load(); } }), 'Show handled reports');
-  box.append(h('div', { style: { marginBottom: '1rem' } }, toggle), list);
+  box.append(h('div', { style: { marginBottom: 'var(--space-4)' } }, toggle), list);
   const load = () => section(list,
     () => q(sb.from('reports').select('*, video:videos(id,title,removed,visibility), reporter:profiles!reports_reporter_id_fkey(first_name,last_name)')
       .eq('resolved', showResolved).order('created_at', { ascending: false })),
     (rows) => rows.length ? h('div', null, rows.map((r) => {
-      const rm = h('button', { class: 'btn small' }, r.video?.removed ? 'Restore content' : 'Remove content');
+      const rm = h('button', { class: r.video?.removed ? 'btn small' : 'btn danger small' }, r.video?.removed ? 'Restore content' : 'Remove content');
       rm.onclick = () => busy(rm, async () => { try { await rpc('admin_set_video_removed', { p_video: r.video.id, p_removed: !r.video.removed }); toast('Updated'); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
       const ok = h('button', { class: 'btn secondary small' }, 'Mark handled without removing');
       ok.onclick = () => busy(ok, async () => { try { await q(sb.from('reports').update({ resolved: true }).eq('id', r.id)); load(); } catch (e) { toast(friendlyError(e), 'err'); } });

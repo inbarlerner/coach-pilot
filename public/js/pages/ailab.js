@@ -1,6 +1,6 @@
 // Admin AI coach lab: send a video to the AI coach, play its feedback on the video, review it,
 // and leave feedback for Claude Code. Admins only (enforced in the database and the server function).
-import { h, clear, section, empty, toast, busy, friendlyError, confirmDialog, errorState, fmtDate, filePicker } from '../ui.js';
+import { h, clear, section, empty, toast, busy, friendlyError, confirmDialog, confirmDanger, errorState, fmtDate, filePicker } from '../ui.js';
 import { sb, state, q, rpc, isAdmin } from '../api.js';
 import { go } from '../app.js';
 import { Stage, planFrames, extractFrames, scriptPlayer, fmtT, FULL } from '../ai-player.js';
@@ -27,7 +27,7 @@ function chips(opts, value, onChange) {
   draw(); return box;
 }
 const cents = (c) => '$' + (Number(c || 0) / 100).toFixed(2);
-const guard = (main) => { if (isAdmin()) return true; main.append(errorState('You need admin access for this page.')); return false; };
+const guard = (main) => { if (isAdmin()) return true; main.append(h('h1', null, 'AI coach lab'), errorState('You need admin access for this page.')); return false; };
 
 async function ndjson(url, body, onLine) {
   const { data } = await sb.auth.getSession();
@@ -53,8 +53,7 @@ const errText = (m) => ERRORS[Object.keys(ERRORS).find((k) => String(m).includes
 const runAnalysis = (id, onProgress) => ndjson('/api/ai-lab', { run_id: id }, (p) => { if (p.type === 'progress') onProgress(`Claude is working… ${p.seconds || 0}s`); });
 
 // ====================================================================== list
-export async function aiLabPage({ main, setTitle }) {
-  setTitle('AI lab');
+export async function aiLabPage({ main }) {
   if (!guard(main)) return;
   main.classList.add('xwide', 'ai-lab');
   const usage = h('p', { class: 'meta' });
@@ -91,7 +90,7 @@ export async function aiLabPage({ main, setTitle }) {
       r.identified ? 'Identified: ' + r.identified : null, `${r.model} · ${r.effort} · ${r.lang === 'en' ? 'English' : 'Hebrew'}`, cents(r.cost_cents),
       r.parent_id ? 'Rerun' : null, r.frames_deleted_at ? 'Frames removed' : null].filter(Boolean).join(' · ')),
     h('div', { class: 'row' },
-      r.status !== 'done' && h('span', { class: 'tag' + (r.status === 'error' ? ' fill' : '') }, ({ new: 'Not started', running: 'Running…', error: 'Failed' })[r.status]),
+      r.status !== 'done' && h('span', { class: 'tag' + (r.status === 'error' ? ' status-declined' : '') }, ({ new: 'Not started', running: 'Running…', error: 'Failed' })[r.status]),
       (r.reviews || []).map((v) => h('span', { class: 'tag soft' }, `${names[v.reviewer] || '?'}: ${v.score ?? '?'}/5`)),
       !(r.reviews || []).length && r.status === 'done' && h('span', { class: 'meta' }, 'Not reviewed yet'))))) : empty('No analyses yet', 'Press "+ New analysis" to start.'));
   load();
@@ -133,7 +132,7 @@ async function exportReviews() {
     const [rows, names] = await Promise.all([
       q(sb.from('ai_lab_runs').select('id,created_at,video,trick_title,model,effort,lang,analysis,reviews:ai_lab_reviews(*)').eq('status', 'done').order('created_at', { ascending: false }).limit(100)),
       loadNames()]);
-    const L = ['# AI coach lab reviews (Coachit)', '', 'Reviews by our coaches of AI analyses. Turn them into card edits, coaching decisions or prompt fixes; list what changed per run.', ''];
+    const L = ['# AI coach lab reviews (CoachIt)', '', 'Reviews by our coaches of AI analyses. Turn them into card edits, coaching decisions or prompt fixes; list what changed per run.', ''];
     for (const r of rows.filter((x) => (x.reviews || []).length)) {
       const a = r.analysis || {};
       L.push(`## ${fmtDate(r.created_at)} · ${r.video?.name || ''} · trick: ${r.trick_title || 'not given'} · AI said: ${a.trick_identified || '?'} · ${r.model}/${r.effort}/${r.lang}`, `Link: ${location.origin}/#/admin/lab/${r.id}`);
@@ -160,8 +159,7 @@ async function copyText(text, okMsg) {
 }
 
 // ====================================================================== new analysis
-export async function aiLabNewPage({ main, setTitle }) {
-  setTitle('New AI analysis');
+export async function aiLabNewPage({ main }) {
   if (!guard(main)) return;
   main.classList.add('xwide', 'ai-lab');
   const idx = await loadIndex();
@@ -281,8 +279,7 @@ export async function aiLabNewPage({ main, setTitle }) {
 }
 
 // ====================================================================== one run: play + review
-export async function aiLabRunPage({ main, setTitle, params }) {
-  setTitle('AI analysis');
+export async function aiLabRunPage({ main, params }) {
   if (!guard(main)) return;
   main.classList.add('xwide', 'ai-lab');
   const id = params[0];
@@ -290,7 +287,7 @@ export async function aiLabRunPage({ main, setTitle, params }) {
     q(sb.from('ai_lab_runs').select('*').eq('id', id).maybeSingle()),
     q(sb.from('ai_lab_reviews').select('*').eq('run_id', id)),
     loadNames()]);
-  if (!run) return main.append(errorState('Analysis not found.'));
+  if (!run) return main.append(h('h1', null, 'AI analysis'), errorState('Analysis not found.'));
   const me = state.user.id;
   const head = h('div', { class: 'card' },
     h('div', { class: 'row between' }, h('h1', null, `${run.video?.name || 'Video'} · ${run.trick_title || 'Trick not given'}`), h('a', { class: 'btn ghost small', href: '#/admin/lab' }, 'All analyses')),
@@ -445,7 +442,7 @@ export async function aiLabRunPage({ main, setTitle, params }) {
     const t = h('textarea', { rows: 2, placeholder: 'What should the AI have said here?', dir: 'auto' }, m.text || '');
     t.addEventListener('input', () => { m.text = t.value; save(); });
     return h('li', { class: 'ai-step' }, h('div', { class: 'ai-step-head', onclick: () => show(false) }, h('strong', null, `Point ${i + 1}`), h('span', { class: 'meta' }, fmtT(m.t))),
-      t, h('div', { class: 'btn-row' }, drawBtn, h('button', { type: 'button', class: 'btn ghost small', onclick: () => { review.missed.splice(i, 1); save(); renderMissed(); } }, 'Delete')));
+      t, h('div', { class: 'btn-row' }, drawBtn, h('button', { type: 'button', class: 'btn danger small', onclick: () => { review.missed.splice(i, 1); save(); renderMissed(); } }, 'Delete')));
   }));
   renderMissed();
   const addMissed = h('button', { class: 'btn secondary small', onclick: () => {
@@ -503,9 +500,9 @@ export async function aiLabRunPage({ main, setTitle, params }) {
 }
 
 function deleteButton(run) {
-  const b = h('button', { class: 'btn ghost small' }, 'Delete analysis');
+  const b = h('button', { class: 'btn danger small' }, 'Delete analysis');
   b.onclick = async () => {
-    if (!(await confirmDialog('Delete this analysis?', 'The analysis, its reviews and its frames will be deleted. This cannot be undone.', 'Delete'))) return;
+    if (!(await confirmDanger('Delete this analysis?', 'The analysis, its reviews and its frames will be deleted. This cannot be undone.', 'Delete'))) return;
     busy(b, async () => {
       try {
         const unused = await rpc('ai_lab_delete_run', { p_run: run.id });   // keeps frames a rerun still uses
@@ -518,8 +515,7 @@ function deleteButton(run) {
 }
 
 // ====================================================================== feedback for Claude
-export async function aiFeedbackPage({ main, setTitle, query }) {
-  setTitle('Feedback for Claude');
+export async function aiFeedbackPage({ main, query }) {
   if (!guard(main)) return;
   main.classList.add('wide', 'ai-lab');
   const runId = query.get('run');
@@ -560,7 +556,7 @@ export async function aiFeedbackPage({ main, setTitle, query }) {
     const names = await loadNames();
     const items = rows;
     if (!items.length) return toast('Nothing to copy', 'err');
-    const L = ['# Feedback from the Coachit admins', '', 'Turn each item into a todo, a plan change or a fix. Reply with what went where, by #id, so we can update the status in the app.', ''];
+    const L = ['# Feedback from the CoachIt admins', '', 'Turn each item into a todo, a plan change or a fix. Reply with what went where, by #id, so we can update the status in the app.', ''];
     for (const f of items) {
       L.push(`## #${f.id} · ${f.kind} · ${FSTATUS[f.status]} · ${names[f.author] || ''} · ${fmtDate(f.created_at)}`, f.body);
       if (f.run_id) L.push(`Run: ${location.origin}/#/admin/lab/${f.run_id}`);
@@ -577,6 +573,6 @@ export async function aiFeedbackPage({ main, setTitle, query }) {
       runId && h('p', { class: 'meta' }, 'This will be linked to ', h('a', { href: '#/admin/lab/' + runId }, 'this analysis')),
       h('div', { class: 'field' }, h('label', null, 'Type'), chips(Object.entries(KINDS), kind, (v) => { kind = v; })),
       h('div', { class: 'field' }, body), add),
-    h('div', { class: 'row between', style: { margin: '1rem 0 .5rem' } }, bar, copy),
+    h('div', { class: 'row between', style: { margin: 'var(--space-4) 0 var(--space-2)' } }, bar, copy),
     list);
 }

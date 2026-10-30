@@ -83,23 +83,27 @@ export function modal(build) {
     f && f.focus();
   });
 }
-export const confirmDialog = (title, text, okText = 'OK', cancelText = 'Cancel') =>
+export const confirmDialog = (title, text, okText = 'OK', cancelText = 'Cancel', okClass = 'btn') =>
   modal((close) => [
     h('h2', null, title),
     text && h('p', null, text),
-    h('div', { class: 'btn-row', style: { marginTop: '1rem' } },
-      h('button', { class: 'btn', onclick: () => close(true) }, okText),
+    h('div', { class: 'btn-row', style: { marginTop: 'var(--space-4)' } },
+      h('button', { class: okClass, onclick: () => close(true) }, okText),
       h('button', { class: 'btn secondary', onclick: () => close(false) }, cancelText)),
   ]);
+// For confirms that delete, decline or discard something.
+export const confirmDanger = (title, text, okText, cancelText) => confirmDialog(title, text, okText, cancelText, 'btn danger');
 
 // ---------- Buttons with busy state ----------
 export async function busy(btn, fn) {
   if (btn.disabled) return;
   const old = [...btn.childNodes];
+  btn.style.minWidth = btn.offsetWidth + 'px';   // keeps its width; grows only if the busy text would not fit
   btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
   btn.replaceChildren(h('span', { class: 'spinner sm', 'aria-hidden': 'true' }), ' One moment…');
   try { return await fn(); }
-  finally { btn.disabled = false; btn.replaceChildren(...old); }
+  finally { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.style.minWidth = ''; btn.replaceChildren(...old); }
 }
 
 // ---------- Formatting ----------
@@ -122,6 +126,8 @@ export const STATUS = {
   declined: 'Declined',
   expired: 'Response time passed',
 };
+// The word always stays: our red and green are equally dark, so colour alone says nothing to color-blind users.
+export const statusTag = (status) => h('span', { class: 'tag status-' + status }, STATUS[status]);
 export const DECLINE = { unclear: 'Video is unclear', not_my_field: 'Not my field', video_problem: 'Problem with the video' };
 export const POLICY = {
   none: 'No follow-up messages',
@@ -194,6 +200,9 @@ const P = {
   bell: '<path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   play: '<path d="M8 5v14l11-7z"/>',
   back: '<path d="m15 6-6 6 6 6"/>',
+  chevron: '<path d="m6 9 6 6 6-6"/>',
+  sound: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9a4 4 0 0 1 0 6"/>',
+  muted: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 10 4 4M21 10l-4 4"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="4"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   pencil: '<path d="M4 20l4-1L19 8l-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/>',

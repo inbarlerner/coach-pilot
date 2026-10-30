@@ -3,8 +3,7 @@ import { h, section, empty, fmtDate, busy, toast, friendlyError } from '../ui.js
 import { sb, state, q } from '../api.js';
 import { refreshBadge } from '../app.js';
 
-export function notificationsPage({ main, setTitle }) {
-  setTitle('Notifications');
+export function notificationsPage({ main }) {
   const list = h('div');
   const markAll = h('button', { class: 'btn secondary small' }, 'Mark all as read');
   markAll.onclick = () => busy(markAll, async () => {
