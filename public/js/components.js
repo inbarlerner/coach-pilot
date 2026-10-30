@@ -103,8 +103,16 @@ function playRow(label, onclick) {
   return h('button', { type: 'button', class: 'card an-play', onclick },
     h('span', null, label), h('span', { class: 'an-play-btn', 'aria-hidden': 'true' }, icon('play')));
 }
+// Rounded "66" marks that sit on the top edge of the coach's quote, like a piece of tape.
+function quoteMarks() {
+  const el = h('span', { class: 'an-marks', 'aria-hidden': 'true' });
+  el.innerHTML = '<svg viewBox="0 0 34 26" fill="currentColor">'
+    + '<circle cx="8" cy="18" r="7"/><path d="M2.2 17C2.2 9 6 4 13 2.5" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round"/>'
+    + '<circle cx="26" cy="18" r="7"/><path d="M20.2 17C20.2 9 24 4 31 2.5" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round"/></svg>';
+  return el;
+}
 export function analysisItem(item, videoId) {
-  if (item.kind === 'text') return h('div', { class: 'card an-quote' }, h('blockquote', { class: 'pre' }, item.body));
+  if (item.kind === 'text') return h('div', { class: 'card an-quote' }, quoteMarks(), h('blockquote', { class: 'pre' }, item.body));
   if (item.kind === 'drawing') {
     const d = readDrawings(item.body);
     return isEmptyDrawings(d) ? h('div', { hidden: true })

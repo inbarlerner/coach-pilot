@@ -211,10 +211,10 @@ input[type=file] { font: inherit; width: 100%; padding: var(--space-3); border-r
 .card + .card, .card + .state, .state + .card { margin-top: var(--space-3); }
 /* Analysis boxes (request page, video page, feed overlay): the coach's words in big quotation marks,
    recordings and drawings as a box with a play button on the right */
-.an-quote blockquote { position: relative; margin: 0; padding: 30px 6px 26px; font-size: 20px; line-height: 1.4; font-weight: 600; }
-.an-quote blockquote::before, .an-quote blockquote::after { position: absolute; font-family: var(--font-head); font-weight: 800; font-size: 64px; line-height: 1; color: var(--muted, var(--bottle)); }
-.an-quote blockquote::before { content: "\201C"; top: -8px; left: -6px; }
-.an-quote blockquote::after { content: "\201D"; bottom: -30px; right: -6px; }
+.an-quote { position: relative; margin-top: 30px; padding-top: 26px; }
+.an-quote blockquote { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 600; }
+.an-marks { position: absolute; top: -19px; left: 18px; width: 44px; height: 34px; color: var(--muted, var(--bottle)); }
+.an-marks svg { display: block; width: 100%; height: 100%; }
 .an-play { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 76px;
   font: inherit; font-size: 17px; font-weight: 700; text-align: start; color: inherit; cursor: pointer; }
 .an-play-btn { flex: none; width: 48px; height: 48px; border-radius: 50%; background: var(--strong, var(--deep)); color: var(--on-strong, var(--white)); display: grid; place-items: center; }
@@ -325,7 +325,7 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 .fp-head .meta { margin: var(--space-2) 0 0; }
 .fp-head .person { color: inherit; }
 /* Analysis boxes in the overlay: white play button, mint quotation marks */
-.fp-panel .an-quote blockquote::before, .fp-panel .an-quote blockquote::after { color: var(--mint); }
+.fp-panel .an-marks { color: var(--mint); }
 .fp-panel .an-play-btn { background: var(--white); color: var(--deep); }
 .fp-panel .an-play:focus-visible { outline-color: var(--white); }
 .fp-panel .muted, .fp-panel .meta { color: var(--mint); }
