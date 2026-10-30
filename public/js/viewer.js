@@ -479,14 +479,3 @@ export function analysisWatchCard(video, opts, { label = 'Watch with the analysi
     h('span', { class: 'viewer-card-label' }, label));
 }
 
-// Drawings of a finished analysis, in a list of analysis parts: opens the video full screen with them.
-export function drawingsReview(item, videoId) {
-  const d = readDrawings(item.body);
-  if (isEmptyDrawings(d)) return null;
-  const frames = new Set([...d.strokes, ...d.notes].map((s) => frameKey(s.t))).size;
-  return h('div', { class: 'card' },
-    h('div', { class: 'label' }, 'Drawings and notes on the video'),
-    h('p', { class: 'small muted' }, frames === 1 ? '1 marked frame' : `${frames} marked frames`),
-    h('button', { type: 'button', class: 'btn secondary small', onclick: () => watchAnalysis({ videoId, title: 'Analysis', drawings: d }) },
-      icon('play'), 'Watch with the drawings'));
-}

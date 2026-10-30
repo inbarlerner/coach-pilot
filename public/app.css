@@ -209,6 +209,20 @@ input[type=file] { font: inherit; width: 100%; padding: var(--space-3); border-r
 /* Cards & lists */
 .card { --fill: var(--white); border: 2px solid transparent; border-radius: var(--radius); padding: 14px; background: var(--mint); }   /* 14 + 2 border = 16 */
 .card + .card, .card + .state, .state + .card { margin-top: var(--space-3); }
+/* Analysis boxes (request page, video page, feed overlay): the coach's words in big quotation marks,
+   recordings and drawings as a box with a play button on the right */
+.an-quote blockquote { position: relative; margin: 0; padding: 30px 6px 26px; font-size: 20px; line-height: 1.4; font-weight: 600; }
+.an-quote blockquote::before, .an-quote blockquote::after { position: absolute; font-family: var(--font-head); font-weight: 800; font-size: 64px; line-height: 1; color: var(--muted, var(--bottle)); }
+.an-quote blockquote::before { content: "\201C"; top: -8px; left: -6px; }
+.an-quote blockquote::after { content: "\201D"; bottom: -30px; right: -6px; }
+.an-play { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 76px;
+  font: inherit; font-size: 17px; font-weight: 700; text-align: start; color: inherit; cursor: pointer; }
+.an-play-btn { flex: none; width: 48px; height: 48px; border-radius: 50%; background: var(--strong, var(--deep)); color: var(--on-strong, var(--white)); display: grid; place-items: center; }
+.an-play-btn svg { width: 22px; height: 22px; margin-left: 3px; fill: currentColor; }
+.an-rec-video { display: block; width: 100%; max-height: 60vh; border-radius: var(--radius); }
+/* Inside another card (video page): white boxes, like other fills on a card */
+.card .an-list { margin-top: var(--space-3); }
+.card .an-list .card { background: var(--fill); }
 .card.link { display: block; text-decoration: none; }
 .card.unread { border-color: var(--deep); }
 .list-item { display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; }
@@ -308,6 +322,10 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 .fp-panel .card { --fill: var(--white); background: rgba(0,0,0,.62); color: var(--white); border: 1px solid rgba(255,255,255,.16);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .fp-panel h2 { margin: 0 0 var(--space-1); }
+/* Analysis boxes in the overlay: white play button, mint quotation marks */
+.fp-panel .an-quote blockquote::before, .fp-panel .an-quote blockquote::after { color: var(--mint); }
+.fp-panel .an-play-btn { background: var(--white); color: var(--deep); }
+.fp-panel .an-play:focus-visible { outline-color: var(--white); }
 .fp-panel .muted, .fp-panel .meta { color: var(--mint); }
 .fp-panel .spinner { border-color: rgba(255,255,255,.3); border-top-color: var(--white); }
 /* While the analysis is open the video's own controls step aside. */

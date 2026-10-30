@@ -4,7 +4,7 @@
 // One <video> is reused for all the videos, so iPhones keep the sound on from one video to the next.
 import { h, clear, icon, friendlyError, errorState, loading } from './ui.js';
 import { sb, q, mediaUrl, coverUrl } from './api.js';
-import { analysisItem, holdFeed, REMOVED_TEXT } from './components.js';
+import { holdFeed, analysisItem, REMOVED_TEXT } from './components.js';
 
 const NEXT_DIRECTION = 1;       // 1: a finger moving down goes to the next video. -1: a finger moving up does.
 const AXIS_PX = 12;             // how far a finger moves before the swipe's direction is decided
