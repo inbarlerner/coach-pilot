@@ -360,7 +360,7 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 /* Coach viewer: full screen, the video is the page */
 .viewer { position: fixed; inset: 0; z-index: 50; background: #000; color: #fff; overflow: hidden; user-select: none; -webkit-user-select: none; }
 .viewer-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
-.fp .viewer-video.fp-fill { object-fit: cover; }
+.fp .viewer-video.fp-fill, .viewer-video.fill { object-fit: cover; }
 .viewer-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
 .viewer.drawing .viewer-ink { pointer-events: auto; touch-action: none; cursor: crosshair; }
 .viewer-tap { position: absolute; inset: 0; touch-action: none; z-index: 2; }

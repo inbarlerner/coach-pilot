@@ -5,6 +5,7 @@
 import { h, clear, icon, friendlyError, errorState, loading } from './ui.js';
 import { sb, q, mediaUrl, coverUrl } from './api.js';
 import { analysisItem, holdFeed, REMOVED_TEXT } from './components.js';
+import { fillsScreen } from './viewer.js';
 
 const NEXT_DIRECTION = 1;       // 1: a finger moving down goes to the next video. -1: a finger moving up does.
 const AXIS_PX = 12;             // how far a finger moves before the swipe's direction is decided
@@ -54,13 +55,8 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     panel);
 
   // ---------- The current video ----------
-  // Fill the screen (no black bars) when the clip's shape is close to the screen's, cropping at most a quarter
-  // of it; a clip of a very different shape (a wide one on a phone) is shown whole.
-  function fit() {
-    const vw = video.videoWidth, vh = video.videoHeight, sw = el.clientWidth, sh = el.clientHeight;
-    const ratio = vw && vh && sw && sh ? (vw / vh) / (sw / sh) : 0;
-    video.classList.toggle('fp-fill', ratio > 0.75 && ratio < 4 / 3);
-  }
+  // No black bars when the clip's shape is close to the screen's (see fillsScreen).
+  function fit() { video.classList.toggle('fp-fill', fillsScreen(video.videoWidth, video.videoHeight, el.clientWidth, el.clientHeight)); }
   video.addEventListener('loadedmetadata', fit);
 
   async function load(from = 0) {

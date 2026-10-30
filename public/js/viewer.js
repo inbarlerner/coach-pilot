@@ -44,10 +44,17 @@ export function readDrawings(raw) {
 }
 export const isEmptyDrawings = (d) => !d.strokes.length && !d.notes.length;
 
-// Where the video picture sits inside its box (object-fit: contain).
-export function contentBox(cw, ch, vw, vh) {
+// Full-screen players fill the screen (no black bars) when the clip's shape is close to the screen's,
+// cropping at most a quarter of it; a clip of a very different shape (a wide one on a phone) is shown whole.
+export function fillsScreen(vw, vh, sw, sh) {
+  const ratio = vw && vh && sw && sh ? (vw / vh) / (sw / sh) : 0;
+  return ratio > 0.75 && ratio < 4 / 3;
+}
+
+// Where the video picture sits inside its box (object-fit: contain, or cover when it fills the screen).
+export function contentBox(cw, ch, vw, vh, cover = false) {
   if (!vw || !vh) return { x: 0, y: 0, w: cw, h: ch };
-  const s = Math.min(cw / vw, ch / vh), w = vw * s, hh = vh * s;
+  const s = (cover ? Math.max : Math.min)(cw / vw, ch / vh), w = vw * s, hh = vh * s;
   return { x: (cw - w) / 2, y: (ch - hh) / 2, w, h: hh };
 }
 
@@ -105,6 +112,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   sheetTitle = 'Your response', sheetButton = null }) {
   const video = h('video', { class: 'viewer-video', src, playsInline: true, preload: 'auto' });
   const ink = h('canvas', { class: 'viewer-ink', 'aria-hidden': 'true' });
+  let cover = false;   // the video fills the screen (object-fit: cover); see fitVideo
   const tap = h('div', { class: 'viewer-tap', 'aria-hidden': 'true' });
   const hint = h('div', { class: 'viewer-hint', 'aria-live': 'polite' });
   const caption = captionBar(video);
@@ -196,6 +204,14 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   vv?.addEventListener('resize', fitViewport);
   vv?.addEventListener('scroll', fitViewport);
   fitViewport();
+  // Watching (read only) fills the screen like the feed. While the coach draws, the whole picture stays visible.
+  const fitVideo = () => {
+    cover = readOnly && fillsScreen(video.videoWidth, video.videoHeight, el.clientWidth, el.clientHeight);
+    video.classList.toggle('fill', cover);
+    paint();
+  };
+  window.addEventListener('resize', fitVideo);
+  video.addEventListener('loadedmetadata', fitVideo);
   video.addEventListener('play', () => { syncPlay(); hideNote(); });
   video.addEventListener('pause', syncPlay);
   video.addEventListener('timeupdate', () => { paint(); showProgress(); });
@@ -378,7 +394,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   // Position as a fraction of the video picture (not of the screen), so it matches on every device.
   const pointOf = (e) => {
     const r = ink.getBoundingClientRect();
-    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
+    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight, cover);
     return [round((e.clientX - r.left - b.x) / b.w), round((e.clientY - r.top - b.y) / b.h)];
   };
   ink.addEventListener('pointerdown', (e) => { capture(ink, e); stroke = { t: round(video.currentTime, 100), c: color, pts: [pointOf(e)] }; });
@@ -415,7 +431,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   function paint() {
     const r = ink.getBoundingClientRect();
     const ctx = fitCanvas(ink, r);
-    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
+    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight, cover);
     paintStrokes(ctx, stroke ? [...strokes, stroke] : strokes, video.currentTime, b);
     caption.update(notes, video.currentTime, noteAt !== null);   // while editing, the edit line shows the text
   }
@@ -438,6 +454,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
     video.load();
     document.body.style.overflow = prevOverflow;
     vv?.removeEventListener('resize', fitViewport);
+    window.removeEventListener('resize', fitVideo);
     vv?.removeEventListener('scroll', fitViewport);
     el.remove();
   }
