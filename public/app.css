@@ -147,6 +147,12 @@ nav.bottom a.active:focus-visible, .tabs button[aria-selected=true]:focus-visibl
   outline-color: var(--white); outline-offset: -5px;
 }
 .btn-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+/* Google sign-in */
+.social { display: grid; gap: var(--space-2); margin: var(--space-4) 0; }
+.social .logo { display: inline-flex; }
+.social .logo svg { width: 20px; height: 20px; }
+.or { display: flex; align-items: center; gap: var(--space-3); color: var(--muted); font-size: 14px; margin: var(--space-1) 0 0; }
+.or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
 .btn-row > .btn { flex: 1 1 160px; }
 
 /* Forms */
@@ -507,3 +513,11 @@ main.page.xwide { max-width: 1280px; }
 .crop input[type=range] { width: 100%; accent-color: #fff; }
 .crop .btn.secondary { background: transparent; color: #fff; border-color: #fff; }
 .crop .btn { background: #fff; color: #000; border-color: #fff; }
+
+/* Privacy policy (public/privacy.html), age consent at sign-up */
+.legal h2 { margin-top: var(--space-6); }
+.legal ul { padding-left: var(--space-5); }
+.legal li { margin: var(--space-1) 0; }
+.consent { display: flex; gap: var(--space-2); align-items: flex-start; cursor: pointer; line-height: 1.4; }
+.consent input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: var(--deep); }
+.legal-links { text-align: center; font-size: 14px; color: var(--muted); margin-top: var(--space-4); }

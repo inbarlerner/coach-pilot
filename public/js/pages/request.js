@@ -2,7 +2,7 @@
 import { h, clear, icon, loading, errorState, friendlyError, fmtDate, timeLeft, statusTag, DECLINE, POLICY, busy, toast, confirmDialog, confirmDanger, modal } from '../ui.js';
 import { sb, state, q, rpc, action, sportName, languageNames, mediaUrl, coverUrl } from '../api.js';
 import { protectedVideo, analysisItem, recorder, languagesLine } from '../components.js';
-import { personLink, avatar, coverImg } from '../images.js';
+import { personLink, avatar, coverImg, FORMER_COACH } from '../images.js';
 import { coachViewer, readDrawings, isEmptyDrawings, analysisWatchCard } from '../viewer.js';
 import { go, refreshBadge } from '../app.js';
 
@@ -29,6 +29,7 @@ export async function requestPage({ main, params }) {
         .eq('id', id).maybeSingle());
     } catch (e) { return clear(main).append(h('h1', null, 'Analysis request'), errorState(friendlyError(e), load)); }
     if (!r) return clear(main).append(h('h1', null, 'Analysis request'), errorState('Request not found, or you do not have access to it.'));
+    r.coach ||= FORMER_COACH;   // the coach deleted their account
 
     const me = state.user.id;
     const isCoachHere = r.coach_id === me;
@@ -205,7 +206,7 @@ export async function requestPage({ main, params }) {
       const reason = await modal((close) => {
         let pick = null;
         return [h('h2', null, 'Can\'t analyze'), h('p', null, 'Choose a reason. The trainee will see it.'),
-          h('div', { class: 'choices' }, Object.entries(DECLINE).map(([k, l]) =>
+          h('div', { class: 'choices' }, Object.entries(DECLINE).filter(([k]) => k !== 'coach_left').map(([k, l]) =>
             h('label', { class: 'choice' }, h('input', { type: 'radio', name: 'dr', onchange: () => { pick = k; } }), h('span', { class: 't' }, l)))),
           h('div', { class: 'btn-row', style: { marginTop: 'var(--space-4)' } },
             h('button', { class: 'btn danger', onclick: () => (pick ? close(pick) : toast('Choose a reason', 'err')) }, 'Confirm decline'),
@@ -293,6 +294,7 @@ export async function requestPage({ main, params }) {
       WAIT_TRAINEE: 'You can reply only if the trainee sends a follow-up message.',
       CHAT24_ENDED: 'The 24-hour chat window has ended.',
       ACCOUNT_DISABLED: 'The account is disabled.',
+      COACH_LEFT: 'This coach has left CoachIt, so follow-up messages are closed. The analysis stays here for you.',
     };
     const HINTS = {
       ONE_TRAINEE: 'You can send only one follow-up message. Include everything that matters to you.',

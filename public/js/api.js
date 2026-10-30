@@ -69,6 +69,20 @@ export async function q(promise) {
 }
 export const rpc = (fn, args) => q(sb.rpc(fn, args));
 
+// Delete the signed-in user's account (012_delete_account.sql), as the user, in three steps:
+// the database removes the app data and lists the user's files → remove the files → delete the login.
+// Safe to repeat: if it stops halfway, running it again picks up where it left off.
+export async function deleteAccount() {
+  const files = await rpc('start_account_deletion');
+  for (const [bucket, keys] of [[BUCKET, files?.media || []], [AVATARS, files?.avatars || []]]) {
+    for (let i = 0; i < keys.length; i += 100) {
+      const { error } = await sb.storage.from(bucket).remove(keys.slice(i, i + 100));
+      if (error) throw error;
+    }
+  }
+  await rpc('finish_account_deletion');
+}
+
 // Database actions that release stored files (delete video, discard draft, decline, remove item):
 // the database decides and returns the files to remove; then they are removed from storage.
 export async function action(fn, args) {

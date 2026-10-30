@@ -1,6 +1,6 @@
 // App shell: startup, routing, layout and bottom navigation.
 import { h, clear, icon, errorState, friendlyError } from './ui.js';
-import { init, sb, state, loadProfile, loadSports, refreshUnread, isAdmin } from './api.js';
+import { init, sb, state, loadProfile, loadSports, refreshUnread, isAdmin, deleteAccount } from './api.js';
 import { avatar } from './images.js';
 
 const app = document.getElementById('app');
@@ -11,6 +11,7 @@ const ROUTES = [
   [/^\/signup$/, './pages/auth.js', 'signupPage', false],
   [/^\/forgot$/, './pages/auth.js', 'forgotPage', false],
   [/^\/reset$/, './pages/auth.js', 'resetPage', true],
+  [/^\/welcome$/, './pages/auth.js', 'finishSignupPage', true],
   [/^\/home$/, './pages/home.js', 'homePage', true],
   [/^\/search$/, './pages/search.js', 'searchPage', true],
   [/^\/upload$/, './pages/upload.js', 'uploadPage', true],
@@ -52,6 +53,7 @@ function parseHash() {
 export function defaultRoute() {
   if (!state.user) return '/login';
   const p = state.profile;
+  if (p?.needs_setup) return '/welcome';   // first Google sign-in: details still missing
   if (p && p.role === 'trainee' && !p.onboarded) return '/upload?welcome=1';
   return '/home';
 }
@@ -90,12 +92,14 @@ async function route() {
   if (!needsLogin && state.user && path !== '/forgot') return go(defaultRoute());
 
   if (state.user && state.profile?.disabled) return disabledScreen();
+  if (state.user && state.profile?.deleting_at) return finishDeletionScreen();
+  if (state.user && state.profile?.needs_setup && path !== '/welcome' && path !== '/reset') return go('/welcome');
 
   const params = path.match(re).slice(1);
   try {
     const page = await import(mod);
     if (seq !== routeSeq) return;   // a newer navigation started meanwhile
-    if (!needsLogin || path === '/reset') {
+    if (!needsLogin || path === '/reset' || path === '/welcome') {
       const main = h('main', { class: 'page' });
       clear(app).append(main);
       const c = (await page[fn]({ main, params, query })) || null;
@@ -109,6 +113,23 @@ async function route() {
   } catch (e) {
     console.error(e);
     clear(app).append(h('main', { class: 'page' }, errorState(friendlyError(e), () => route())));
+  }
+}
+
+// Account deletion was started but did not finish (page closed, network): finish it now.
+async function finishDeletionScreen() {
+  const main = h('main', { class: 'page' }, h('div', { class: 'state' }, h('div', { class: 'spinner', 'aria-hidden': 'true' }), h('p', null, 'Finishing account deletion…')));
+  clear(app).append(main);
+  try {
+    await deleteAccount();
+    await sb.auth.signOut();
+    import('./ui.js').then(({ toast }) => toast('Your account was deleted.'));
+  } catch (e) {
+    clear(main).append(h('div', { class: 'state error' },
+      h('p', null, h('strong', null, 'Your account is being deleted')),
+      h('p', null, friendlyError(e)),
+      h('div', { class: 'btn-row' }, h('button', { class: 'btn', onclick: () => finishDeletionScreen() }, 'Try again'),
+        h('button', { class: 'btn secondary', onclick: () => sb.auth.signOut() }, 'Sign out'))));
   }
 }
 
@@ -160,7 +181,11 @@ async function start() {
   // Arrived from an email link (password recovery / signup confirmation)
   if (sb.auth.detected.type === 'recovery') location.hash = '#/reset';
   else if (sb.auth.detected.error) {
-    setTimeout(() => import('./ui.js').then(({ toast }) => toast('This link is invalid or has expired. You can request a new one.', 'err')), 300);
+    const prov = { google: 'Google' }[sb.auth.detected.provider];
+    const msg = prov
+      ? `Signing in with ${prov} did not finish (${sb.auth.detected.error}). Try again, or sign in with email.`
+      : 'This link is invalid or has expired. You can request a new one.';
+    setTimeout(() => import('./ui.js').then(({ toast }) => toast(msg, 'err')), 300);
   }
 
   sb.auth.onAuthStateChange(async (event, session) => {

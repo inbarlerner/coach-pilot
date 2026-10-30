@@ -2,7 +2,7 @@ schema: spec-driven
 
 # Constraints an agent cannot infer from the code. Full details live in CLAUDE.md.
 context: |
-  Coachit (formerly GetPro; the repo and some code still say GetPro).
+  CoachIt (formerly GetPro; the repo is still named coach-pilot).
   Web platform: trainees upload sports videos, approved coaches send back an analysis
   (text, voice, video, drawings), then follow-up messages. Two founders: Jenni owns the
   backend (database, payments, compliance, privacy), Inbar owns the UI.

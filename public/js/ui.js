@@ -128,7 +128,7 @@ export const STATUS = {
 };
 // The word always stays: our red and green are equally dark, so colour alone says nothing to color-blind users.
 export const statusTag = (status) => h('span', { class: 'tag status-' + status }, STATUS[status]);
-export const DECLINE = { unclear: 'Video is unclear', not_my_field: 'Not my field', video_problem: 'Problem with the video' };
+export const DECLINE = { unclear: 'Video is unclear', not_my_field: 'Not my field', video_problem: 'Problem with the video', coach_left: 'The coach closed their CoachIt account' };
 export const POLICY = {
   none: 'No follow-up messages',
   one: 'One follow-up message from the trainee, with one reply',
@@ -168,6 +168,18 @@ const ERR = {
   ALREADY_COACH: 'This account is already registered as a coach.',
   BIO_REQUIRED: 'Write a short professional bio (at least 10 characters).',
   SPORTS_REQUIRED: 'Choose at least one sport you coach.',
+  INTERESTS_REQUIRED: 'Choose at least one sport.',
+  LANGUAGES_REQUIRED: 'Choose at least one language.',
+  NAME_REQUIRED: 'Enter your first and last name.',
+  BAD_USERNAME: 'Invalid username.',
+  USERNAME_TAKEN: 'This username is taken. Try another one.',
+  BAD_PHONE: 'Invalid phone number.',
+  ALREADY_SET_UP: 'Your account is already set up.',
+  COACH_LEFT: 'This coach has left CoachIt, so follow-up messages are closed.',
+  ADMIN_CANNOT_DELETE: 'Admin accounts cannot be deleted from the app. Email coachitapp@gmail.com.',
+  FILES_REMAIN: 'Some of your files could not be removed yet. Try again, or email coachitapp@gmail.com.',
+  DELETION_NOT_STARTED: 'Account deletion did not start. Try again.',
+  CONSENT_REQUIRED: 'CoachIt is for people 18 or older. Confirm your age and the Privacy Policy to continue.',
   profiles_languages_check: 'Choose languages from the list.',
   NETWORK: 'No network connection. Check your connection and try again.',
   'Invalid login credentials': 'Wrong email or password.',

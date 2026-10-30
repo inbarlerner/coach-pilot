@@ -1,7 +1,7 @@
 // Inbox: active / completed / not completed. Coaches can switch between received and sent.
 import { h, clear, section, empty, tabs, fmtDate, timeLeft, statusTag, DECLINE } from '../ui.js';
 import { sb, state, q, isCoach, sportName } from '../api.js';
-import { avatar } from '../images.js';
+import { avatar, FORMER_COACH } from '../images.js';
 
 const BOX = {
   active: { label: 'Active', statuses: ['pending', 'draft'] },
@@ -52,7 +52,7 @@ export function inboxPage({ main, query }) {
     }
     return h('div', null, rows.map((r) => {
       const read = side === 'received' ? r.coach_read : r.trainee_read;
-      const other = side === 'received' ? r.trainee : r.coach;
+      const other = side === 'received' ? r.trainee : (r.coach || FORMER_COACH);
       return h('a', { class: 'card link' + (read ? '' : ' unread'), href: '#/r/' + r.id },
         h('div', { class: 'list-item' },
           h('div', { class: 'row', style: { alignItems: 'flex-start', flexWrap: 'nowrap', gap: 'var(--space-3)' } },

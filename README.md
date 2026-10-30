@@ -42,6 +42,37 @@
 
 אין צורך במפתח השירות (service role) של Supabase. כל פעולה רצה בשם המשתמש המחובר, והמסד והאחסון מחליטים מה מותר.
 
+## כניסה עם Google (`011_social_login.sql`)
+
+הכפתור "Continue with Google" מופיע במסכי הכניסה וההרשמה **רק אחרי** שמפעילים את Google ב־Supabase, כך שאפשר להעלות את הקוד לפני שההגדרות מוכנות. אין צורך בכרטיס אשראי בשום שלב.
+
+כשמישהו נכנס בפעם הראשונה עם Google, השם נלקח מהחשבון שלו, והוא מגיע למסך "Finish signing up" כדי למלא את מה שחסר: שם משתמש, טלפון, שפות, ענפי ספורט, ואם הוא מאמן גם ביוגרפיה וענפים (ואז הוא ממתין לאישור המנהלת כרגיל). מי שכבר רשום במייל ונכנס עם Google באותו מייל מגיע לאותו חשבון (Supabase מחבר ביניהם).
+
+**1. מסד הנתונים:** Supabase ← SQL Editor ← להריץ את `supabase/011_social_login.sql`.
+
+**2. כתובות:** Supabase ← Authentication ← URL Configuration:
+- Site URL: `https://coach-pilot-5jk.pages.dev`
+- Redirect URLs: להוסיף `https://coach-pilot-5jk.pages.dev/**`
+
+כתובת החזרה (תצטרכו אותה למטה) מופיעה ב־Supabase בעמוד ההגדרות של Google, בצורה `https://<project-ref>.supabase.co/auth/v1/callback`.
+
+**3. Google:**
+1. [Google Cloud Console](https://console.cloud.google.com/) ← פרויקט חדש (או קיים).
+2. APIs & Services ← OAuth consent screen (Google Auth Platform): סוג External, שם האפליקציה, מייל תמיכה. הרשאות: `openid`, `email`, `profile` בלבד.
+3. Credentials ← Create credentials ← OAuth client ID ← Web application:
+   - Authorized JavaScript origins: `https://coach-pilot-5jk.pages.dev`
+   - Authorized redirect URIs: כתובת ה־callback של Supabase מלמעלה.
+4. להעתיק Client ID ו־Client Secret ← Supabase ← Authentication ← Sign In / Providers ← Google ← Enable, להדביק, Save.
+5. כל עוד המסך במצב Testing רק משתמשי בדיקה שהוספתם יכולים להיכנס. כדי לפתוח לכולם: Audience ← Publish app. עם ההרשאות הבסיסיות האלה (ובלי לוגו) לא נדרש תהליך אימות של Google.
+
+## מדיניות פרטיות וגיל 18+
+
+- `public/privacy.html` — עמוד סטטי ציבורי (בלי JavaScript ובלי התחברות, כדי ש־Google יוכל לקרוא אותו). Cloudflare מגיש אותו בכתובת `/privacy`. איש קשר: `coachitapp@gmail.com`.
+- **לעדכן את העמוד בכל פעם שמשתנה מה שהאפליקציה אוספת, מי רואה מה, או לאילו שירותים נשלח מידע** (ולשנות את התאריך למעלה).
+- בהרשמה (במייל וגם במסך "Finish signing up") חובה לסמן "I am 18 or older and I agree to the Privacy Policy". זמן האישור נשמר ב־`profile_private.consented_at`. משתמשים שנרשמו לפני השינוי לא אישרו.
+- **מחיקת חשבון** (`012_delete_account.sql`, להריץ ב־SQL Editor אחרי 011): הגדרות ← Delete account (מקלידים DELETE). בלי מפתח service role: המסד מוחק את נתוני האפליקציה ומחזיר רשימת קבצים, הדפדפן מוחק אותם מהאחסון, ואז המסד מוחק את המשתמש מ־`auth.users`. מאמן שמחק את החשבון מופיע אצל המתאמנים כ־"Former coach". בקשות מחיקה במייל (`coachitapp@gmail.com`) מטפלים ידנית תוך 30 יום. מנהלת לא יכולה למחוק את עצמה מהאפליקציה.
+- זו טיוטה סבירה לפיילוט, לא ייעוץ משפטי. לפני השקה ציבורית כדאי שעורך/ת דין יעבור/תעבור עליה.
+
 ## מגבלות פיילוט
 
 - 50MB לכל קובץ: סרטון, הקלטת קול או הקלטת וידאו. המגבלה נאכפת בדפדפן ובאחסון עצמו.

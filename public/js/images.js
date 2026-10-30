@@ -15,10 +15,15 @@ export function avatar(p, size = 36) {
   return el;
 }
 
-// Photo + name link, used wherever a person is shown.
+// Shown in place of a coach who deleted their account (their finished analyses stay with the trainee).
+export const FORMER_COACH = Object.freeze({ first_name: 'Former', last_name: 'coach', username: null, avatar_key: null, languages: [] });
+
+// Photo + name link, used wherever a person is shown. No username (former coach) → no link.
 export function personLink(p, { size = 32, strong = true } = {}) {
   const name = (p?.first_name || '') + ' ' + (p?.last_name || '');
-  return h('a', { class: 'person', href: '#/u/' + p?.username }, avatar(p, size), strong ? h('strong', null, name) : h('span', null, name));
+  const label = strong ? h('strong', null, name) : h('span', null, name);
+  return p?.username ? h('a', { class: 'person', href: '#/u/' + p.username }, avatar(p, size), label)
+    : h('span', { class: 'person' }, avatar(p, size), label);
 }
 
 // ---------- Image helpers ----------

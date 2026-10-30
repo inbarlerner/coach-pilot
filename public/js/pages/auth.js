@@ -1,6 +1,7 @@
 // Login, signup (trainee / coach), forgot and reset password.
 import { h, clear, busy, friendlyError, successState } from '../ui.js';
 import { sb, state, activeSports, rpc, loadProfile } from '../api.js';
+import { go, defaultRoute } from '../app.js';
 import { languagePicker } from '../components.js';
 
 function field(label, input, hint) {
@@ -22,6 +23,33 @@ function header(title, sub) {
   return [h('div', { class: 'wordmark auth-mark' }, 'CoachIt.'), h('h1', { class: 'hero' }, title), sub && h('p', { class: 'muted' }, sub)];
 }
 
+// ---------- Google sign-in ----------
+const LOGOS = {
+  google: '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>',
+};
+const PROVIDERS = [['google', 'Google']];
+const SIGNUP_AS = 'pilot.signup_as';   // account type chosen before leaving for Google
+let providersCache = null;
+
+// Shows a button for each provider switched on in Supabase; nothing at all if none is.
+function socialButtons(getRole) {
+  const box = h('div', { class: 'social hidden' });
+  (providersCache ||= sb.auth.getProviders().catch(() => ({}))).then((on) => {
+    const list = PROVIDERS.filter(([id]) => on[id]);
+    if (!list.length) return;
+    box.append(...list.map(([id, label]) => h('button', {
+      type: 'button', class: 'btn secondary block',
+      onclick: () => {
+        try { sessionStorage.setItem(SIGNUP_AS, getRole ? getRole() : ''); } catch {}
+        sb.auth.signInWithOAuth({ provider: id, options: { redirectTo: location.origin + '/' } });
+      },
+    }, h('span', { class: 'logo', html: LOGOS[id] }), `Continue with ${label}`)),
+    h('div', { class: 'or' }, 'or'));
+    box.classList.remove('hidden');
+  });
+  return box;
+}
+
 export function loginPage({ main }) {
   const email = h('input', { type: 'email', autocomplete: 'email', required: true, inputmode: 'email' });
   const pass = h('input', { type: 'password', autocomplete: 'current-password', required: true });
@@ -38,12 +66,13 @@ export function loginPage({ main }) {
       if (error) showFormError(err, friendlyError(error));
     });
   });
-  main.append(...header('Sign in', 'Video analysis by real coaches — pilot version'), form,
+  main.append(...header('Sign in', 'Video analysis by real coaches — pilot version'), socialButtons(), form,
     h('hr', { style: { margin: 'var(--space-5) 0', border: 0, borderTop: '1px solid var(--line)' } }),
     h('p', { class: 'center' }, 'No account yet?'),
     h('div', { class: 'btn-row' },
       h('a', { class: 'btn secondary', href: '#/signup?as=trainee' }, 'Sign up as a trainee'),
-      h('a', { class: 'btn secondary', href: '#/signup?as=coach' }, 'Sign up as a coach')));
+      h('a', { class: 'btn secondary', href: '#/signup?as=coach' }, 'Sign up as a coach')),
+    h('p', { class: 'legal-links' }, h('a', { href: '/privacy' }, 'Privacy Policy')));
 }
 
 function sportChips(name, selected = []) {
@@ -54,15 +83,36 @@ function sportChips(name, selected = []) {
 const checked = (root, name) => [...root.querySelectorAll(`input[name="${name}"]:checked`)].map((i) => i.value);
 
 export function signupPage({ main, query }) {
-  let role = query.get('as') === 'coach' ? 'coach' : 'trainee';
+  signupForm(main, { role: query.get('as') === 'coach' ? 'coach' : 'trainee' });
+}
+
+// After a first Google sign-in: the details the provider does not give us.
+export function finishSignupPage({ main }) {
+  const p = state.profile;
+  if (!p?.needs_setup) return go(defaultRoute());
+  let role = 'trainee';
+  try { role = sessionStorage.getItem(SIGNUP_AS) === 'coach' ? 'coach' : 'trainee'; } catch {}
+  const email = state.user?.email || '';
+  const suggested = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 30);
+  signupForm(main, {
+    role, social: true,
+    first: p.first_name === '—' ? '' : p.first_name, last: p.last_name === '—' ? '' : p.last_name,
+    username: suggested.length >= 3 ? suggested : '',
+  });
+}
+
+// Shared sign-up form. social = finishing a Google signup (no email/password; saved by complete_signup).
+function signupForm(main, init) {
+  let role = init.role;
+  const social = !!init.social;
   const render = () => {
     clear(main);
     const f = {
-      first: h('input', { type: 'text', autocomplete: 'given-name' }),
-      last: h('input', { type: 'text', autocomplete: 'family-name' }),
-      user: h('input', { type: 'text', autocomplete: 'username', autocapitalize: 'none', spellcheck: false }),
-      email: h('input', { type: 'email', autocomplete: 'email', inputmode: 'email' }),
-      phone: h('input', { type: 'tel', autocomplete: 'tel', inputmode: 'tel' }),
+      first: h('input', { type: 'text', autocomplete: 'given-name', value: init.first || '' }),
+      last: h('input', { type: 'text', autocomplete: 'family-name', value: init.last || '' }),
+      user: h('input', { type: 'text', autocomplete: 'username', autocapitalize: 'none', spellcheck: false, value: init.username || '' }),
+      email: h('input', { type: 'email', autocomplete: 'email', inputmode: 'email', value: init.email || '' }),
+      phone: h('input', { type: 'tel', autocomplete: 'tel', inputmode: 'tel', value: init.phone || '' }),
       pass: h('input', { type: 'password', autocomplete: 'new-password' }),
       bio: h('textarea', { maxlength: 1000 }),
     };
@@ -73,19 +123,25 @@ export function signupPage({ main, query }) {
       pass: field('Password', f.pass, 'At least 8 characters.'),
       bio: field('Short professional bio', f.bio, 'Experience, certifications, what you specialize in. Shown on your coach profile.'),
     };
+    if (social) { delete F.email; delete F.pass; }
     const interests = sportChips('sports');
     const coachSports = sportChips('coach_sports');
     const interestsErr = h('div', { class: 'error-text hidden', role: 'alert' });
     const coachErr = h('div', { class: 'error-text hidden', role: 'alert' });
     const langs = languagePicker([]);
     const langsErr = h('div', { class: 'error-text hidden', role: 'alert' });
+    const consent = h('input', { type: 'checkbox', checked: !!init.consent });
+    const consentErr = h('div', { class: 'error-text hidden', role: 'alert' });
     const err = formError();
-    const btn = h('button', { class: 'btn block', type: 'submit' }, role === 'coach' ? 'Send coach application' : 'Sign up');
+    const btn = h('button', { class: 'btn block', type: 'submit' },
+      role === 'coach' ? 'Send coach application' : social ? 'Finish signing up' : 'Sign up');
 
     const roleSwitch = h('div', { class: 'choices', role: 'radiogroup', 'aria-label': 'Account type' },
       [['trainee', 'Trainee', 'Upload videos and get analysis from coaches'], ['coach', 'Coach', 'Analyze trainees\' videos. Requires admin approval']].map(([v, t, d]) =>
-        h('label', { class: 'choice' }, h('input', { type: 'radio', name: 'role', value: v, checked: role === v, onchange: () => { role = v; render(); } }),
+        h('label', { class: 'choice' }, h('input', { type: 'radio', name: 'role', value: v, checked: role === v, onchange: () => { keep(); role = v; render(); } }),
           h('span', null, h('span', { class: 't' }, t), h('span', { class: 'd' }, d)))));
+    // keep what was typed when switching account type
+    const keep = () => { for (const k of ['first', 'last', 'email', 'phone']) init[k] = f[k].value; init.username = f.user.value; init.consent = consent.checked; };
 
     const form = h('form', { novalidate: true },
       err,
@@ -99,24 +155,32 @@ export function signupPage({ main, query }) {
       role === 'coach' && h('div', { class: 'field' }, h('div', { class: 'label' }, 'Sports I coach'), coachSports, coachErr),
       role === 'coach' && F.bio,
       role === 'coach' && h('p', { class: 'banner' }, 'After signing up, your account will be "pending approval". Until an admin approves it you can watch public content, but you won\'t appear in search or receive requests.'),
+      h('div', { class: 'field' },
+        h('label', { class: 'consent' }, consent,
+          h('span', null, 'I am 18 or older and I agree to the ', h('a', { href: '/privacy', target: '_blank', rel: 'noopener' }, 'Privacy Policy'), '.')),
+        consentErr),
       btn,
-      h('p', { class: 'center' }, 'Already have an account? ', h('a', { href: '#/login' }, 'Sign in')));
+      social
+        ? h('p', { class: 'center' }, 'Signed in as ', h('strong', null, state.user?.email || 'your account'), '. ',
+            h('button', { type: 'button', class: 'btn ghost', onclick: () => sb.auth.signOut() }, 'Sign out'))
+        : h('p', { class: 'center' }, 'Already have an account? ', h('a', { href: '#/login' }, 'Sign in')));
 
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       busy(btn, async () => {
         Object.values(F).forEach((x) => x.setError(''));
-        [interestsErr, coachErr, langsErr].forEach((x) => x.classList.add('hidden'));
+        [interestsErr, coachErr, langsErr, consentErr].forEach((x) => x.classList.add('hidden'));
         err.classList.add('hidden');
         let bad = false;
         const req = (k, msg) => { if (!f[k].value.trim()) { F[k].setError(msg); bad = true; } };
         req('first', 'Enter your first name.'); req('last', 'Enter your last name.');
-        req('email', 'Enter your email.'); req('phone', 'Enter your phone number.');
+        if (!social) req('email', 'Enter your email.');
+        req('phone', 'Enter your phone number.');
         const username = f.user.value.trim().toLowerCase();
         if (!/^[a-z0-9_.]{3,30}$/.test(username)) { F.user.setError('Invalid username.'); bad = true; }
-        if (f.email.value && !/^\S+@\S+\.\S+$/.test(f.email.value.trim())) { F.email.setError('Invalid email address.'); bad = true; }
+        if (!social && f.email.value && !/^\S+@\S+\.\S+$/.test(f.email.value.trim())) { F.email.setError('Invalid email address.'); bad = true; }
         if (f.phone.value && !/^[0-9+\-\s()]{7,20}$/.test(f.phone.value.trim())) { F.phone.setError('Invalid phone number.'); bad = true; }
-        if (f.pass.value.length < 8) { F.pass.setError('The password needs at least 8 characters.'); bad = true; }
+        if (!social && f.pass.value.length < 8) { F.pass.setError('The password needs at least 8 characters.'); bad = true; }
         const languages = langs.value();
         if (!languages.length) { langsErr.textContent = 'Choose at least one language.'; langsErr.classList.remove('hidden'); bad = true; }
         const sports = checked(form, 'sports');
@@ -124,6 +188,7 @@ export function signupPage({ main, query }) {
         const cSports = checked(form, 'coach_sports');
         if (role === 'coach' && !cSports.length) { coachErr.textContent = 'Choose at least one sport you coach.'; coachErr.classList.remove('hidden'); bad = true; }
         if (role === 'coach' && f.bio.value.trim().length < 10) { F.bio.setError('Write a short professional bio (at least 10 characters).'); bad = true; }
+        if (!consent.checked) { consentErr.textContent = 'CoachIt is for people 18 or older. Confirm your age and the Privacy Policy to continue.'; consentErr.classList.remove('hidden'); bad = true; }
         if (bad) return showFormError(err, 'Please fix the highlighted fields.');
 
         try {
@@ -133,6 +198,20 @@ export function signupPage({ main, query }) {
           }
         } catch {}
 
+        if (social) {
+          try {
+            await rpc('complete_signup', {
+              p_first_name: f.first.value.trim(), p_last_name: f.last.value.trim(), p_username: username,
+              p_phone: f.phone.value.trim(), p_languages: languages, p_sports: sports.map(Number),
+              p_coach: role === 'coach', p_bio: role === 'coach' ? f.bio.value.trim() : '',
+              p_coach_sports: role === 'coach' ? cSports.map(Number) : [], p_consent: true,
+            });
+          } catch (e2) { return showFormError(err, friendlyError(e2)); }
+          try { sessionStorage.removeItem(SIGNUP_AS); } catch {}
+          await loadProfile().catch(() => {});
+          return go(defaultRoute());
+        }
+
         const { data, error } = await sb.auth.signUp({
           email: f.email.value.trim(),
           password: f.pass.value,
@@ -141,7 +220,7 @@ export function signupPage({ main, query }) {
             data: {
               first_name: f.first.value.trim(), last_name: f.last.value.trim(), username,
               phone: f.phone.value.trim(), role, sports, coach_sports: role === 'coach' ? cSports : [], languages,
-              bio: role === 'coach' ? f.bio.value.trim() : '',
+              bio: role === 'coach' ? f.bio.value.trim() : '', consent: true,
             },
           },
         });
@@ -166,7 +245,8 @@ export function signupPage({ main, query }) {
       });
     });
 
-    main.append(...header('Sign up'), form);
+    if (social) main.append(...header('Finish signing up', 'A few details so coaches know who they\'re working with.'), form);
+    else main.append(...header('Sign up'), socialButtons(() => role), form);
   };
   render();
 }
