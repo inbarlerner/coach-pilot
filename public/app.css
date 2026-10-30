@@ -147,6 +147,10 @@ nav.bottom a.active:focus-visible, .tabs button[aria-selected=true]:focus-visibl
   outline-color: var(--white); outline-offset: -5px;
 }
 .btn-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+/* Buttons never sit tight under text: a row of buttons after anything else gets a gap above it.
+   Flex containers that already space their children (rows, empty/error states, the crop screen) are left alone. */
+* + .btn-row { margin-top: var(--space-3); }
+.row > .btn-row, .state > .btn-row, .crop > .btn-row { margin-top: 0; }
 /* Google sign-in */
 .social { display: grid; gap: var(--space-2); margin: var(--space-4) 0; }
 .social .logo { display: inline-flex; }
