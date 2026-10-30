@@ -28,7 +28,7 @@ export async function requestPage({ main, params }) {
           'coach:profiles!analysis_requests_coach_id_fkey(id,first_name,last_name,username,avatar_key,languages)')
         .eq('id', id).maybeSingle());
     } catch (e) { return clear(main).append(h('h1', null, 'Analysis request'), errorState(friendlyError(e), load)); }
-    if (!r) return clear(main).append(h('h1', null, 'Analysis request'), errorState('Request not found, or you do not have access to it.'));
+    if (!r) return clear(main).append(h('h1', null, 'Analysis request'), errorState('Request not found, or you don\'t have access to it.'));
     r.coach ||= FORMER_COACH;   // the coach deleted their account
 
     const me = state.user.id;
@@ -51,7 +51,7 @@ export async function requestPage({ main, params }) {
       h('div', { class: 'card', style: { margin: 'var(--space-3) 0' } }, h('div', { class: 'row between' },
         personBlock(r.trainee, 'Trainee'), personBlock(r.coach, 'Coach'))),
       r.status === 'declined' && h('div', { class: 'banner', role: 'status' }, h('strong', null, 'The request was declined. '), 'Reason: ' + (DECLINE[r.decline_reason] || '') + '. The video and request were kept.'),
-      r.status === 'expired' && h('div', { class: 'banner', role: 'status' }, h('strong', null, 'Response time passed. '), 'The coach did not send an analysis by the deadline, so it can no longer be sent for this request. The video and request were kept.'),
+      r.status === 'expired' && h('div', { class: 'banner', role: 'status' }, h('strong', null, 'Response time passed. '), 'The coach didn\'t send an analysis by the deadline, so it can no longer be sent for this request. The video and request were kept.'),
       ['pending', 'draft'].includes(r.status) && !open && h('div', { class: 'banner' }, 'The response time has passed. The request will move to Not completed within a minute.'),
     );
 
@@ -139,7 +139,7 @@ export async function requestPage({ main, params }) {
       media.forEach((it) => {
         const del = h('button', { class: 'btn danger small' }, 'Remove');
         del.onclick = async () => {
-          if (!(await confirmDanger('Remove this recording?', 'It will be deleted from the draft.', 'Remove'))) return;
+          if (!(await confirmDanger('Remove this recording?', 'It\'ll be deleted from the draft.', 'Remove'))) return;
           busy(del, async () => {
             try { await action('remove_analysis_item', { p_item: it.id }); items = items.filter((x) => x.id !== it.id); renderMedia(); toast('Recording removed'); }
             catch (e) { toast(friendlyError(e), 'err'); }
@@ -184,7 +184,7 @@ export async function requestPage({ main, params }) {
     sendBtn.onclick = async () => {
       const hasMedia = items.some((i) => i.kind !== 'text' && i.kind !== 'drawing');
       if (!text.value.trim() && !hasMedia) return toast('Add at least one part: text, a voice recording or a video recording.', 'err');
-      if (!(await confirmDialog('Send the analysis to the trainee?', 'After sending, the analysis cannot be edited.', 'Send'))) return;
+      if (!(await confirmDialog('Send the analysis to the trainee?', 'After sending, the analysis can\'t be edited.', 'Send'))) return;
       busy(sendBtn, async () => {
         try {
           await rpc('set_analysis_text', { p_request: r.id, p_text: text.value });
@@ -196,7 +196,7 @@ export async function requestPage({ main, params }) {
       });
     };
     cancelBtn.onclick = async () => {
-      if (!(await confirmDanger('Discard your analysis work?', 'The text and recordings will be deleted and the request marked as unread. The trainee\'s request is not cancelled and the response time does not reset.', 'Discard'))) return;
+      if (!(await confirmDanger('Discard your analysis work?', 'The text and recordings will be deleted and the request marked as unread. The trainee\'s request isn\'t cancelled and the response time doesn\'t reset.', 'Discard'))) return;
       busy(cancelBtn, async () => {
         try { await action('discard_draft', { p_request: r.id }); toast('Analysis work discarded'); go('/inbox?side=received'); }
         catch (e) { toast(friendlyError(e), 'err'); }
@@ -231,7 +231,7 @@ export async function requestPage({ main, params }) {
       mediaList,
       h('div', { class: 'card soon', style: { marginTop: 'var(--space-4)' } },
         h('div', { class: 'row' }, h('strong', null, 'Explainer recording'), h('span', { class: 'tag' }, 'Soon')),
-        h('p', { class: 'small muted' }, 'A combined recording (trainee video + your voice + a small camera of you) is coming next. It is not active yet.')),
+        h('p', { class: 'small muted' }, 'A combined recording (trainee video + your voice + a small camera of you) is coming next. It isn\'t active yet.')),
       h('div', { class: 'btn-row', style: { marginTop: 'var(--space-5)' } }, sendBtn, saveBtn),
       h('div', { class: 'btn-row', style: { marginTop: 'var(--space-2)' } }, declineBtn, cancelBtn));
   }
@@ -304,8 +304,8 @@ export async function requestPage({ main, params }) {
     };
     function renderComposer(st) {
       clear(composer);
-      if (!st.can_send) return composer.append(h('p', { class: 'banner' }, REASONS[st.reason] || 'You cannot send a message right now.'));
-      const ta = h('textarea', { id: 'msg_in', maxlength: 4000, placeholder: 'Write a message…', style: { minHeight: '90px' } });
+      if (!st.can_send) return composer.append(h('p', { class: 'banner' }, REASONS[st.reason] || 'You can\'t send a message right now.'));
+      const ta = h('textarea', { id: 'msg_in', maxlength: 4000, placeholder: 'Write a message...', style: { minHeight: '90px' } });
       const send = h('button', { class: 'btn' }, 'Send');
       send.onclick = () => busy(send, async () => {
         if (!ta.value.trim()) return toast('The message is empty', 'err');

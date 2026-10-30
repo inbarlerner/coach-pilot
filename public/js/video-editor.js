@@ -101,7 +101,7 @@ export function openVideoEditor(source, { trim = source instanceof Blob, cover: 
       video.currentTime = start;
       drawTrack();
     }, { once: true });
-    video.addEventListener('error', () => toast('This video cannot be previewed in this browser.', 'err'));
+    video.addEventListener('error', () => toast('This video can\'t be previewed in this browser.', 'err'));
 
     // ---------- Trim ----------
     function drawTrack() {
@@ -112,10 +112,10 @@ export function openVideoEditor(source, { trim = source instanceof Blob, cover: 
       range.style.left = pct(start);
       range.style.width = pct(end - start);
       head.style.left = pct(video.currentTime);
-      trimInfo.textContent = `${clock(start)} – ${clock(end)} · ${(end - start).toFixed(1)}s of ${clock(duration)}`;
+      trimInfo.textContent = `${clock(start)} to ${clock(end)} · ${(end - start).toFixed(1)}s of ${clock(duration)}`;
       const tooBig = isFile && source.size > MAX_MB * 1048576;
       sizeWarn.hidden = !tooBig;
-      if (tooBig) sizeWarn.textContent = `This video is ${sizeMB(source.size)}MB. Keep only the part you need: it will be made smaller to fit the ${MAX_MB}MB limit.`;
+      if (tooBig) sizeWarn.textContent = `This video is ${sizeMB(source.size)}MB. Keep only the part you need: it'll be made smaller to fit the ${MAX_MB}MB limit.`;
     }
     function dragHandle(handle, which) {
       handle.addEventListener('pointerdown', (e) => { e.preventDefault(); capture(handle, e); video.pause(); handle.dragging = true; });
@@ -172,14 +172,14 @@ export function openVideoEditor(source, { trim = source instanceof Blob, cover: 
       if (isFile && (trimmed || tooBig)) {
         busyTrim = true;
         const label = progress.querySelector('p');
-        label.textContent = 'Preparing your clip… 0%';
+        label.textContent = 'Preparing your clip... 0%';
         progress.hidden = false;
         try {
-          out = await recordClip(source, start, end, (p) => { label.textContent = `Preparing your clip… ${Math.round(p * 100)}%`; });
+          out = await recordClip(source, start, end, (p) => { label.textContent = `Preparing your clip... ${Math.round(p * 100)}%`; });
         } catch (e) {
           console.error(e);
           progress.hidden = true; busyTrim = false;
-          return toast('This browser could not cut the video. Trim it in your phone\'s gallery and choose it again.', 'err');
+          return toast('This browser couldn\'t cut the video. Trim it in your phone\'s gallery and choose it again.', 'err');
         }
         progress.hidden = true; busyTrim = false;
         if (out.size > MAX_MB * 1048576) {
@@ -254,7 +254,7 @@ async function centerCrop(blob) {
 // A photo: frame it (3:4).
 async function cropImage(blob) {
   let img;
-  try { img = await loadImg(blob); } catch { toast('This image could not be read. Try a JPEG or PNG.', 'err'); return null; }
+  try { img = await loadImg(blob); } catch { toast('This image couldn\'t be read. Try a JPEG or PNG.', 'err'); return null; }
   const pic = h('img', { src: img.src, alt: '', class: 'crop-img', draggable: false });
   return framer({ media: pic, source: img, W: img.naturalWidth, H: img.naturalHeight });
 }
@@ -381,7 +381,7 @@ function framer({ media, source, W, H, hint = 'Drag the frame to choose what sho
     use.onclick = async () => {
       let blob = null;
       try { blob = await cropTo(source, fx, fy, fw, fw / COVER_RATIO); } catch {}
-      if (!blob) return toast('Could not read this frame. Try another moment or upload a photo.', 'err');
+      if (!blob) return toast('Couldn\'t read this frame. Try another moment or upload a photo.', 'err');
       close(blob);
     };
   });

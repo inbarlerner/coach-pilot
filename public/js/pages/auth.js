@@ -66,7 +66,7 @@ export function loginPage({ main }) {
       if (error) showFormError(err, friendlyError(error));
     });
   });
-  main.append(...header('Sign in', 'Video analysis by real coaches — pilot version'), socialButtons(), form,
+  main.append(...header('Sign in', 'Video analysis by real coaches, pilot version'), socialButtons(), form,
     h('hr', { style: { margin: 'var(--space-5) 0', border: 0, borderTop: '1px solid var(--line)' } }),
     h('p', { class: 'center' }, 'No account yet?'),
     h('div', { class: 'btn-row' },
@@ -118,7 +118,7 @@ function signupForm(main, init) {
     };
     const F = {
       first: field('First name', f.first), last: field('Last name', f.last),
-      user: field('Username', f.user, 'Lowercase letters, digits, dot or underscore. 3–30 characters.'),
+      user: field('Username', f.user, 'Lowercase letters, digits, dot or underscore. 3 to 30 characters.'),
       email: field('Email', f.email), phone: field('Phone', f.phone),
       pass: field('Password', f.pass, 'At least 8 characters.'),
       bio: field('Short professional bio', f.bio, 'Experience, certifications, what you specialize in. Shown on your coach profile.'),
@@ -157,7 +157,7 @@ function signupForm(main, init) {
       role === 'coach' && h('p', { class: 'banner' }, 'After signing up, your account will be "pending approval". Until an admin approves it you can watch public content, but you won\'t appear in search or receive requests.'),
       h('div', { class: 'field' },
         h('label', { class: 'consent' }, consent,
-          h('span', null, 'I am 18 or older and I agree to the ', h('a', { href: '/privacy', target: '_blank', rel: 'noopener' }, 'Privacy Policy'), '.')),
+          h('span', null, 'I\'m 18 or older and I agree to the ', h('a', { href: '/privacy', target: '_blank', rel: 'noopener' }, 'Privacy Policy'), '.')),
         consentErr),
       btn,
       social
@@ -279,7 +279,7 @@ export function resetPage({ main }) {
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     if (pass.value.length < 8) return showFormError(err, 'The password needs at least 8 characters.');
-    if (pass.value !== pass2.value) return showFormError(err, 'The passwords do not match.');
+    if (pass.value !== pass2.value) return showFormError(err, 'The passwords don\'t match.');
     busy(btn, async () => {
       const { error } = await sb.auth.updateUser({ password: pass.value });
       if (error) return showFormError(err, friendlyError(error));

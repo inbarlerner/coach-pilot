@@ -43,7 +43,7 @@ export async function settingsPage({ main }) {
     const save = h('button', { class: 'btn block' }, 'Save coach settings');
     const form = h('div', { class: 'card', style: { marginTop: 'var(--space-4)' } },
       h('h2', { style: { marginTop: 0 } }, 'Coach settings'),
-      p.coach_status !== 'approved' && h('p', { class: 'banner' }, p.coach_status === 'pending' ? 'Your account is waiting for admin approval. You can set this up in advance.' : 'Your coach application was not approved.'),
+      p.coach_status !== 'approved' && h('p', { class: 'banner' }, p.coach_status === 'pending' ? 'Your account is waiting for admin approval. You can set this up in advance.' : 'Your coach application wasn\'t approved.'),
       h('div', { class: 'field' }, h('label', { for: 'cs_quota' }, 'Active request quota'), quota,
         h('div', { class: 'hint' }, 'How many open requests (waiting or in draft) you can have at once. A new request takes a spot; sending an analysis, declining or running out of time frees it.')),
       h('div', { class: 'field' }, h('label', { for: 'cs_hours' }, 'Committed response time (hours)'), hours,
@@ -86,7 +86,7 @@ export async function settingsPage({ main }) {
     const send = h('button', { class: 'btn block' }, 'Send coach application');
     const form = h('div', { class: 'card', style: { marginTop: 'var(--space-4)' } },
       h('h2', { style: { marginTop: 0 } }, p.role === 'coach' ? 'Apply again as a coach' : 'Join as a coach'),
-      h('p', { class: 'hint' }, 'An admin reviews the application. Until it is approved you won\'t appear in search or receive requests.'),
+      h('p', { class: 'hint' }, 'An admin reviews the application. Until it\'s approved you won\'t appear in search or receive requests.'),
       h('div', { class: 'field' }, h('div', { class: 'label' }, 'Sports I coach'), sportsBox),
       h('div', { class: 'field' }, h('label', { for: 'ap_bio' }, 'Professional bio'), bio),
       send);
@@ -117,7 +117,7 @@ export async function settingsPage({ main }) {
     h('div', { class: 'field' }, h('label', { for: 'p_last' }, 'Last name'), last),
     h('div', { class: 'field' }, h('div', { class: 'label' }, 'Username'), h('p', null, '@' + p.username)),
     h('div', { class: 'field' }, h('div', { class: 'label' }, 'Email'), h('p', null, priv.email)),
-    h('div', { class: 'field' }, h('label', { for: 'p_phone' }, 'Phone'), phone, h('div', { class: 'hint' }, 'Your phone and email are not shown to other users.')),
+    h('div', { class: 'field' }, h('label', { for: 'p_phone' }, 'Phone'), phone, h('div', { class: 'hint' }, 'Your phone and email aren\'t shown to other users.')),
     h('div', { class: 'field' }, h('div', { class: 'label' }, 'Languages I speak'),
       h('div', { class: 'hint', style: { marginTop: 0, marginBottom: 'var(--space-1)' } }, p.role === 'coach' ? 'Shown on your profile and to trainees choosing a coach.' : 'Shown to coaches who answer you.'), langs),
     h('div', { class: 'field' }, h('div', { class: 'label' }, 'Sports I\'m interested in (affects the feed order)'), sportsBox),
@@ -165,13 +165,13 @@ function deleteCard() {
   const p = state.profile;
   const card = h('div', { class: 'card', style: { marginTop: 'var(--space-5)' } }, h('h2', { style: { marginTop: 0 } }, 'Delete account'));
   if (isAdmin()) {
-    card.append(h('p', { class: 'hint' }, 'Admin accounts cannot be deleted from the app, so the platform always has an admin. Email coachitapp@gmail.com.'));
+    card.append(h('p', { class: 'hint' }, 'Admin accounts can\'t be deleted from the app, so the platform always has an admin. Email coachitapp@gmail.com.'));
     return card;
   }
   const typed = h('input', { type: 'text', id: 'del_confirm', autocomplete: 'off', autocapitalize: 'characters', spellcheck: false });
   const btn = h('button', { class: 'btn danger block', type: 'button' }, 'Delete my account');
   card.append(
-    h('p', null, 'This permanently deletes your profile, photo, email, phone, videos, comments and your requests with coaches, including their analyses of your videos. It cannot be undone.'),
+    h('p', null, 'This permanently deletes your profile, photo, email, phone, videos, comments and your requests with coaches, including their analyses of your videos. It can\'t be undone.'),
     p.role === 'coach' && h('p', null, 'As a coach: your open requests are cancelled and the trainees are told. Trainees keep the written analyses and messages you already sent them, shown as from a "Former coach". Your voice and video recordings are deleted.'),
     h('p', { class: 'hint' }, h('a', { href: '/privacy#delete', target: '_blank', rel: 'noopener' }, 'What gets deleted (Privacy Policy)')),
     h('div', { class: 'field' }, h('label', { for: 'del_confirm' }, 'Type DELETE to confirm'), typed),

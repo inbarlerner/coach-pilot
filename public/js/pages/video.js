@@ -16,7 +16,7 @@ export async function videoPage({ main, params, query }) {
     try {
       v = await q(sb.from('videos').select('*, owner:profiles!videos_owner_id_fkey(id,first_name,last_name,username,avatar_key)').eq('id', id).maybeSingle());
     } catch (e) { return clear(main).append(h('h1', null, 'Video'), errorState(friendlyError(e), load)); }
-    if (!v) return clear(main).append(h('h1', null, 'Video'), errorState('Video not found, or it is private and you do not have access.'));
+    if (!v) return clear(main).append(h('h1', null, 'Video'), errorState('Video not found, or it\'s private and you don\'t have access.'));
     const mine = v.owner_id === state.user.id;
     // Requests on this video. A coach gets the analysis tools only through an open request sent to them.
     let reqs;
@@ -97,7 +97,7 @@ export async function videoPage({ main, params, query }) {
     cover.onclick = () => changeCover(v);
     const del = h('button', { class: 'btn danger block' }, 'Delete video');
     del.onclick = async () => {
-      if (!(await confirmDanger('Delete this video permanently?', 'The video and its requests and analyses will be deleted and cannot be recovered.', 'Delete permanently'))) return;
+      if (!(await confirmDanger('Delete this video permanently?', 'The video and its requests and analyses will be deleted and can\'t be recovered.', 'Delete permanently'))) return;
       busy(del, async () => {
         try { await action('delete_video', { p_video: v.id }); toast('Video deleted'); go('/me'); }
         catch (e) { toast(friendlyError(e), 'err'); }
@@ -127,7 +127,7 @@ export async function videoPage({ main, params, query }) {
   function comments(v) {
     const box = h('section', { id: 'comments' }, h('h2', null, 'Comments'));
     const list = h('div', { class: 'stack' });
-    const ta = h('textarea', { id: 'c_in', maxlength: 1000, style: { minHeight: '70px' }, placeholder: 'Write a comment…' });
+    const ta = h('textarea', { id: 'c_in', maxlength: 1000, style: { minHeight: '70px' }, placeholder: 'Write a comment...' });
     const send = h('button', { class: 'btn' }, 'Post comment');
     const loadC = async () => {
       clear(list).append(loading());
@@ -161,7 +161,7 @@ export async function videoPage({ main, params, query }) {
     const b = h('button', { class: 'btn ghost small' }, 'Report problematic content');
     b.onclick = async () => {
       const reason = await modal((close) => {
-        const ta = h('textarea', { maxlength: 500, placeholder: 'What is wrong with this content?' });
+        const ta = h('textarea', { maxlength: 500, placeholder: 'What\'s wrong with this content?' });
         return [h('h2', null, 'Report content'), h('p', null, 'The report goes to the pilot admins.'), ta,
           h('div', { class: 'btn-row', style: { marginTop: 'var(--space-4)' } },
             h('button', { class: 'btn', onclick: () => close(ta.value.trim() || 'No details') }, 'Send report'),
@@ -180,7 +180,7 @@ export async function videoPage({ main, params, query }) {
     try { url = await mediaUrl('video', v.id); } catch (e) { return toast(friendlyError(e), 'err'); }
     const res = await openVideoEditor(url, { trim: false });
     if (!res) return;
-    if (!res.cover) return toast('Could not read the video. Upload a photo for the cover instead.', 'err');
+    if (!res.cover) return toast('Couldn\'t read the video. Upload a photo for the cover instead.', 'err');
     try {
       const up = await uploadFile(new File([res.cover], 'cover.jpg', { type: 'image/jpeg' }), 'cover');
       let old;

@@ -4,7 +4,7 @@ import { sb, state, q, rpc, isAdmin, sportName, loadSports, languageNames } from
 import { personLink } from '../images.js';
 
 export function adminPage({ main, query }) {
-  if (!isAdmin()) return main.append(h('h1', null, 'Admin'), errorState('You do not have admin access.'));
+  if (!isAdmin()) return main.append(h('h1', null, 'Admin'), errorState('You don\'t have admin access.'));
   let tab = query.get('tab') || 'coaches';
   const body = h('div');
   const render = () => {
@@ -52,7 +52,7 @@ function coaches(box) {
     const reject = h('button', { class: 'btn danger small' }, 'Reject');
     const set = (status, btn) => async () => {
       if (!(await (status === 'approved' ? confirmDialog : confirmDanger)(status === 'approved' ? `Approve ${p.first_name} ${p.last_name} as a coach?` : `Reject ${p.first_name} ${p.last_name}?`,
-        status === 'approved' ? 'The coach will appear in search and can receive requests.' : 'The user will not appear as a coach or receive requests.', 'OK'))) return;
+        status === 'approved' ? 'The coach will appear in search and can receive requests.' : 'The user won\'t appear as a coach or receive requests.', 'OK'))) return;
       busy(btn, async () => {
         try { await rpc('admin_set_coach_status', { p_user: p.id, p_status: status }); toast('Updated'); load(); }
         catch (e) { toast(friendlyError(e), 'err'); }
@@ -66,8 +66,8 @@ function coaches(box) {
         h('dt', null, 'Username'), h('dd', null, '@' + p.username),
         h('dt', null, 'Email'), h('dd', null, pm[p.id]?.email || ''),
         h('dt', null, 'Phone'), h('dd', null, pm[p.id]?.phone || ''),
-        h('dt', null, 'Sports'), h('dd', null, (sm[p.id] || []).join(', ') || '—'),
-        h('dt', null, 'Languages'), h('dd', null, languageNames(p.languages) || '—')),
+        h('dt', null, 'Sports'), h('dd', null, (sm[p.id] || []).join(', ') || 'None'),
+        h('dt', null, 'Languages'), h('dd', null, languageNames(p.languages) || 'None')),
       h('p', { class: 'pre' }, p.bio || 'No bio'),
       h('div', { class: 'btn-row' }, filter !== 'approved' && approve, filter !== 'rejected' && reject));
   })) : empty(filter === 'pending' ? 'No pending coach applications' : 'No users in this list'));
@@ -90,7 +90,7 @@ function users(box) {
   }, ({ rows, pm }) => rows.length ? h('div', null, rows.map((p) => {
     const dis = h('button', { class: p.disabled ? 'btn secondary small' : 'btn danger small' }, p.disabled ? 'Enable account' : 'Disable account');
     dis.onclick = async () => {
-      if (!(await (p.disabled ? confirmDialog : confirmDanger)(p.disabled ? 'Enable this account again?' : 'Disable this account?', p.disabled ? null : 'The user will not be able to do anything, and their public content will be hidden.', 'OK'))) return;
+      if (!(await (p.disabled ? confirmDialog : confirmDanger)(p.disabled ? 'Enable this account again?' : 'Disable this account?', p.disabled ? null : 'The user won\'t be able to do anything, and their public content will be hidden.', 'OK'))) return;
       busy(dis, async () => { try { await rpc('admin_set_disabled', { p_user: p.id, p_disabled: !p.disabled }); toast('Updated'); load(); } catch (e) { toast(friendlyError(e), 'err'); } });
     };
     const sample = h('button', { class: 'btn ghost small' }, p.is_sample ? 'Unmark as sample' : 'Mark as sample');

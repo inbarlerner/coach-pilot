@@ -118,7 +118,7 @@ async function route() {
 
 // Account deletion was started but did not finish (page closed, network): finish it now.
 async function finishDeletionScreen() {
-  const main = h('main', { class: 'page' }, h('div', { class: 'state' }, h('div', { class: 'spinner', 'aria-hidden': 'true' }), h('p', null, 'Finishing account deletion…')));
+  const main = h('main', { class: 'page' }, h('div', { class: 'state' }, h('div', { class: 'spinner', 'aria-hidden': 'true' }), h('p', null, 'Finishing account deletion...')));
   clear(app).append(main);
   try {
     await deleteAccount();
@@ -163,7 +163,7 @@ async function start() {
   } catch (e) {
     clear(app).append(h('main', { class: 'page' }, errorState(
       e.message === 'SERVER_NOT_CONFIGURED'
-        ? 'The site is not connected to the database yet. Finish the settings step in the setup guide.'
+        ? 'The site isn\'t connected to the database yet. Finish the settings step in the setup guide.'
         : friendlyError(e), () => location.reload())));
     return;
   }
@@ -183,7 +183,7 @@ async function start() {
   else if (sb.auth.detected.error) {
     const prov = { google: 'Google' }[sb.auth.detected.provider];
     const msg = prov
-      ? `Signing in with ${prov} did not finish (${sb.auth.detected.error}). Try again, or sign in with email.`
+      ? `Signing in with ${prov} didn't finish (${sb.auth.detected.error}). Try again, or sign in with email.`
       : 'This link is invalid or has expired. You can request a new one.';
     setTimeout(() => import('./ui.js').then(({ toast }) => toast(msg, 'err')), 300);
   }

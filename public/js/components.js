@@ -27,7 +27,7 @@ export function protectedVideo(kind, id, opts = {}) {
   let inView = false;
   const start = async () => {
     // A cover already on screen stays until the video is ready, so the feed doesn't flash.
-    if (!auto || !opts.cover || !opts.lazy) clear(wrap).append(h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' }), 'Loading video…'));
+    if (!auto || !opts.cover || !opts.lazy) clear(wrap).append(h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' }), 'Loading video...'));
     try {
       const url = await mediaUrl(kind, id);
       const v = h('video', { src: url, controls: !opts.onOpen, playsInline: true, preload: 'metadata' });
@@ -35,7 +35,7 @@ export function protectedVideo(kind, id, opts = {}) {
       v.setAttribute('playsinline', '');
       v.addEventListener('error', () => {
         clear(wrap).append(h('div', { class: 'player-placeholder' },
-          'This video cannot play in this browser (the format may not be supported).',
+          'This video can\'t play in this browser (the format may not be supported).',
           h('a', { class: 'btn small', href: url, target: '_blank', rel: 'noopener' }, 'Open in a new window')));
       });
       clear(wrap).append(v);
@@ -180,7 +180,7 @@ export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
       supported
         ? [h('button', { class: 'btn', type: 'button', onclick: startRec }, kind === 'audio' ? 'Start voice recording' : 'Start video recording'),
            h('div', { class: 'hint' }, `Up to ${MAX_SEC / 60} minutes. Recording stops automatically at the limit.`)]
-        : h('p', { class: 'muted' }, 'Recording in the browser is not available on this device. You can upload a ready file.'),
+        : h('p', { class: 'muted' }, 'Recording in the browser isn\'t available on this device. You can upload a ready file.'),
       fileFallback());
   }
 
@@ -188,7 +188,7 @@ export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
     const picker = filePicker({ id: 'rec_file_' + kind, accept: kind === 'audio' ? 'audio/*' : 'video/*', label: kind === 'audio' ? 'Choose audio file' : 'Choose video file', onChange: (f) => {
       if (!f) return;
       const t = fileType(f);
-      if (!allowed.includes(t)) return idle('This file type is not supported.');
+      if (!allowed.includes(t)) return idle('This file type isn\'t supported.');
       if (f.size > maxMB * 1048576) return idle(`The file is too large: ${sizeMB(f.size)}MB. The limit is ${maxMB}MB per file. Trim it or record here instead.`);
       upload(f);
     } });
@@ -206,7 +206,7 @@ export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
     }
     const mime = pickMime();
     try { rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), ...BITRATE }); }
-    catch { return idle('Recording is not possible on this device. You can upload a ready file.'); }
+    catch { return idle('Recording isn\'t possible on this device. You can upload a ready file.'); }
     chunks = [];
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     rec.onstop = () => {
@@ -228,7 +228,7 @@ export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
     const live = kind === 'video' ? h('video', { muted: true, playsInline: true, autoplay: true }) : null;
     if (live) { live.srcObject = stream; live.muted = true; }
     clear(box).append(
-      h('div', { class: 'row' }, h('span', { class: 'rec-dot', 'aria-hidden': 'true' }), h('strong', null, 'Recording… '), clock),
+      h('div', { class: 'row' }, h('span', { class: 'rec-dot', 'aria-hidden': 'true' }), h('strong', null, 'Recording... '), clock),
       live,
       h('button', { class: 'btn', type: 'button', onclick: () => rec.state !== 'inactive' && rec.stop() }, 'Stop recording'));
   }
@@ -244,7 +244,7 @@ export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
     const del = h('button', { class: 'btn danger', type: 'button' }, 'Delete');
     del.onclick = async () => {
       if (!(await confirmDanger(kind === 'audio' ? 'Delete this voice recording?' : 'Delete this video recording?',
-        'It will be removed from the analysis. You can record or upload another one.', 'Delete'))) return;
+        'It\'ll be removed from the analysis. You can record or upload another one.', 'Delete'))) return;
       del.disabled = true;
       try { await onRemove(it); dropLocal(); idle(); toast('Recording deleted'); }
       catch (e) { del.disabled = false; toast(friendlyError(e), 'err'); }
@@ -261,13 +261,13 @@ export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
   async function upload(file) {
     const bar = h('div');
     const prog = h('div', { class: 'progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100' }, bar);
-    const label = h('p', null, 'Uploading… 0%');
+    const label = h('p', null, 'Uploading... 0%');
     clear(box).append(label, prog);
     try {
       const res = await uploadFile(file, purpose, (p) => {
         bar.style.width = Math.round(p * 100) + '%';
         prog.setAttribute('aria-valuenow', String(Math.round(p * 100)));
-        label.textContent = 'Uploading… ' + Math.round(p * 100) + '%';
+        label.textContent = 'Uploading... ' + Math.round(p * 100) + '%';
       });
       let it;
       try { it = await onSaved(res); } catch (e) { discardUpload(res.key); throw e; }

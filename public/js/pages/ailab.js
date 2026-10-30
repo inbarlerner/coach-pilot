@@ -45,12 +45,12 @@ async function ndjson(url, body, onLine) {
 }
 const ERRORS = {
   NOT_ADMIN: 'Only admins can run an analysis.', AI_MONTHLY_LIMIT: 'The lab reached its monthly AI spend limit.',
-  AI_NOT_CONFIGURED: 'The Claude API key is not set up in Cloudflare yet.', FRAMES_MISSING: 'The frames for this analysis were already removed from storage.',
+  AI_NOT_CONFIGURED: 'The Claude API key isn\'t set up in Cloudflare yet.', FRAMES_MISSING: 'The frames for this analysis were already removed from storage.',
   NO_FRAMES: 'The frames for this analysis were already removed from storage.',
   ALREADY_RUNNING: 'This analysis is already running. Refresh in a minute.', ALREADY_DONE: 'This analysis already finished.',
 };
 const errText = (m) => ERRORS[Object.keys(ERRORS).find((k) => String(m).includes(k))] || 'Error: ' + m;
-const runAnalysis = (id, onProgress) => ndjson('/api/ai-lab', { run_id: id }, (p) => { if (p.type === 'progress') onProgress(`Claude is working… ${p.seconds || 0}s`); });
+const runAnalysis = (id, onProgress) => ndjson('/api/ai-lab', { run_id: id }, (p) => { if (p.type === 'progress') onProgress(`Claude is working... ${p.seconds || 0}s`); });
 
 // ====================================================================== list
 export async function aiLabPage({ main }) {
@@ -90,7 +90,7 @@ export async function aiLabPage({ main }) {
       r.identified ? 'Identified: ' + r.identified : null, `${r.model} · ${r.effort} · ${r.lang === 'en' ? 'English' : 'Hebrew'}`, cents(r.cost_cents),
       r.parent_id ? 'Rerun' : null, r.frames_deleted_at ? 'Frames removed' : null].filter(Boolean).join(' · ')),
     h('div', { class: 'row' },
-      r.status !== 'done' && h('span', { class: 'tag' + (r.status === 'error' ? ' status-declined' : '') }, ({ new: 'Not started', running: 'Running…', error: 'Failed' })[r.status]),
+      r.status !== 'done' && h('span', { class: 'tag' + (r.status === 'error' ? ' status-declined' : '') }, ({ new: 'Not started', running: 'Running...', error: 'Failed' })[r.status]),
       (r.reviews || []).map((v) => h('span', { class: 'tag soft' }, `${names[v.reviewer] || '?'}: ${v.score ?? '?'}/5`)),
       !(r.reviews || []).length && r.status === 'done' && h('span', { class: 'meta' }, 'Not reviewed yet'))))) : empty('No analyses yet', 'Press "+ New analysis" to start.'));
   load();
@@ -197,7 +197,7 @@ export async function aiLabNewPage({ main }) {
     stage = new Stage({ videoSrc: url });
     clear(stageBox).append(stage.el);
     const ok = await stage.ready;
-    if (!ok) { clear(stageBox).append(errorState('This video cannot be opened.')); tools.hidden = true; return; }
+    if (!ok) { clear(stageBox).append(errorState('This video can\'t be opened.')); tools.hidden = true; return; }
     stage.video.controls = true;
     tools.hidden = false;
     stage.extraDraw = (ctx, W, H) => {
@@ -240,7 +240,7 @@ export async function aiLabNewPage({ main }) {
       const plan = planFrames(stage.video.duration, takeoff, crop);
       const { frames, video } = await extractFrames(src, plan, (i, n) => { msg.textContent = `Preparing frames ${i}/${n}`; });
       const total = frames.reduce((s, f) => s + f.blob.size, 0);
-      msg.textContent = 'Making room in storage…';
+      msg.textContent = 'Making room in storage...';
       const old = await rpc('ai_lab_make_room', { p_bytes: total });
       if (old?.length) await sb.storage.from(BUCKET).remove(old);
       const id = crypto.randomUUID();
@@ -257,7 +257,7 @@ export async function aiLabNewPage({ main }) {
         if (error) throw error;
       }
       if (file) localVideos.set(id, src);
-      msg.textContent = 'Sending to Claude…';
+      msg.textContent = 'Sending to Claude...';
       const last = await runAnalysis(id, (t) => { msg.textContent = t; });
       if (last.type !== 'done') toast(errText(last.message), 'err');
       go('/admin/lab/' + id);
@@ -273,7 +273,7 @@ export async function aiLabNewPage({ main }) {
         h('div', { class: 'field' }, h('label', null, 'Trainee\'s question'), question),
         h('div', { class: 'field' }, h('label', null, 'Feedback language'), langChips),
         h('div', { class: 'row' }, h('label', null, 'Model ', modelSel), h('label', null, 'Effort ', effortSel)),
-        h('p', { class: 'meta' }, 'Pause the video at takeoff, press "Mark takeoff here", then drag a box around the rider and the kite. The video itself is not uploaded: only the frames the AI sees are kept. Opus: about a minute and about $0.35 per analysis.'),
+        h('p', { class: 'meta' }, 'Pause the video at takeoff, press "Mark takeoff here", then drag a box around the rider and the kite. The video itself isn\'t uploaded: only the frames the AI sees are kept. Opus: about a minute and about $0.35 per analysis.'),
         go_, msg)));
   return () => stage?.destroy();
 }
@@ -414,7 +414,7 @@ export async function aiLabRunPage({ main, params }) {
         h('span', { class: 'tag soft' }, s.kind === 'pause' ? 'Pause' : `Slow motion ×${s.rate}`), h('strong', { dir: 'auto' }, s.title), h('span', { class: 'meta' }, frameLabel(s.from_frame))),
       h('p', { dir: 'auto' }, s.text),
       s.fix_index >= 0 && h('p', { class: 'meta' }, `Shows fix ${s.fix_index + 1}`),
-      verdictBtns(review.steps[i]), s.kind === 'pause' && editBtn, comment(review.steps[i], 'Comment: what is wrong, what would you say'));
+      verdictBtns(review.steps[i]), s.kind === 'pause' && editBtn, comment(review.steps[i], 'Comment: what\'s wrong, what would you say'));
     editBtn.onclick = async () => {
       if (box) { box.remove(); box = null; editBtn.classList.remove('on'); stopEdit(); return selectStep(i); }
       await selectStep(i, true); editBtn.classList.add('on');
@@ -483,7 +483,7 @@ export async function aiLabRunPage({ main, params }) {
         h('button', { class: 'btn secondary small', onclick: () => { player.stop(); if (stage.mode === 'video') stage.video.controls = true; } }, '⏹ Stop'),
         h('button', { class: 'btn secondary small', onclick: () => player.next() }, 'Next ⏭'),
         h('label', { class: 'chip' }, holdBox, 'Hold until click'), addMissed),
-      stage.mode === 'frames' && h('div', { class: 'card' }, h('p', { class: 'meta' }, 'The video is not stored, so these are the frames the AI saw. Have the file? Open it to see the feedback on the video itself.'), pick),
+      stage.mode === 'frames' && h('div', { class: 'card' }, h('p', { class: 'meta' }, 'The video isn\'t stored, so these are the frames the AI saw. Have the file? Open it to see the feedback on the video itself.'), pick),
       h('details', { class: 'card' }, h('summary', null, 'Written analysis'), h('div', { class: 'pre', dir: 'auto' }, renderText(a, run.lang))),
       h('div', { class: 'card' }, h('strong', null, 'Rerun with the current cards'), h('div', { class: 'row' }, rerunModel, rerunEffort, rerunLang, rerunBtn), rerunMsg),
       h('div', { class: 'btn-row' }, h('a', { class: 'btn secondary small', href: '#/admin/feedback?run=' + id }, 'Feedback for Claude on this analysis'), deleteButton(run))),
@@ -502,7 +502,7 @@ export async function aiLabRunPage({ main, params }) {
 function deleteButton(run) {
   const b = h('button', { class: 'btn danger small' }, 'Delete analysis');
   b.onclick = async () => {
-    if (!(await confirmDanger('Delete this analysis?', 'The analysis, its reviews and its frames will be deleted. This cannot be undone.', 'Delete'))) return;
+    if (!(await confirmDanger('Delete this analysis?', 'The analysis, its reviews and its frames will be deleted. This can\'t be undone.', 'Delete'))) return;
     busy(b, async () => {
       try {
         const unused = await rpc('ai_lab_delete_run', { p_run: run.id });   // keeps frames a rerun still uses
@@ -541,7 +541,7 @@ export async function aiFeedbackPage({ main, query }) {
     return { r, names };
   }, ({ r, names }) => r.length ? h('div', null, r.map((f) => {
     const st = sel(Object.entries(FSTATUS), f.status);
-    const out = h('input', { type: 'text', value: f.outcome || '', placeholder: 'Where it went: a todo, a plan section, a fix…', dir: 'auto' });
+    const out = h('input', { type: 'text', value: f.outcome || '', placeholder: 'Where it went: a todo, a plan section, a fix...', dir: 'auto' });
     const upd = (vals) => q(sb.from('ai_feedback').update(vals).eq('id', f.id)).then(() => toast('Updated')).catch((e) => toast(friendlyError(e), 'err'));
     st.onchange = () => upd({ status: st.value });
     out.onchange = () => upd({ outcome: out.value.slice(0, 2000) });

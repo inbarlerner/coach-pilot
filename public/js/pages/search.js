@@ -9,7 +9,7 @@ const TABS = [['all', 'All'], ['people', 'People'], ['videos', 'Videos'], ['coac
 
 export function searchPage({ main, query }) {
   let tab = TABS.some(([k]) => k === query.get('tab')) ? query.get('tab') : 'all';
-  const qIn = h('input', { type: 'search', id: 's_q', placeholder: 'Search drills, videos, trainees, coaches…', value: query.get('q') || '', autocomplete: 'off' });
+  const qIn = h('input', { type: 'search', id: 's_q', placeholder: 'Search drills, videos, trainees, coaches...', value: query.get('q') || '', autocomplete: 'off' });
   const sport = h('select', { id: 's_sport', 'aria-label': 'Sport' }, h('option', { value: '' }, 'All sports'), activeSports().map((s) => h('option', { value: s.id }, s.name)));
   const sportBox = h('div', { class: 'field' }, sport);
   const bar = h('div', { class: 'chips', role: 'group', 'aria-label': 'What to search', style: { marginBottom: 'var(--space-4)' } });
@@ -89,7 +89,7 @@ export function coachCard(c) {
         c.available ? h('span', { class: 'tag soft' }, 'Taking requests') : h('span', { class: 'tag fill' }, 'No free spot'))),
     h('p', { class: 'meta' }, 'Sports: ' + c.sport_ids.map(sportName).join(', ')),
     languagesLine(c.languages),
-    c.bio && h('p', null, c.bio.length > 160 ? c.bio.slice(0, 160) + '…' : c.bio),
+    c.bio && h('p', null, c.bio.length > 160 ? c.bio.slice(0, 160) + '...' : c.bio),
     h('p', { class: 'meta' }, `Response time: up to ${c.response_hours} hours · ${POLICY[c.followup_policy]}`),
     h('div', { class: 'btn-row' },
       h('a', { class: 'btn secondary small', href: '#/u/' + c.username }, 'Profile'),
