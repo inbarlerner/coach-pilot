@@ -5,6 +5,7 @@
 import { h, clear, icon, friendlyError, errorState, loading } from './ui.js';
 import { sb, q, mediaUrl, coverUrl } from './api.js';
 import { analysisItem, holdFeed, REMOVED_TEXT } from './components.js';
+import { fillsScreen } from './viewer.js';
 
 const NEXT_DIRECTION = 1;       // 1: a finger moving down goes to the next video. -1: a finger moving up does.
 const AXIS_PX = 12;             // how far a finger moves before the swipe's direction is decided
@@ -54,6 +55,10 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     panel);
 
   // ---------- The current video ----------
+  // No black bars when the clip's shape is close to the screen's (see fillsScreen).
+  function fit() { video.classList.toggle('fp-fill', fillsScreen(video.videoWidth, video.videoHeight, el.clientWidth, el.clientHeight)); }
+  video.addEventListener('loadedmetadata', fit);
+
   async function load(from = 0) {
     const r = rows[i], mine = ++seq;
     if (panelOpen) renderPanel();
@@ -64,6 +69,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     video.pause();
     video.removeAttribute('src');
     video.removeAttribute('poster');
+    video.classList.remove('fp-fill');
     video.load();
     showProgress();
     if (r.cover_key) coverUrl(r.cover_key).then((u) => { if (u && mine === seq) video.poster = u; });
@@ -308,6 +314,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     closed = true;
     seq++;
     window.removeEventListener('popstate', onPop);
+    window.removeEventListener('resize', fit);
     document.removeEventListener('keydown', onKey);
     document.body.style.overflow = prevOverflow;
     document.documentElement.classList.remove('fp-open');
@@ -325,6 +332,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   holdFeed(true);
   history.pushState({ feedPlayer: true }, '');
   window.addEventListener('popstate', onPop);
+  window.addEventListener('resize', fit);
   setMuted(false);
   document.body.append(el);
   soundBtn.focus({ preventScroll: true });
