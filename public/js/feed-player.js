@@ -54,6 +54,15 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     panel);
 
   // ---------- The current video ----------
+  // Fill the screen (no black bars) when the clip's shape is close to the screen's, cropping at most a quarter
+  // of it; a clip of a very different shape (a wide one on a phone) is shown whole.
+  function fit() {
+    const vw = video.videoWidth, vh = video.videoHeight, sw = el.clientWidth, sh = el.clientHeight;
+    const ratio = vw && vh && sw && sh ? (vw / vh) / (sw / sh) : 0;
+    video.classList.toggle('fp-fill', ratio > 0.75 && ratio < 4 / 3);
+  }
+  video.addEventListener('loadedmetadata', fit);
+
   async function load(from = 0) {
     const r = rows[i], mine = ++seq;
     if (panelOpen) renderPanel();
@@ -64,6 +73,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     video.pause();
     video.removeAttribute('src');
     video.removeAttribute('poster');
+    video.classList.remove('fp-fill');
     video.load();
     showProgress();
     if (r.cover_key) coverUrl(r.cover_key).then((u) => { if (u && mine === seq) video.poster = u; });
@@ -308,6 +318,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     closed = true;
     seq++;
     window.removeEventListener('popstate', onPop);
+    window.removeEventListener('resize', fit);
     document.removeEventListener('keydown', onKey);
     document.body.style.overflow = prevOverflow;
     document.documentElement.classList.remove('fp-open');
@@ -325,6 +336,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   holdFeed(true);
   history.pushState({ feedPlayer: true }, '');
   window.addEventListener('popstate', onPop);
+  window.addEventListener('resize', fit);
   setMuted(false);
   document.body.append(el);
   soundBtn.focus({ preventScroll: true });
