@@ -25,6 +25,7 @@
 | אירוח | Cloudflare Pages | `public/` + שתי פונקציות ב־`functions/api/` |
 | Auth | Supabase Auth | מייל+סיסמה, שחזור סיסמה, Google (OAuth, מופעלים ב־Supabase → Providers; הוראות ב־README) |
 | DB | Supabase Postgres | RLS, פונקציות RPC, pg_cron כל דקה לפקיעת בקשות |
+| מיילים | Gmail SMTP דרך Supabase | מיילי שחזור סיסמה נשלחים מ־`coachitapp@gmail.com` (סיסמת אפליקציה, מוגדר ב־Supabase ← Emails ← SMTP; הוראות ב־README). תבנית המייל: `supabase/email-templates/reset-password.html` |
 | קבצים | Supabase Storage | דלי פרטי `media` (וידאו/קול/קאברים, עד 50MB, קישור חתום לשעה) + דלי ציבורי `avatars` (תמונות פרופיל, עד 2MB) |
 
 משתני סביבה ב־Cloudflare Pages: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (מקבל גם `SUPABASE_ANON_KEY` ישן), ו־`ANTHROPIC_API_KEY` כסוד (Secret) למעבדת ה־AI. `/api/health` מראה אם חסר משהו.
@@ -65,6 +66,7 @@ supabase/            להריץ לפי הסדר ב־SQL Editor:
   010_analysis_drawings.sql שרטוטי המאמן על הסרטון נשמרים עם הניתוח (סוג פריט 'drawing')
   011_social_login.sql כניסה עם Google: needs_setup + complete_signup; אישור 18+ ומדיניות פרטיות (profile_private.consented_at)
   012_delete_account.sql מחיקת חשבון עצמית (הגדרות): start_account_deletion → מחיקת קבצים בדפדפן → finish_account_deletion
+  email-templates/     תבניות מייל להדבקה ב־Supabase ← Emails ← Templates (לא SQL)
 tests/               בדיקות SQL (stubs ל־Supabase), פונקציות, ו־e2e בדפדפן
 functions/_lib/ai-coach.js  הליבה של מאמן ה־AI (פרומפט, סכמה, קריאה ל־Claude, מחיר)
 functions/api/ai-lab.js     מריץ ניתוח AI במעבדה (מנהלות בלבד, מפתח ה־API סוד ב־Cloudflare)

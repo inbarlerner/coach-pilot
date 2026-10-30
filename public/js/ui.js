@@ -197,7 +197,11 @@ export function friendlyError(e) {
   if (/Object not found|not_found/i.test(msg)) return ERR.NOT_FOUND;
   for (const [k, v] of Object.entries(ERR)) if (msg.includes(k)) return v;
   if (/Password should be at least/i.test(msg)) return 'The password is too short (at least 8 characters).';
+  // Supabase Auth emails (password reset): too soon after the last link, or the mail sender failed / isn't set up
+  const wait = msg.match(/only request this after (\d+) seconds?/i);
+  if (wait) return `We just sent a link. You can ask for another one in ${wait[1]} seconds.`;
   if (/rate limit/i.test(msg)) return 'Too many attempts. Try again in a few minutes.';
+  if (/Error sending|not authorized|smtp/i.test(msg)) return 'We could not send the email right now. Try again later, or write to coachitapp@gmail.com.';
   if (/duplicate key.*username|profiles_username_key/i.test(msg)) return 'This username is taken.';
   return 'Something went wrong. Please try again. (' + msg.slice(0, 120) + ')';
 }
