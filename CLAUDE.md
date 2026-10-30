@@ -124,3 +124,6 @@ python3 tests/e2e/acceptance_ui.py   # Supabase Auth + PostgREST מקומיים 
 ## השלבים הבאים (פתוח)
 - ניתוח סרטונים בעזרת AI.
 - תשלומים (לפי הכלל העסקי למעלה).
+
+### כשנעבור למסלולים בתשלום (כשתהיה תנועה)
+- **מסך הכניסה של Google מציג את כתובת Supabase** ("continue to rrtdfvzoqlrsgxyuqeke.supabase.co") במקום CoachIt. הפתרון: Custom Domain ב־Supabase (מסלול Pro + תוסף, בערך $35 לחודש), ואז Branding verification ב־Google Cloud כדי שיופיעו השם והלוגו. חלופה חינמית, אם נרצה לפני כן: להעביר את הכניסה עם Google דרך האתר שלנו (`id_token` → `signInWithIdToken`) כדי שיוצג `coach-pilot-5jk.pages.dev`.
