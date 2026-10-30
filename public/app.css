@@ -268,6 +268,25 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 .player-placeholder img.cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .player-placeholder.has-cover .btn { position: relative; box-shadow: 0 2px 10px rgba(0,0,0,.4); white-space: nowrap; }
 
+/* Feed player: full screen on top of .viewer; swipes move the video and bring in the analysis */
+.player.opens { cursor: pointer; }
+.fp { overscroll-behavior: none; }
+.fp-video.fp-sliding, .fp-panel.fp-sliding { transition: transform .18s ease-out; }
+@media (prefers-reduced-motion: reduce) { .fp-video.fp-sliding, .fp-panel.fp-sliding { transition: none; } }
+.fp-heading { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+.fp-owner { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp .viewer-top-btn { margin-inline-start: 0; color: var(--deep); background: var(--white); min-height: var(--tap-small); border-radius: var(--pill); }
+.fp-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 3; width: 72px; height: 72px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.fp-state svg { width: 36px; height: 36px; }
+.fp-message { position: absolute; top: 50%; inset-inline: var(--space-4); transform: translateY(-50%); z-index: 3; text-align: center; pointer-events: none; }
+.fp-hint { align-self: center; padding: var(--space-2) var(--space-3); border-radius: var(--pill); background: rgba(0,0,0,.7); font-size: 14px; text-align: center; pointer-events: none; }
+.fp-panel { position: absolute; inset: 0; z-index: 6; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; transform: translateX(-100%);
+  padding: calc(env(safe-area-inset-top) + var(--space-3)) var(--space-4) calc(env(safe-area-inset-bottom) + var(--space-5));
+  background: var(--bg); color: var(--text); user-select: text; -webkit-user-select: text; }
+.fp-panel > * { max-width: 720px; margin-inline: auto; }
+.fp-panel > .btn { display: flex; width: fit-content; margin-inline: max(0px, calc((100% - 720px) / 2)) 0; }
+.fp-panel h2 { margin-top: var(--space-3); }
+
 /* Video settings: closed until asked for */
 .video-settings { margin-top: var(--space-5); }
 .settings-options { margin-top: var(--space-3); }

@@ -201,6 +201,8 @@ const P = {
   play: '<path d="M8 5v14l11-7z"/>',
   back: '<path d="m15 6-6 6 6 6"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
+  sound: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9a4 4 0 0 1 0 6"/>',
+  muted: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 10 4 4M21 10l-4 4"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="4"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   pencil: '<path d="M4 20l4-1L19 8l-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/>',

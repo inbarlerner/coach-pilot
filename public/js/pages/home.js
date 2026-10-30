@@ -3,11 +3,13 @@ import { h, clear, loading, empty, errorState, friendlyError, fmtDate } from '..
 import { state, rpc, activeSports, sportName, isCoach } from '../api.js';
 import { protectedVideo } from '../components.js';
 import { personLink } from '../images.js';
+import { openFeedPlayer } from '../feed-player.js';
 
 const PAGE = 8;
 
 export function homePage({ main }) {
-  let sport = null, offset = 0, done = false;
+  let sport = null, offset = 0, done = false, player = null;
+  const shown = [];   // the rows on screen, in order: the full-screen player moves through them
   const list = h('div');
   const more = h('div', { class: 'center' });
 
@@ -25,7 +27,7 @@ export function homePage({ main }) {
         } }, name))),
     list, more);
 
-  function reset() { offset = 0; done = false; clear(list); loadMore(true); }
+  function reset() { offset = 0; done = false; shown.length = 0; clear(list); loadMore(true); }
 
   async function loadMore(first) {
     if (done) return;
@@ -39,17 +41,25 @@ export function homePage({ main }) {
           'Videos that people choose to make public show up here.', h('a', { class: 'btn', href: '#/upload' }, 'Upload a video')));
         done = true; return;
       }
-      rows.forEach((r) => list.append(feedItem(r)));
+      rows.forEach((r) => { shown.push(r); list.append(feedItem(r, open)); });
       if (rows.length < PAGE) { done = true; if (!first || rows.length) more.append(h('p', { class: 'muted' }, 'That\'s all for now.')); }
       else more.append(h('button', { class: 'btn secondary', onclick: () => loadMore(false) }, 'Load more'));
     } catch (e) {
       clear(more).append(errorState(friendlyError(e), () => loadMore(first)));
     }
   }
+  function open(r, startAt) {
+    const index = shown.indexOf(r);
+    player = openFeedPlayer({ rows: shown, index, startAt, more: () => loadMore(false), onClose: (last) => {
+      player = null;
+      if (last !== index) requestAnimationFrame(() => list.children[last]?.scrollIntoView({ block: 'center' }));
+    } });
+  }
   loadMore(true);
+  return () => player?.destroy();
 }
 
-export function feedItem(r) {
+export function feedItem(r, onOpen) {
   return h('article', { class: 'feed-item' },
     h('div', { class: 'head' },
       h('div', { class: 'row between' },
@@ -57,7 +67,7 @@ export function feedItem(r) {
         r.is_sample && h('span', { class: 'tag' }, 'Sample')),
       h('div', null, sportName(r.sport_id), ' · ', h('strong', null, r.title)),
       h('div', { class: 'meta' }, fmtDate(r.created_at))),
-    protectedVideo('video', r.video_id, { lazy: true, cover: r.cover_key }),
+    protectedVideo('video', r.video_id, { lazy: true, cover: r.cover_key, onOpen: (time) => onOpen(r, time) }),
     h('div', { class: 'foot' },
       r.coach_name
         ? h('div', { class: 'row' }, 'Analysis by ', personLink(feedPerson(r.coach_name, r.coach_username, r.coach_avatar), { size: 26 }))

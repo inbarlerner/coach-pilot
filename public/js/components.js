@@ -7,11 +7,21 @@ import { drawingsReview } from './viewer.js';
 /**
  * Video player for a protected file.
  * opts.lazy: load and play when scrolled into view, muted and looping (the feed).
+ * opts.onOpen(time): a tap opens the video elsewhere (the feed's full-screen player) instead of showing controls.
  * opts.autoplay: play as soon as it opens.
  * opts.cover: cover key; shown as the poster until the video plays.
  */
 export function protectedVideo(kind, id, opts = {}) {
   const wrap = h('div', { class: 'player' });
+  if (opts.onOpen) {
+    const open = () => opts.onOpen(wrap.querySelector('video')?.currentTime || 0);
+    wrap.classList.add('opens');
+    wrap.setAttribute('role', 'button');
+    wrap.tabIndex = 0;
+    wrap.setAttribute('aria-label', 'Open video full screen');
+    wrap.addEventListener('click', (e) => { if (!e.target.closest('a, button')) open(); });
+    wrap.addEventListener('keydown', (e) => { if (e.target === wrap && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } });
+  }
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;   // these viewers keep the Watch button
   const auto = (opts.lazy || opts.autoplay) && !still;
   let inView = false;
@@ -20,7 +30,7 @@ export function protectedVideo(kind, id, opts = {}) {
     if (!auto || !opts.cover || !opts.lazy) clear(wrap).append(h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' }), 'Loading video…'));
     try {
       const url = await mediaUrl(kind, id);
-      const v = h('video', { src: url, controls: true, playsInline: true, preload: 'metadata' });
+      const v = h('video', { src: url, controls: !opts.onOpen, playsInline: true, preload: 'metadata' });
       if (opts.cover) coverUrl(opts.cover).then((u) => { if (u) v.poster = u; });
       v.setAttribute('playsinline', '');
       v.addEventListener('error', () => {
@@ -30,7 +40,7 @@ export function protectedVideo(kind, id, opts = {}) {
       });
       clear(wrap).append(v);
       if (opts.lazy) {
-        // Browsers block sound until a tap, so the feed plays muted; the video's own controls turn it on.
+        // Browsers block sound until a tap, so the feed plays muted; the full-screen player has the sound.
         v.muted = true;
         v.loop = true;
         if (auto ? inView : opts.autoplay) playOnly(v);
@@ -49,12 +59,14 @@ export function protectedVideo(kind, id, opts = {}) {
   if (opts.lazy) {
     wrap.append(h('div', { class: 'player-placeholder' + (opts.cover ? ' has-cover' : '') },
       opts.cover && coverImg(coverUrl(opts.cover)),
-      still && h('button', { class: 'btn', onclick: () => { opts.autoplay = true; start(); } }, icon('play'), 'Watch video')));
+      still && h('button', { class: 'btn', onclick: () => { if (opts.onOpen) return opts.onOpen(0); opts.autoplay = true; start(); } }, icon('play'), 'Watch video')));
     if (auto) {
       new IntersectionObserver(([e]) => {
         inView = e.isIntersecting;
+        if (inView) onScreen.add(wrap); else onScreen.delete(wrap);
+        if (held) return;
         const v = wrap.querySelector('video');
-        if (!inView) v?.pause();
+        if (!inView) { v?.pause(); if (v === playing) { playing = null; playTopVisible(); } }
         else if (v) playOnly(v);
         else start();
       }, { threshold: 0.6 }).observe(wrap);
@@ -64,11 +76,23 @@ export function protectedVideo(kind, id, opts = {}) {
 }
 
 // Only one feed video plays at a time.
-let playing = null;
+let playing = null, held = false;
+const onScreen = new Set();
+// When the playing video leaves, another one on screen takes over; it may have been paused by playOnly.
+function playTopVisible() {
+  const v = [...onScreen].map((w) => w.querySelector('video')).find(Boolean);
+  if (v) playOnly(v);
+}
 function playOnly(v) {
   if (playing && playing !== v) playing.pause();
   playing = v;
-  v.play().catch(() => {});
+  if (!held) v.play().catch(() => {});
+}
+// While the full-screen player is open, the feed behind it stays quiet.
+export function holdFeed(on) {
+  held = on;
+  if (on) playing?.pause();
+  else playTopVisible();
 }
 
 export const REMOVED_TEXT = 'This video was removed automatically to free up storage. The analysis text and messages were kept.';
