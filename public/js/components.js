@@ -266,12 +266,76 @@ export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
   return box;
 }
 
-// Spoken languages: a chip per language. el.value() returns the picked codes.
+// Spoken languages: pills for the common ones, a search box for the rest. A language picked from the search
+// joins the pills already selected; tapping it again removes it. el.value() returns the picked codes.
+const COMMON_LANGUAGES = ['en', 'he', 'ru', 'ar', 'nl', 'es'];
+let pickerCount = 0;
 export function languagePicker(selected = [], name = 'langs') {
-  const el = h('div', { class: 'chips', role: 'group', 'aria-label': 'Languages I speak' },
-    Object.entries(LANGUAGES).map(([code, label]) => h('label', { class: 'chip' },
-      h('input', { type: 'checkbox', name, value: code, checked: selected.includes(code) }), label)));
-  el.value = () => [...el.querySelectorAll(`input[name="${name}"]:checked`)].map((i) => i.value);
+  const listId = 'langlist' + (++pickerCount);
+  const pill = (code, on) => h('label', { class: 'chip', 'data-code': code },
+    h('input', { type: 'checkbox', name, value: code, checked: on }), LANGUAGES[code] || code.toUpperCase());
+  const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Languages I speak' },
+    COMMON_LANGUAGES.map((c) => pill(c, selected.includes(c))),
+    selected.filter((c) => !COMMON_LANGUAGES.includes(c)).map((c) => pill(c, true)));
+  // An extra language that gets unticked leaves the row.
+  chips.addEventListener('change', (e) => {
+    const box = e.target.closest('.chip');
+    if (box && !e.target.checked && !COMMON_LANGUAGES.includes(box.dataset.code)) box.remove();
+  });
+
+  const input = h('input', { type: 'text', class: 'lang-input', role: 'combobox', autocomplete: 'off', spellcheck: false,
+    placeholder: 'Search other languages', 'aria-label': 'Search other languages', 'aria-expanded': 'false', 'aria-controls': listId, 'aria-autocomplete': 'list' });
+  const list = h('ul', { class: 'lang-list', id: listId, role: 'listbox', 'aria-label': 'Other languages', hidden: true });
+  let options = [], active = -1;
+
+  const picked = () => new Set([...chips.querySelectorAll('input:checked')].map((i) => i.value));
+  function render() {
+    const q = input.value.trim().toLowerCase(), have = picked();
+    options = Object.entries(LANGUAGES)
+      .filter(([c, l]) => !COMMON_LANGUAGES.includes(c) && !have.has(c) && (!q || l.toLowerCase().includes(q)))
+      .sort((x, y) => x[1].localeCompare(y[1]));
+    active = q && options.length ? 0 : -1;
+    clear(list).append(...(options.length
+      ? options.map(([c, l], k) => h('li', { role: 'option', id: `${listId}-${c}`, 'aria-selected': String(k === active),
+          onpointerdown: (e) => e.preventDefault(), onclick: () => choose(c) }, l))
+      : [h('li', { class: 'lang-empty', role: 'presentation' }, 'No language found')]));
+    mark();
+  }
+  function mark() {
+    [...list.querySelectorAll('[role=option]')].forEach((li, k) => li.setAttribute('aria-selected', String(k === active)));
+    const cur = active >= 0 && list.querySelectorAll('[role=option]')[active];
+    if (cur) { input.setAttribute('aria-activedescendant', cur.id); cur.scrollIntoView({ block: 'nearest' }); }
+    else input.removeAttribute('aria-activedescendant');
+  }
+  function open() { render(); list.hidden = false; input.setAttribute('aria-expanded', 'true'); }
+  function shut() { list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); }
+  function choose(code) {
+    chips.append(pill(code, true));
+    input.value = '';
+    shut();
+  }
+  input.addEventListener('focus', open);
+  input.addEventListener('click', () => { if (list.hidden) open(); });
+  input.addEventListener('input', open);
+  input.addEventListener('blur', shut);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (list.hidden) return open();
+      if (!options.length) return;
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+      mark();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();   // never submits the sign-up form
+      if (!list.hidden && active >= 0) choose(options[active][0]);
+    } else if (e.key === 'Escape' && !list.hidden) {
+      e.preventDefault(); e.stopPropagation(); shut();
+    }
+  });
+
+  const el = h('div', { class: 'lang-picker' }, chips,
+    h('div', { class: 'lang-search' }, icon('search'), input), list);
+  el.value = () => [...picked()];
   return el;
 }
 
