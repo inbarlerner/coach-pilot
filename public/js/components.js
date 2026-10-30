@@ -110,7 +110,7 @@ export function analysisItem(item, videoId) {
       const url = await mediaUrl('item', item.id);
       const el = item.kind === 'audio'
         ? h('audio', { src: url, controls: true, style: { width: '100%' } })
-        : h('video', { src: url, controls: true, playsInline: true, style: { width: '100%', maxHeight: '60vh', background: '#000', borderRadius: 'var(--radius)' } });
+        : h('video', { src: url, controls: true, playsInline: true, style: { width: '100%', maxHeight: '60vh', borderRadius: 'var(--radius)' } });
       clear(slot).append(el);
       el.play().catch(() => {});
     } catch (e) {

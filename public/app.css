@@ -257,16 +257,18 @@ nav.bottom a .avatar { width: 28px; height: 28px; }
 
 /* Covers */
 .cover-picker { border-radius: var(--radius); padding: var(--space-3); }
-.cover-preview { aspect-ratio: 16/9; background: #000; border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: var(--space-2); }
+.cover-preview { aspect-ratio: 16/9; background: transparent; border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: var(--space-2); }
 .cover-preview img { width: 100%; height: 100%; object-fit: contain; }
-.cover-scrub { width: 100%; max-height: 260px; background: #000; border-radius: var(--radius); margin: var(--space-2) 0; }
+.cover-scrub { width: 100%; max-height: 260px; background: transparent; border-radius: var(--radius); margin: var(--space-2) 0; }
 .cover-picker input[type=range] { width: 100%; margin-bottom: var(--space-2); accent-color: var(--deep); }
 .cover-thumb { width: 96px; aspect-ratio: 3 / 4; flex: none; border-radius: var(--radius); overflow: hidden; background: var(--fill); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; }
 .cover-thumb img { width: 100%; height: 100%; object-fit: cover; }
 
 /* Video player */
-.player { background: #000; border-radius: var(--radius); overflow: hidden; }
-.player video { width: 100%; max-height: 70vh; background: #000; }
+/* Inline players: a video narrower than its box leaves the sides see-through (the card shows), not black bars.
+   Full-screen players and editors keep black, since there the video is the whole screen. */
+.player { background: transparent; border-radius: var(--radius); overflow: hidden; }
+.player video { width: 100%; max-height: 70vh; background: transparent; }
 .player-placeholder { aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--space-2); color: #fff; background: #000; padding: var(--space-4); text-align: center; }
 .player-placeholder .btn { background: var(--white); color: var(--deep); }
 .player-placeholder .spinner { border-color: rgba(255,255,255,.3); border-top-color: #fff; }
@@ -341,7 +343,7 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 
 /* Recorder */
 .rec { --fill: var(--white); background: var(--mint); border-radius: var(--radius); padding: var(--space-4); }
-.rec video { width: 100%; max-height: 300px; background: #000; border-radius: var(--radius); }
+.rec video { width: 100%; max-height: 300px; background: transparent; border-radius: var(--radius); }
 .rec-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--deep); animation: blink 1s infinite; vertical-align: middle; }
 @keyframes blink { 50% { opacity: .2; } }
 .soon { opacity: .6; }
@@ -407,8 +409,8 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 .viewer-card-label { position: absolute; bottom: 12px; inset-inline-start: 12px; background: rgba(0,0,0,.7); padding: .35rem .7rem; border-radius: 999px; font-weight: 700; }
 
 /* Drawings shown with a finished analysis */
-.review-stage { position: relative; background: #000; border-radius: var(--radius); overflow: hidden; }
-.review-video { width: 100%; max-height: 60vh; display: block; background: #000; }
+.review-stage { position: relative; background: transparent; border-radius: var(--radius); overflow: hidden; }
+.review-video { width: 100%; max-height: 60vh; display: block; background: transparent; }
 .review-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
 /* Colours for the pencil, and the explanation line for a frame */
