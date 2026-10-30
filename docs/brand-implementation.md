@@ -131,7 +131,7 @@ Not in the brand book yet. Built on branch `feature/dark-mode` for Inbar to appr
 | Errors | `--red` on `--pale-red` | same |
 | Video surfaces | black | same |
 
-How it works: styles in `app.css` use role tokens (`--bg`, `--surface`, `--text`, `--strong`, `--primary`, `--fill`...), and the dark blocks at the top of `app.css` remap them. Light values equal the old ones exactly. **Settings → Appearance** offers Match my phone / Light / Dark, kept in the browser (`localStorage.theme`, see `public/js/theme.js`); an inline script in `index.html` applies it before the first paint. New styles should use the role tokens, not `--deep`/`--mint`/... directly, or they won't follow dark mode.
+How it works: styles in `app.css` use role tokens (`--bg`, `--surface`, `--text`, `--strong`, `--primary`, `--fill`...), and the dark blocks at the top of `app.css` remap them. Light values equal the old ones exactly. **Settings → Appearance** offers Light (the default) / Dark, kept in the browser (`localStorage.theme`, see `public/js/theme.js`); an inline script in `index.html` applies it before the first paint. New styles should use the role tokens, not `--deep`/`--mint`/... directly, or they won't follow dark mode.
 
 ## Status tags
 

@@ -149,7 +149,7 @@ export async function settingsPage({ main }) {
 // ---------- Appearance (kept on this device, no save button) ----------
 function appearanceCard() {
   const cur = getTheme();
-  const opts = [['system', 'Match my phone'], ['light', 'Light'], ['dark', 'Dark']];
+  const opts = [['light', 'Light'], ['dark', 'Dark']];
   const group = h('div', { class: 'choices', role: 'radiogroup', 'aria-label': 'Appearance' }, opts.map(([v, l]) =>
     h('label', { class: 'choice' },
       h('input', { type: 'radio', name: 'theme', value: v, checked: cur === v, onchange: () => setTheme(v) }),

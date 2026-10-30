@@ -64,7 +64,7 @@
   accent-color: var(--accent);
 }
 /* Dark theme (proposal, not yet in the brand book): the same six colours, deep screen and bottle cards.
-   Settings → Appearance sets data-theme on <html>; with no choice we follow the phone. Keep the two blocks equal. */
+   Settings → Appearance sets data-theme=dark on <html>; with no choice the app is light. */
 :root[data-theme=dark] {
   --bg: var(--deep); --surface: var(--bottle); --surface-2: var(--bottle); --line: var(--bottle);
   --text: var(--white); --muted: var(--mint); --inverse: var(--deep);
@@ -75,19 +75,6 @@
   --focus: var(--white); --scrim: rgba(0, 20, 14, .7); --shadow: rgba(0, 0, 0, .4);
   --fill-on-bg: var(--bottle); --fill-on-surface: var(--deep); --fill-on-modal: var(--deep); --btn2: var(--mint);
   color-scheme: dark;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme=light]) {
-    --bg: var(--deep); --surface: var(--bottle); --surface-2: var(--bottle); --line: var(--bottle);
-    --text: var(--white); --muted: var(--mint); --inverse: var(--deep);
-    --strong: var(--white); --on-strong: var(--deep);
-    --primary: var(--white); --on-primary: var(--deep); --primary-active: var(--mint);
-    --done: var(--mint); --on-done: var(--deep);
-    --field: var(--deep); --field-line: var(--mint); --accent: var(--mint); --modal: var(--bottle);
-    --focus: var(--white); --scrim: rgba(0, 20, 14, .7); --shadow: rgba(0, 0, 0, .4);
-    --fill-on-bg: var(--bottle); --fill-on-surface: var(--deep); --fill-on-modal: var(--deep); --btn2: var(--mint);
-    color-scheme: dark;
-  }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
