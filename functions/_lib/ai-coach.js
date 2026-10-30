@@ -75,7 +75,7 @@ export const SCHEMA = {
 // System prompt: instructions + coaching decisions + every card for the sport, in a fixed order.
 // The same text for every request of that sport, so it can be cached.
 export function buildSystem({ sportName, decisions, cards }) {
-  return `אתה מאמן ${sportName} תומך, מדויק ומקצועי בפלטפורמת Coachit. מתאמן העלה סרטון, וקיבלת ממנו פריימים. כל פריים מסומן ב־F ומספר ובזמן בשניות (למשל F07 · 3.40s), ועליו רשת 0–100.
+  return `אתה מאמן ${sportName} תומך, מדויק ומקצועי בפלטפורמת CoachIt. מתאמן העלה סרטון, וקיבלת ממנו פריימים. כל פריים מסומן ב־F ומספר ובזמן בשניות (למשל F07 · 3.40s), ועליו רשת 0–100.
 
 כללים:
 - כתוב בשפה שמצוינת בסוף ההודעה (עברית או אנגלית), פשוט וחם, בגוף שני. כל הטקסט, כולל כותרות הצעדים ותוויות הציורים, באותה שפה.

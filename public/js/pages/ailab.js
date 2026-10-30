@@ -133,7 +133,7 @@ async function exportReviews() {
     const [rows, names] = await Promise.all([
       q(sb.from('ai_lab_runs').select('id,created_at,video,trick_title,model,effort,lang,analysis,reviews:ai_lab_reviews(*)').eq('status', 'done').order('created_at', { ascending: false }).limit(100)),
       loadNames()]);
-    const L = ['# AI coach lab reviews (Coachit)', '', 'Reviews by our coaches of AI analyses. Turn them into card edits, coaching decisions or prompt fixes; list what changed per run.', ''];
+    const L = ['# AI coach lab reviews (CoachIt)', '', 'Reviews by our coaches of AI analyses. Turn them into card edits, coaching decisions or prompt fixes; list what changed per run.', ''];
     for (const r of rows.filter((x) => (x.reviews || []).length)) {
       const a = r.analysis || {};
       L.push(`## ${fmtDate(r.created_at)} · ${r.video?.name || ''} · trick: ${r.trick_title || 'not given'} · AI said: ${a.trick_identified || '?'} · ${r.model}/${r.effort}/${r.lang}`, `Link: ${location.origin}/#/admin/lab/${r.id}`);
@@ -560,7 +560,7 @@ export async function aiFeedbackPage({ main, setTitle, query }) {
     const names = await loadNames();
     const items = rows;
     if (!items.length) return toast('Nothing to copy', 'err');
-    const L = ['# Feedback from the Coachit admins', '', 'Turn each item into a todo, a plan change or a fix. Reply with what went where, by #id, so we can update the status in the app.', ''];
+    const L = ['# Feedback from the CoachIt admins', '', 'Turn each item into a todo, a plan change or a fix. Reply with what went where, by #id, so we can update the status in the app.', ''];
     for (const f of items) {
       L.push(`## #${f.id} · ${f.kind} · ${FSTATUS[f.status]} · ${names[f.author] || ''} · ${fmtDate(f.created_at)}`, f.body);
       if (f.run_id) L.push(`Run: ${location.origin}/#/admin/lab/${f.run_id}`);
