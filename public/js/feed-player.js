@@ -1,5 +1,5 @@
 // Full-screen player for the feed. A tap plays or pauses. Swiping down goes to the next video and up to the
-// previous one. Swiping right brings in the video's analysis; swiping left goes back to the video.
+// previous one. Swiping right lays the video's analysis over it in floating boxes; swiping left takes them away.
 // Keyboard: space plays or pauses, the arrows do the same as the swipes, Escape goes back.
 // One <video> is reused for all the videos, so iPhones keep the sound on from one video to the next.
 import { h, clear, icon, friendlyError, errorState, loading } from './ui.js';
@@ -39,9 +39,9 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   const track = h('div', { class: 'viewer-track', role: 'slider', 'aria-label': 'Video position', tabindex: '0' }, fill);
   const time = h('span', { class: 'viewer-time' }, '0:00 / 0:00');
   const hint = h('div', { class: 'fp-hint', hidden: true }, 'Swipe right for the analysis. Swipe down for the next video.');
-  const panelBody = h('div');
+  const panelBody = h('div', { class: 'fp-boxes' });
   const panel = h('div', { class: 'fp-panel', role: 'region', 'aria-label': 'Analysis', hidden: true },
-    h('button', { type: 'button', class: 'btn ghost small', onclick: () => closePanel() }, icon('back'), 'Back to video'),
+    h('button', { type: 'button', class: 'btn small fp-back', onclick: () => closePanel() }, icon('back'), 'Back to video'),
     panelBody);
   const el = h('div', { class: 'viewer fp', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Video player' },
     video, tap, state, message,
@@ -169,6 +169,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
       renderPanel();
     }
     panel.hidden = false;
+    el.classList.add('fp-analysis-open');
     if (!fromDrag) panel.getBoundingClientRect();
     panel.classList.add('fp-sliding');
     panel.style.transform = 'translateX(0)';
@@ -179,6 +180,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     panel.classList.add('fp-sliding');
     panel.style.transform = '';
     panelOpen = false;
+    el.classList.remove('fp-analysis-open');
     panel.querySelectorAll('video, audio').forEach((m) => m.pause());
     setTimeout(() => { panel.classList.remove('fp-sliding'); if (!panelOpen) panel.hidden = true; }, SLIDE_MS);
     if (resumeAfterPanel) play();
@@ -187,8 +189,8 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   async function renderPanel() {
     const r = rows[i], forIndex = i;
     clear(panelBody);
-    if (!r.request_id) return panelBody.append(h('h2', null, r.title), h('p', { class: 'muted' }, 'No analysis'));
-    panelBody.append(h('h2', null, 'Analysis from ' + r.coach_name), h('p', { class: 'meta' }, r.title));
+    if (!r.request_id) return panelBody.append(h('div', { class: 'card' }, h('h2', null, r.title), h('p', { class: 'muted' }, 'No analysis')));
+    panelBody.append(h('div', { class: 'card' }, h('h2', null, 'Analysis from ' + r.coach_name), h('p', { class: 'meta' }, r.title)));
     const list = h('div', { class: 'stack' }, loading());
     panelBody.append(list);
     try {
