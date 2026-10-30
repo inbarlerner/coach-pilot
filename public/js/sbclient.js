@@ -2,6 +2,7 @@
 // Talks to Supabase's documented HTTP APIs: /auth/v1 (GoTrue) and /rest/v1 (PostgREST).
 
 const STORAGE_PREFIX = 'pilot.session.v1';
+const OAUTH_KEY = 'pilot.oauth';   // set while the user is away at Google/Facebook
 
 export function createClient(url, anonKey) {
   // One saved session per Supabase project, so a session from another setup (e.g. live vs. local) is never reused.
@@ -61,8 +62,20 @@ export function createClient(url, anonKey) {
     return session?.access_token || null;
   }
 
-  // Handle links from emails (confirm signup / password recovery): #access_token=...&type=...
+  // Handle returns from email links (confirm signup / password recovery: #access_token=...&type=...)
+  // and from Google/Facebook sign-in (#access_token=..., or ?error=...&error_description=... on failure).
   async function detectFromUrl() {
+    let oauth = null;
+    try { oauth = sessionStorage.getItem(OAUTH_KEY); sessionStorage.removeItem(OAUTH_KEY); } catch {}
+    detected.provider = oauth;
+    const query = new URLSearchParams(location.search);
+    if (query.get('error_description') || query.get('error')) {
+      detected.error = (query.get('error_description') || query.get('error')).replace(/\+/g, ' ');
+      ['error', 'error_code', 'error_description'].forEach((k) => query.delete(k));
+      const qs = query.toString();
+      history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+      return;
+    }
     const hash = location.hash.replace(/^#/, '');
     if (!/(^|&)(access_token|error_description)=/.test(hash)) return;
     const p = new URLSearchParams(hash);
@@ -74,11 +87,24 @@ export function createClient(url, anonKey) {
     save(toSession({ access_token: token, refresh_token: p.get('refresh_token'), expires_in: Number(p.get('expires_in') || 3600), expires_at: Number(p.get('expires_at')) || undefined, user }));
     detected.type = p.get('type');
   }
-  const detected = { type: null, error: null };
+  const detected = { type: null, error: null, provider: null };
 
   const auth = {
     detected,
     async initialize() { await detectFromUrl(); if (session) await currentToken(); },
+    // Which social logins are switched on in Supabase (Authentication → Providers), e.g. { google: true, facebook: false }.
+    async getProviders() {
+      const { data } = await authFetch('settings', { method: 'GET' });
+      return data?.external || {};
+    },
+    // Leaves the page: Supabase sends the user to Google/Facebook and back to redirectTo with the session in the URL.
+    signInWithOAuth({ provider, options = {} }) {
+      try { sessionStorage.setItem(OAUTH_KEY, provider); } catch {}
+      const query = { provider, redirect_to: options.redirectTo || location.origin + '/' };
+      if (options.scopes) query.scopes = options.scopes;
+      location.assign(`${url}/auth/v1/authorize?${new URLSearchParams(query)}`);
+      return { error: null };
+    },
     async getSession() { await currentToken(); return { data: { session } }; },
     onAuthStateChange(cb) { listeners.add(cb); return { data: { subscription: { unsubscribe: () => listeners.delete(cb) } } }; },
     async signUp({ email, password, options = {} }) {

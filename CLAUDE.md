@@ -13,6 +13,7 @@
 - **בלי כרטיס אשראי** — כל השירותים במסלול חינמי. לכן האחסון עבר מ־Cloudflare R2 ל־Supabase Storage.
 - **בלי מפתח service role** — הדפדפן מדבר ישירות עם Supabase בשם המשתמש המחובר, וכל ההרשאות נאכפות במסד (RLS) ובאחסון (storage policies).
 - **בלי שלב build ובלי תלויות** — HTML/CSS/JS טהור. ה־client של Supabase כתוב בבית (`public/js/sbclient.js`) מעל ה־HTTP APIs, בלי CDN.
+- `public/privacy.html` חייב לשקף את מה שהאפליקציה עושה בפועל: כל שינוי באיסוף מידע, בהרשאות צפייה או בשירות חיצוני חדש → לעדכן את העמוד ואת התאריך בו.
 - ממשק באנגלית, LTR, שחור־לבן (עבר מעברית ב־25.10.2026 לבקשת ענבר; אין מתג שפה).
 - כל שינוי מצב בבקשות/ניתוחים/הודעות עובר דרך פונקציות `SECURITY DEFINER` במסד, שבודקות הרשאות בצד השרת.
 - כלל עסקי לתשלום עתידי: חיוב **רק** ב־`send_analysis` (לא בבקשה, טיוטה, סירוב או פקיעה). תנאי המאמן נשמרים כ־snapshot בכל בקשה (`terms`).
@@ -21,7 +22,7 @@
 | שכבה | שירות | הערות |
 |---|---|---|
 | אירוח | Cloudflare Pages | `public/` + שתי פונקציות ב־`functions/api/` |
-| Auth | Supabase Auth | מייל+סיסמה, שחזור סיסמה |
+| Auth | Supabase Auth | מייל+סיסמה, שחזור סיסמה, Google ו־Facebook (OAuth, מופעלים ב־Supabase → Providers; הוראות ב־README) |
 | DB | Supabase Postgres | RLS, פונקציות RPC, pg_cron כל דקה לפקיעת בקשות |
 | קבצים | Supabase Storage | דלי פרטי `media` (וידאו/קול/קאברים, עד 50MB, קישור חתום לשעה) + דלי ציבורי `avatars` (תמונות פרופיל, עד 2MB) |
 
@@ -30,7 +31,7 @@
 ## מבנה הקוד
 ```
 public/
-  index.html, app.css, _headers
+  index.html, privacy.html (מדיניות פרטיות, עמוד סטטי ציבורי ב־/privacy), app.css, _headers
   js/app.js          ראוטר hash (#/home, #/r/<id> ...) + ניווט תחתון
   js/sbclient.js     client מינימלי ל־Supabase (auth/rest/rpc/storage)
   js/api.js          קריאות לפונקציות המסד
@@ -56,6 +57,8 @@ supabase/            להריץ לפי הסדר ב־SQL Editor:
   008_search.sql     חיפוש כללי: search_people, search_videos
   009_ai_lab.sql     מעבדת מאמן AI למנהלות: ריצות, ביקורות, פידבק ל־Claude, דלי ai-lab
   010_analysis_drawings.sql שרטוטי המאמן על הסרטון נשמרים עם הניתוח (סוג פריט 'drawing')
+  011_social_login.sql כניסה עם Google/Facebook: needs_setup + complete_signup; אישור 18+ ומדיניות פרטיות (profile_private.consented_at)
+  012_delete_account.sql מחיקת חשבון עצמית (הגדרות): start_account_deletion → מחיקת קבצים בדפדפן → finish_account_deletion
 tests/               בדיקות SQL (stubs ל־Supabase), פונקציות, ו־e2e בדפדפן
 functions/_lib/ai-coach.js  הליבה של מאמן ה־AI (פרומפט, סכמה, קריאה ל־Claude, מחיר)
 functions/api/ai-lab.js     מריץ ניתוח AI במעבדה (מנהלות בלבד, מפתח ה־API סוד ב־Cloudflare)
@@ -66,7 +69,7 @@ lab/                 גרסה מקומית ישנה של המעבדה (node lab/
 ```
 
 ## מודל הנתונים (עיקרי)
-- `profiles` — role: `trainee` / `coach` / `admin`; למאמן `coach_status`: `pending` → `approved`/`rejected` (מאשרת המנהלת). משתמש יכול רק לבקש להיות מאמן (בהרשמה, או מההגדרות דרך `request_coach`), לעולם לא admin. שימו לב: הרשמה שנייה עם מייל שעוד לא אומת נבלעת ב־Supabase Auth בלי שגיאה, ולכן ההרשמה מזהה את זה ומפנה לבקשה מההגדרות. פרטים פרטיים (מייל/טלפון) ב־`profile_private`.
+- `profiles` — role: `trainee` / `coach` / `admin`; למאמן `coach_status`: `pending` → `approved`/`rejected` (מאשרת המנהלת). משתמש יכול רק לבקש להיות מאמן (בהרשמה, או מההגדרות דרך `request_coach`), לעולם לא admin. שימו לב: הרשמה שנייה עם מייל שעוד לא אומת נבלעת ב־Supabase Auth בלי שגיאה, ולכן ההרשמה מזהה את זה ומפנה לבקשה מההגדרות. פרטים פרטיים (מייל/טלפון) ב־`profile_private`. כניסה ראשונה עם Google/Facebook יוצרת פרופיל עם `needs_setup = true` (שם מהספק, שם משתמש זמני `user_...`); האפליקציה חוסמת הכול חוץ מ־`#/welcome` עד ש־`complete_signup` רץ פעם אחת (בוחרים שם משתמש, טלפון, שפות, ענפים; מאמן עובר דרך `request_coach`). הכפתורים מוצגים רק לספקים שמופעלים ב־Supabase (`/auth/v1/settings`).
 - `sports`, `user_sports` (תחומי עניין), `coach_sports` (מה המאמן מאמן).
 - `coach_settings` — `quota` (בקשות פתוחות במקביל, ברירת מחדל 3), `response_hours` (48), `followup_policy`: `none` / `one` / `chat24` / `unlimited`.
 - `videos` — `visibility` private/public, `storage_key`, `cover_key` (קאבר, `set_video_cover`), `removed` (הוסר ע״י מנהלת).
@@ -74,6 +77,7 @@ lab/                 גרסה מקומית ישנה של המעבדה (node lab/
 - `analysis_requests` — סטטוסים: `pending` → `draft` → `completed`, או `declined` (סיבות: unclear / not_my_field / video_problem), או `expired` כשעובר `deadline_at`. רק pending/draft נספרים במכסה. נעילת `FOR UPDATE` על הגדרות המאמן מונעת חריגה מהמכסה במקביל.
 - `analysis_items` — טקסט אחד + קבצי קול/וידאו של המאמן.
 - `messages` (הודעות המשך, פרטיות לשני הצדדים), `notifications`, `comments`, `reports`, `app_settings`.
+- מחיקת חשבון (`012`): מתאמן — נמחקים הסרטונים, הבקשות (כולל ניתוחי המאמנים עליהן), תגובות ודיווחים. מאמן — בקשות פתוחות נדחות (`decline_reason = 'coach_left'`), ניתוחים שהושלמו נשארים אצל המתאמן (טקסט, שרטוטים, הודעות) עם `coach_id`/`sender_id` = null ומוצגים כ־"Former coach" (`FORMER_COACH` ב־`images.js`), והקלטות הקול/וידאו נמחקות; הודעות המשך נסגרות (`COACH_LEFT`). מנהלת לא יכולה למחוק את עצמה. אם המחיקה נקטעה (`profiles.deleting_at`), האפליקציה משלימה אותה בכניסה הבאה. שימו לב: `coach_id` של בקשה יכול להיות null.
 
 פונקציות מרכזיות: `create_video`, `delete_video`, `search_coaches`, `create_request`, `set_analysis_text`, `add_analysis_media`, `remove_analysis_item`, `save_draft`, `discard_draft`, `send_analysis`, `decline_request`, `followup_state`, `send_message`, `get_feed`, `expire_requests`.
 
@@ -99,6 +103,8 @@ psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f supabase/008_search.sql -f tests/search_chat.sql
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f supabase/008_search.sql -f supabase/009_ai_lab.sql -f tests/ai_lab.sql
 psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f supabase/008_search.sql -f supabase/009_ai_lab.sql -f supabase/010_analysis_drawings.sql -f tests/drawings.sql
+psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f supabase/008_search.sql -f supabase/009_ai_lab.sql -f supabase/010_analysis_drawings.sql -f supabase/011_social_login.sql -f tests/social_login.sql
+psql -f tests/supabase_stub.sql -f tests/storage_stub.sql -f supabase/001_schema.sql -f supabase/003_storage.sql -f supabase/005_auto_cleanup.sql -f supabase/006_request_coach.sql -f supabase/007_photos_languages_english.sql -f supabase/008_search.sql -f supabase/009_ai_lab.sql -f supabase/010_analysis_drawings.sql -f supabase/011_social_login.sql -f supabase/012_delete_account.sql -f tests/delete_account.sql
 python3 tests/e2e/acceptance_ui.py   # Supabase Auth + PostgREST מקומיים + אמולטור אחסון (tests/e2e/server.mjs). שימו לב: הסלקטורים עדיין בעברית ולא עודכנו לממשק האנגלי.
 ```
 בלי psql מקומי אפשר להריץ את בדיקות ה־SQL בקונטיינר `postgres:17-alpine` (docker exec … psql). ל־`tests/e2e/server.mjs` אפשר להגדיר `E2E_PSQL`, ו־Claude מזויף כברירת מחדל (`E2E_AI_REPLY` = קובץ תשובה).

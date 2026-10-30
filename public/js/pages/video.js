@@ -2,7 +2,7 @@
 import { h, clear, loading, errorState, friendlyError, fmtDate, busy, toast, confirmDialog, modal, STATUS } from '../ui.js';
 import { sb, state, q, rpc, action, sportName, isAdmin, isCoach, mediaUrl, coverUrl, uploadFile, discardUpload } from '../api.js';
 import { coachWatchCard } from '../viewer.js';
-import { personLink } from '../images.js';
+import { personLink, FORMER_COACH } from '../images.js';
 import { openVideoEditor } from '../video-editor.js';
 import { protectedVideo, analysisItem } from '../components.js';
 import { go } from '../app.js';
@@ -46,7 +46,7 @@ export async function videoPage({ main, setTitle, params, query }) {
         for (const r of visible) {
           const card = h('div', { class: 'card' },
             h('div', { class: 'row between' },
-              h('span', { class: 'row' }, 'Coach: ', personLink(r.coach, { size: 26, strong: false })),
+              h('span', { class: 'row' }, 'Coach: ', personLink(r.coach || FORMER_COACH, { size: 26, strong: false })),
               h('span', { class: 'tag' + (r.status === 'completed' ? ' fill' : '') }, STATUS[r.status])),
             (mine || r.coach_id === state.user.id) && h('a', { class: 'btn secondary small', style: { marginTop: '.5rem' }, href: '#/r/' + r.id }, 'Open full request'));
           if (r.status === 'completed') {

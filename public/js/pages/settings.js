@@ -1,6 +1,6 @@
 // Profile editing for everyone (photo, details, languages) + coach settings (quota, response time, follow-up policy, sports, bio).
 import { h, clear, loading, errorState, friendlyError, busy, toast, POLICY, icon } from '../ui.js';
-import { sb, state, q, rpc, activeSports, loadProfile, isCoach, uploadFile, discardUpload, AVATARS } from '../api.js';
+import { sb, state, q, rpc, activeSports, loadProfile, isCoach, isAdmin, uploadFile, discardUpload, deleteAccount, AVATARS } from '../api.js';
 import { avatar, imageFileToJpeg } from '../images.js';
 import { languagePicker } from '../components.js';
 
@@ -141,7 +141,35 @@ export async function settingsPage({ main, setTitle }) {
     h('div', { class: 'btn-row', style: { marginTop: '1rem' } },
       h('a', { class: 'btn secondary', href: '#/me' }, 'Back to profile'),
       h('a', { class: 'btn secondary', href: '#/forgot' }, 'Change password'),
-      h('button', { class: 'btn secondary', onclick: () => sb.auth.signOut() }, 'Sign out')));
+      h('button', { class: 'btn secondary', onclick: () => sb.auth.signOut() }, 'Sign out')),
+    deleteCard());
+}
+
+// ---------- Delete account (privacy policy: "Deleting your account and data") ----------
+function deleteCard() {
+  const p = state.profile;
+  const card = h('div', { class: 'card', style: { marginTop: '1.5rem' } }, h('h2', { style: { marginTop: 0 } }, 'Delete account'));
+  if (isAdmin()) {
+    card.append(h('p', { class: 'hint' }, 'Admin accounts cannot be deleted from the app, so the platform always has an admin. Email coachitapp@gmail.com.'));
+    return card;
+  }
+  const typed = h('input', { type: 'text', id: 'del_confirm', autocomplete: 'off', autocapitalize: 'characters', spellcheck: false });
+  const btn = h('button', { class: 'btn block', type: 'button' }, 'Delete my account');
+  card.append(
+    h('p', null, 'This permanently deletes your profile, photo, email, phone, videos, comments and your requests with coaches, including their analyses of your videos. It cannot be undone.'),
+    p.role === 'coach' && h('p', null, 'As a coach: your open requests are cancelled and the trainees are told. Trainees keep the written analyses and messages you already sent them, shown as from a "Former coach". Your voice and video recordings are deleted.'),
+    h('p', { class: 'hint' }, h('a', { href: '/privacy#delete', target: '_blank', rel: 'noopener' }, 'What gets deleted (Privacy Policy)')),
+    h('div', { class: 'field' }, h('label', { for: 'del_confirm' }, 'Type DELETE to confirm'), typed),
+    btn);
+  btn.onclick = () => busy(btn, async () => {
+    if (typed.value.trim().toUpperCase() !== 'DELETE') return toast('Type DELETE to confirm', 'err');
+    try {
+      await deleteAccount();
+    } catch (e) { return toast(friendlyError(e), 'err'); }
+    await sb.auth.signOut();
+    toast('Your account was deleted.');
+  });
+  return card;
 }
 
 // ---------- Profile photo ----------
