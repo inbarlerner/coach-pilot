@@ -5,7 +5,7 @@
 import { h, clear, icon, friendlyError, errorState, loading } from './ui.js';
 import { sb, q, mediaUrl, coverUrl } from './api.js';
 import { analysisItem, holdFeed, REMOVED_TEXT } from './components.js';
-import { fillsScreen } from './viewer.js';
+import { fillsScreen, timeline } from './viewer.js';
 
 const NEXT_DIRECTION = 1;       // 1: a finger moving down goes to the next video. -1: a finger moving up does.
 const AXIS_PX = 12;             // how far a finger moves before the swipe's direction is decided
@@ -36,9 +36,8 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   const owner = h('span', { class: 'fp-owner' });
   const soundBtn = h('button', { type: 'button', class: 'viewer-round', onclick: () => setMuted(!muted) });
   const analysisBtn = h('button', { type: 'button', class: 'viewer-top-btn', onclick: () => openPanel() }, 'Analysis');
-  const fill = h('div', { class: 'viewer-fill' });
-  const track = h('div', { class: 'viewer-track', role: 'slider', 'aria-label': 'Video position', tabindex: '0' }, fill);
-  const time = h('span', { class: 'viewer-time' }, '0:00 / 0:00');
+  const tl = timeline();
+  const { track } = tl;
   const hint = h('div', { class: 'fp-hint', hidden: true }, 'Swipe right for the analysis. Swipe down for the next video.');
   const panelBody = h('div');
   const panel = h('div', { class: 'fp-panel', role: 'region', 'aria-label': 'Analysis', hidden: true },
@@ -51,7 +50,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
       h('div', { class: 'fp-heading' }, title, owner),
       soundBtn, analysisBtn),
     h('div', { class: 'viewer-bottom' }, hint,
-      h('div', { class: 'viewer-scrub' }, h('div', { class: 'viewer-track-wrap' }, track), time)),
+      tl.el),
     panel);
 
   // ---------- The current video ----------
@@ -117,12 +116,8 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   });
 
   const duration = () => (Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0);
-  function showProgress() {
-    const d = duration();
-    fill.style.width = d ? `${(video.currentTime / d) * 100}%` : '0%';
-    time.textContent = `${clock(video.currentTime || 0)} / ${clock(d)}`;
-    track.setAttribute('aria-valuetext', time.textContent);
-  }
+  function showProgress() { tl.set(video.currentTime || 0, duration()); }
+
   const seekFromX = (e) => {
     const r = track.getBoundingClientRect();
     if (duration()) video.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration();
