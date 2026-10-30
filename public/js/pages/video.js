@@ -1,5 +1,5 @@
 // Single video page: player, owner controls (privacy, delete, send to coach), analysis, comments, report.
-import { h, clear, loading, errorState, friendlyError, fmtDate, busy, toast, confirmDialog, confirmDanger, modal, statusTag } from '../ui.js';
+import { h, clear, icon, loading, errorState, friendlyError, fmtDate, busy, toast, confirmDialog, confirmDanger, modal, statusTag } from '../ui.js';
 import { sb, state, q, rpc, action, sportName, isAdmin, mediaUrl, coverUrl, uploadFile, discardUpload } from '../api.js';
 import { coachWatchCard } from '../viewer.js';
 import { personLink } from '../images.js';
@@ -35,10 +35,8 @@ export async function videoPage({ main, params, query }) {
           v.removed && h('span', { class: 'tag fill' }, 'Removed by admin'))),
       h('h1', null, v.title),
       h('p', { class: 'meta' }, sportName(v.sport_id) + ' · ' + fmtDate(v.created_at)),
-      assigned ? coachWatchCard(v, assigned.id) : protectedVideo('video', v.id, { tools: true, cover: v.cover_key }),
+      assigned ? coachWatchCard(v, assigned.id) : protectedVideo('video', v.id, { autoplay: true, cover: v.cover_key }),
       v.description && h('p', { class: 'pre', style: { marginTop: 'var(--space-3)' } }, v.description));
-
-    if (mine) main.append(ownerControls(v));
 
     // Requests & analyses on this video
     const reqBox = h('div');
@@ -64,6 +62,9 @@ export async function videoPage({ main, params, query }) {
       }
     } catch (e) { reqBox.append(errorState(friendlyError(e))); }
 
+    // Low priority: comes after the video and its analysis.
+    if (mine) main.append(videoSettings(v));
+
     if (v.visibility === 'public' && !v.removed) {
       main.append(comments(v));
       if (!mine) main.append(h('div', { style: { marginTop: 'var(--space-5)' } }, reportButton(v)));
@@ -73,8 +74,7 @@ export async function videoPage({ main, params, query }) {
     if (isAdmin() && !mine) main.append(adminControls(v));
   }
 
-  function ownerControls(v) {
-    const box = h('div', { class: 'card', style: { marginTop: 'var(--space-4)' } }, h('h3', { style: { marginTop: 0 } }, 'Manage video'));
+  function videoSettings(v) {
     const pub = v.visibility === 'public';
     const toggle = h('button', { class: 'btn secondary block' }, pub ? 'Make private' : 'Make public');
     toggle.onclick = async () => {
@@ -104,8 +104,12 @@ export async function videoPage({ main, params, query }) {
       });
     };
     // A video whose file was removed to free space can only be deleted.
-    box.append(h('div', { class: 'stack' }, ...(v.file_deleted_at ? [del] : [toggle, send, cover, del])));
-    return box;
+    const options = h('div', { class: 'stack settings-options', id: 'video_settings', hidden: true }, ...(v.file_deleted_at ? [del] : [toggle, send, cover, del]));
+    const open = h('button', { class: 'btn secondary block settings-toggle', 'aria-expanded': 'false', 'aria-controls': 'video_settings', onclick: () => {
+      options.hidden = !options.hidden;
+      open.setAttribute('aria-expanded', String(!options.hidden));
+    } }, 'Video settings', icon('chevron'));
+    return h('div', { class: 'video-settings' }, open, options);
   }
 
   function adminControls(v) {

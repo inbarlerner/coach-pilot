@@ -6,14 +6,18 @@ import { drawingsReview } from './viewer.js';
 
 /**
  * Video player for a protected file.
- * opts.tools: show speed / step controls (coach analysis view).
- * opts.lazy: show a "watch" button first (saves data in the feed).
+ * opts.lazy: load and play when scrolled into view, muted and looping (the feed).
+ * opts.autoplay: play as soon as it opens.
  * opts.cover: cover key; shown as the poster until the video plays.
  */
 export function protectedVideo(kind, id, opts = {}) {
   const wrap = h('div', { class: 'player' });
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;   // these viewers keep the Watch button
+  const auto = (opts.lazy || opts.autoplay) && !still;
+  let inView = false;
   const start = async () => {
-    clear(wrap).append(h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' }), 'Loading video…'));
+    // A cover already on screen stays until the video is ready, so the feed doesn't flash.
+    if (!auto || !opts.cover || !opts.lazy) clear(wrap).append(h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' }), 'Loading video…'));
     try {
       const url = await mediaUrl(kind, id);
       const v = h('video', { src: url, controls: true, playsInline: true, preload: 'metadata' });
@@ -25,8 +29,15 @@ export function protectedVideo(kind, id, opts = {}) {
           h('a', { class: 'btn small', href: url, target: '_blank', rel: 'noopener' }, 'Open in a new window')));
       });
       clear(wrap).append(v);
-      if (opts.tools) wrap.append(playerTools(v));
-      if (opts.autoplay) v.play().catch(() => {});
+      if (opts.lazy) {
+        // Browsers block sound until a tap, so the feed plays muted; the video's own controls turn it on.
+        v.muted = true;
+        v.loop = true;
+        if (auto ? inView : opts.autoplay) playOnly(v);
+      } else if (opts.autoplay && !still) {
+        // Reached by a tap, so sound is usually allowed; muted if the browser says no.
+        v.play().catch(() => { v.muted = true; return v.play(); }).catch(() => {});
+      }
     } catch (e) {
       if (e.message === 'FILE_REMOVED') {
         return clear(wrap).append(h('div', { class: 'player-placeholder' }, REMOVED_TEXT));
@@ -38,27 +49,26 @@ export function protectedVideo(kind, id, opts = {}) {
   if (opts.lazy) {
     wrap.append(h('div', { class: 'player-placeholder' + (opts.cover ? ' has-cover' : '') },
       opts.cover && coverImg(coverUrl(opts.cover)),
-      h('button', { class: 'btn', onclick: () => { opts.autoplay = true; start(); } }, icon('play'), 'Watch video')));
+      still && h('button', { class: 'btn', onclick: () => { opts.autoplay = true; start(); } }, icon('play'), 'Watch video')));
+    if (auto) {
+      new IntersectionObserver(([e]) => {
+        inView = e.isIntersecting;
+        const v = wrap.querySelector('video');
+        if (!inView) v?.pause();
+        else if (v) playOnly(v);
+        else start();
+      }, { threshold: 0.6 }).observe(wrap);
+    }
   } else start();
   return wrap;
 }
 
-function playerTools(v) {
-  const speeds = [[1, 'Normal speed'], [0.5, 'Half speed'], [0.25, 'Quarter speed']];
-  const speedBtns = speeds.map(([s, label]) => {
-    const b = h('button', { type: 'button', 'aria-pressed': String(s === 1), onclick: () => {
-      v.playbackRate = s;
-      speedBtns.forEach((x) => x.setAttribute('aria-pressed', 'false'));
-      b.setAttribute('aria-pressed', 'true');
-    } }, label);
-    return b;
-  });
-  const step = (d) => { v.pause(); v.currentTime = Math.max(0, Math.min(v.duration || 0, v.currentTime + d)); };
-  return h('div', { class: 'player-bar', role: 'group', 'aria-label': 'Viewing tools' },
-    h('button', { type: 'button', onclick: () => (v.paused ? v.play() : v.pause()) }, 'Play / pause'),
-    h('button', { type: 'button', onclick: () => step(-0.1), title: 'Back 0.1 seconds' }, '−0.1s'),
-    h('button', { type: 'button', onclick: () => step(0.1), title: 'Forward 0.1 seconds' }, '+0.1s'),
-    ...speedBtns);
+// Only one feed video plays at a time.
+let playing = null;
+function playOnly(v) {
+  if (playing && playing !== v) playing.pause();
+  playing = v;
+  v.play().catch(() => {});
 }
 
 export const REMOVED_TEXT = 'This video was removed automatically to free up storage. The analysis text and messages were kept.';

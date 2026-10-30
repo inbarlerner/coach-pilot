@@ -72,7 +72,7 @@ export async function requestPage({ main, params }) {
     // A finished analysis replaces this placeholder with the full-screen card once its parts are loaded.
     const player = r.status === 'completed' && !r.video.file_deleted_at
       ? h('div', { class: 'player' }, h('div', { class: 'player-placeholder' }, h('div', { class: 'spinner' })))
-      : protectedVideo('video', r.video.id, { tools: true, cover: r.video.cover_key });
+      : protectedVideo('video', r.video.id, { autoplay: true, cover: r.video.cover_key });
     left.append(coachWorks ? viewerCard(r, right) : player,
       r.video.description && h('div', null, h('h3', null, 'Description'), h('p', { class: 'pre' }, r.video.description)),
       r.question && h('div', null, h('h3', null, 'Question for the coach'), h('p', { class: 'pre' }, r.question)));
@@ -256,7 +256,7 @@ export async function requestPage({ main, params }) {
         ...(items.length ? parts() : [h('p', { class: 'muted' }, 'No analysis parts.')]));
     } catch (e) {
       clear(itemsBox).append(errorState(friendlyError(e)));
-      player.replaceWith(protectedVideo('video', r.video.id, { tools: true, cover: r.video.cover_key }));
+      player.replaceWith(protectedVideo('video', r.video.id, { autoplay: true, cover: r.video.cover_key }));
     }
 
     if (!isCoachHere && !isTrainee) return;
