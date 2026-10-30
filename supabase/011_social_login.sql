@@ -1,8 +1,8 @@
 -- =====================================================================
--- 011: sign in with Google or Facebook (Meta).
+-- 011: sign in with Google.
 -- Run in Supabase → SQL Editor AFTER 010_analysis_drawings.sql. Safe to run again.
 --
---   • Supabase Auth does the Google/Facebook login itself (enable the
+--   • Supabase Auth does the Google login itself (enable the
 --     providers in Authentication → Providers). A first social login creates
 --     a user, and handle_new_user creates the profile as before.
 --   • Social logins do not send a username, phone, languages or sports.
@@ -14,7 +14,7 @@
 --     notified). It never grants admin.
 --   • Sign-up consent: every new account confirms "18 or older + privacy
 --     policy". Saved as profile_private.consented_at (email sign-up: from the
---     signup form; Google/Facebook: required by complete_signup).
+--     signup form; Google: required by complete_signup).
 -- =====================================================================
 
 alter table public.profiles add column if not exists needs_setup boolean not null default false;
@@ -26,7 +26,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   m jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
   wants_coach boolean := (m->>'role') = 'coach';
-  social boolean := nullif(trim(m->>'username'), '') is null;   -- Google/Facebook: no username in the metadata
+  social boolean := nullif(trim(m->>'username'), '') is null;   -- Google: no username in the metadata
   full_nm text := trim(coalesce(m->>'full_name', m->>'name', ''));
   s text;
   langs text[];

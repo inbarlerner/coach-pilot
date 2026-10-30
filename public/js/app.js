@@ -53,7 +53,7 @@ function parseHash() {
 export function defaultRoute() {
   if (!state.user) return '/login';
   const p = state.profile;
-  if (p?.needs_setup) return '/welcome';   // first Google/Facebook sign-in: details still missing
+  if (p?.needs_setup) return '/welcome';   // first Google sign-in: details still missing
   if (p && p.role === 'trainee' && !p.onboarded) return '/upload?welcome=1';
   return '/home';
 }
@@ -181,7 +181,7 @@ async function start() {
   // Arrived from an email link (password recovery / signup confirmation)
   if (sb.auth.detected.type === 'recovery') location.hash = '#/reset';
   else if (sb.auth.detected.error) {
-    const prov = { google: 'Google', facebook: 'Facebook' }[sb.auth.detected.provider];
+    const prov = { google: 'Google' }[sb.auth.detected.provider];
     const msg = prov
       ? `Signing in with ${prov} did not finish (${sb.auth.detected.error}). Try again, or sign in with email.`
       : 'This link is invalid or has expired. You can request a new one.';

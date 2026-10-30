@@ -23,7 +23,7 @@
 | שכבה | שירות | הערות |
 |---|---|---|
 | אירוח | Cloudflare Pages | `public/` + שתי פונקציות ב־`functions/api/` |
-| Auth | Supabase Auth | מייל+סיסמה, שחזור סיסמה, Google ו־Facebook (OAuth, מופעלים ב־Supabase → Providers; הוראות ב־README) |
+| Auth | Supabase Auth | מייל+סיסמה, שחזור סיסמה, Google (OAuth, מופעלים ב־Supabase → Providers; הוראות ב־README) |
 | DB | Supabase Postgres | RLS, פונקציות RPC, pg_cron כל דקה לפקיעת בקשות |
 | קבצים | Supabase Storage | דלי פרטי `media` (וידאו/קול/קאברים, עד 50MB, קישור חתום לשעה) + דלי ציבורי `avatars` (תמונות פרופיל, עד 2MB) |
 
@@ -61,7 +61,7 @@ supabase/            להריץ לפי הסדר ב־SQL Editor:
   008_search.sql     חיפוש כללי: search_people, search_videos
   009_ai_lab.sql     מעבדת מאמן AI למנהלות: ריצות, ביקורות, פידבק ל־Claude, דלי ai-lab
   010_analysis_drawings.sql שרטוטי המאמן על הסרטון נשמרים עם הניתוח (סוג פריט 'drawing')
-  011_social_login.sql כניסה עם Google/Facebook: needs_setup + complete_signup; אישור 18+ ומדיניות פרטיות (profile_private.consented_at)
+  011_social_login.sql כניסה עם Google: needs_setup + complete_signup; אישור 18+ ומדיניות פרטיות (profile_private.consented_at)
   012_delete_account.sql מחיקת חשבון עצמית (הגדרות): start_account_deletion → מחיקת קבצים בדפדפן → finish_account_deletion
 tests/               בדיקות SQL (stubs ל־Supabase), פונקציות, ו־e2e בדפדפן
 functions/_lib/ai-coach.js  הליבה של מאמן ה־AI (פרומפט, סכמה, קריאה ל־Claude, מחיר)
@@ -73,7 +73,7 @@ lab/                 גרסה מקומית ישנה של המעבדה (node lab/
 ```
 
 ## מודל הנתונים (עיקרי)
-- `profiles` — role: `trainee` / `coach` / `admin`; למאמן `coach_status`: `pending` → `approved`/`rejected` (מאשרת המנהלת). משתמש יכול רק לבקש להיות מאמן (בהרשמה, או מההגדרות דרך `request_coach`), לעולם לא admin. שימו לב: הרשמה שנייה עם מייל שעוד לא אומת נבלעת ב־Supabase Auth בלי שגיאה, ולכן ההרשמה מזהה את זה ומפנה לבקשה מההגדרות. פרטים פרטיים (מייל/טלפון) ב־`profile_private`. כניסה ראשונה עם Google/Facebook יוצרת פרופיל עם `needs_setup = true` (שם מהספק, שם משתמש זמני `user_...`); האפליקציה חוסמת הכול חוץ מ־`#/welcome` עד ש־`complete_signup` רץ פעם אחת (בוחרים שם משתמש, טלפון, שפות, ענפים; מאמן עובר דרך `request_coach`). הכפתורים מוצגים רק לספקים שמופעלים ב־Supabase (`/auth/v1/settings`).
+- `profiles` — role: `trainee` / `coach` / `admin`; למאמן `coach_status`: `pending` → `approved`/`rejected` (מאשרת המנהלת). משתמש יכול רק לבקש להיות מאמן (בהרשמה, או מההגדרות דרך `request_coach`), לעולם לא admin. שימו לב: הרשמה שנייה עם מייל שעוד לא אומת נבלעת ב־Supabase Auth בלי שגיאה, ולכן ההרשמה מזהה את זה ומפנה לבקשה מההגדרות. פרטים פרטיים (מייל/טלפון) ב־`profile_private`. כניסה ראשונה עם Google יוצרת פרופיל עם `needs_setup = true` (שם מהספק, שם משתמש זמני `user_...`); האפליקציה חוסמת הכול חוץ מ־`#/welcome` עד ש־`complete_signup` רץ פעם אחת (בוחרים שם משתמש, טלפון, שפות, ענפים; מאמן עובר דרך `request_coach`). הכפתורים מוצגים רק לספקים שמופעלים ב־Supabase (`/auth/v1/settings`).
 - `sports`, `user_sports` (תחומי עניין), `coach_sports` (מה המאמן מאמן).
 - `coach_settings` — `quota` (בקשות פתוחות במקביל, ברירת מחדל 3), `response_hours` (48), `followup_policy`: `none` / `one` / `chat24` / `unlimited`.
 - `videos` — `visibility` private/public, `storage_key`, `cover_key` (קאבר, `set_video_cover`), `removed` (הוסר ע״י מנהלת).

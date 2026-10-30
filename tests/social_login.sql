@@ -1,4 +1,4 @@
--- Sign in with Google / Facebook (011_social_login.sql).
+-- Sign in with Google (011_social_login.sql).
 -- Run on a fresh DB after the stubs, 001, 003, 005–011.
 \set ON_ERROR_STOP 1
 \set ad  '''00000000-0000-0000-0000-0000000000a1'''
@@ -22,7 +22,7 @@ create or replace function pg_temp.as_user(u uuid) returns void language sql as 
   select set_config('request.jwt.claims', json_build_object('sub', u)::text, false); $$;
 grant execute on function pg_temp.as_user(uuid) to authenticated;
 
--- Email signup (unchanged), and social logins with the metadata Supabase stores for Google / Facebook
+-- Email signup (unchanged), and social logins with the metadata Supabase stores for Google (and other providers)
 insert into auth.users (id, email, raw_user_meta_data) values
  (:ad, 'ad@x.test', '{"first_name":"Ada","last_name":"A","username":"ada"}'),
  (:em, 'em@x.test', '{"first_name":"Em","last_name":"B","username":"emma","consent":true,"role":"coach","bio":"Kite coach ten years","coach_sports":["1"],"sports":["1"],"languages":["en"]}'),
@@ -33,7 +33,7 @@ update profiles set role = 'admin' where id = :ad;
 
 select pg_temp.ok((select not needs_setup and role = 'coach' and coach_status = 'pending' and username = 'emma' from profiles where id = :em), 'S1 email signup unchanged, no setup needed');
 select pg_temp.ok((select needs_setup and first_name = 'Noa' and last_name = 'Ben David' and username like 'user\_%' and role = 'trainee' from profiles where id = :go), 'S2 Google: names split, temporary username, needs setup');
-select pg_temp.ok((select needs_setup and first_name = 'Lior' and last_name = '—' from profiles where id = :fb), 'S3 Facebook with one name and no email');
+select pg_temp.ok((select needs_setup and first_name = 'Lior' and last_name = '—' from profiles where id = :fb), 'S3 provider account with one name and no email');
 select pg_temp.ok((select email = '' from profile_private where id = :fb), 'S4 missing email stored as empty');
 select pg_temp.ok((select consented_at is not null from profile_private where id = :em), 'C1 email signup consent saved');
 select pg_temp.ok((select consented_at is null from profile_private where id = :ad), 'C2 no consent flag, nothing saved');

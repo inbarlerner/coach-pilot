@@ -2,7 +2,7 @@
 // Talks to Supabase's documented HTTP APIs: /auth/v1 (GoTrue) and /rest/v1 (PostgREST).
 
 const STORAGE_PREFIX = 'pilot.session.v1';
-const OAUTH_KEY = 'pilot.oauth';   // set while the user is away at Google/Facebook
+const OAUTH_KEY = 'pilot.oauth';   // set while the user is away at Google
 
 export function createClient(url, anonKey) {
   // One saved session per Supabase project, so a session from another setup (e.g. live vs. local) is never reused.
@@ -63,7 +63,7 @@ export function createClient(url, anonKey) {
   }
 
   // Handle returns from email links (confirm signup / password recovery: #access_token=...&type=...)
-  // and from Google/Facebook sign-in (#access_token=..., or ?error=...&error_description=... on failure).
+  // and from Google sign-in (#access_token=..., or ?error=...&error_description=... on failure).
   async function detectFromUrl() {
     let oauth = null;
     try { oauth = sessionStorage.getItem(OAUTH_KEY); sessionStorage.removeItem(OAUTH_KEY); } catch {}
@@ -92,12 +92,12 @@ export function createClient(url, anonKey) {
   const auth = {
     detected,
     async initialize() { await detectFromUrl(); if (session) await currentToken(); },
-    // Which social logins are switched on in Supabase (Authentication → Providers), e.g. { google: true, facebook: false }.
+    // Which social logins are switched on in Supabase (Authentication → Providers), e.g. { google: true, apple: false }.
     async getProviders() {
       const { data } = await authFetch('settings', { method: 'GET' });
       return data?.external || {};
     },
-    // Leaves the page: Supabase sends the user to Google/Facebook and back to redirectTo with the session in the URL.
+    // Leaves the page: Supabase sends the user to Google and back to redirectTo with the session in the URL.
     signInWithOAuth({ provider, options = {} }) {
       try { sessionStorage.setItem(OAUTH_KEY, provider); } catch {}
       const query = { provider, redirect_to: options.redirectTo || location.origin + '/' };
