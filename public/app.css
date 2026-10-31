@@ -223,12 +223,20 @@ input[type=file] { font: inherit; width: 100%; padding: var(--space-3); border-r
 
 .choices { display: grid; gap: var(--space-2); }
 .choice {
-  display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) var(--space-4);
+  display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4);
   margin: 0; border-radius: var(--radius); cursor: pointer;
 }
-.choice input { width: 22px; height: 22px; margin: 2px 0 0; flex: none; accent-color: var(--accent); }
+/* Own radio circle (the browser's one can't be styled): field-coloured circle, dot when chosen. Theme tokens keep it right in dark mode */
+.choice input[type=radio] {
+  appearance: none; -webkit-appearance: none; width: 22px; height: 22px; margin: 0; flex: none;
+  border: 2px solid var(--field-line); border-radius: 50%; background: var(--field);
+  display: grid; place-content: center; cursor: inherit;
+}
+.choice input[type=radio]::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--field-line); transform: scale(0); transition: transform .12s; }
+.choice input[type=radio]:checked::before { transform: scale(1); }
 .choice:has(input:checked) { background: var(--strong); color: var(--on-strong); --fill: var(--fill-on-bg); }
-.choice:has(input:checked) input { accent-color: var(--on-strong); }
+.choice:has(input:checked) input[type=radio] { border-color: var(--on-strong); background: var(--on-strong); }
+.choice:has(input:checked) input[type=radio]::before { background: var(--strong); }
 .choice:has(input:checked) .d { color: var(--on-strong); }
 .choice:has(input:checked) .tag:not(.soft):not(.fill) { border-color: var(--on-strong); color: var(--on-strong); }
 .choice:has(input:checked) .tag.fill { background: var(--on-strong); color: var(--strong); border-color: var(--on-strong); }
@@ -505,13 +513,18 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 .viewer-sheet[hidden] { display: none; }
 .viewer-top-btn { margin-inline-start: auto; flex: none; min-height: 40px; padding: 0 1rem; border: 0; border-radius: 20px; background: #fff; color: #000;
   font: inherit; font-weight: 700; cursor: pointer; }
-/* Watching a finished analysis: a small rail on the right (play, speed, step back, step forward) */
-.viewer-rail.watch { inset-inline-start: auto; inset-inline-end: 10px; gap: 10px; align-items: center; }
-.viewer-rail.watch .viewer-round { width: 36px; height: 36px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.16);
+/* Both rails (coach drawing on the left, watching a finished analysis on the right): small glass buttons, play larger and white */
+.viewer-rail { gap: 10px; align-items: center; }
+.viewer-rail .viewer-round { width: 36px; height: 36px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.16);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); font: 800 13px/1 var(--font-head); }
-.viewer-rail.watch .viewer-round svg { width: 18px; height: 18px; fill: currentColor; }
-.viewer-rail.watch .viewer-round:first-child { width: 44px; height: 44px; background: var(--white); color: var(--deep); border: 0; }
-.viewer-rail.watch .viewer-round:first-child svg { width: 20px; height: 20px; }
+.viewer-rail .viewer-round svg { width: 18px; height: 18px; }
+.viewer-rail.watch .viewer-round svg, .viewer-rail .viewer-round:first-child svg { fill: currentColor; }
+.viewer-rail .viewer-round:first-child { width: 44px; height: 44px; background: var(--white); color: var(--deep); border: 0; }
+.viewer-rail .viewer-round:first-child svg { width: 20px; height: 20px; }
+/* On (pencil drawing, half speed): brand "selected" green, so it never looks like the white play button */
+.viewer-rail .viewer-round[aria-pressed=true] { background: var(--bottle); color: var(--white); border-color: var(--mint); }
+.viewer-rail .viewer-undo { font-size: 18px; }
+.viewer-rail.watch { inset-inline-start: auto; inset-inline-end: 10px; }
 
 /* Cover that opens the viewer (coach request page) */
 .viewer-card { position: relative; display: block; text-decoration: none; width: 100%; aspect-ratio: 3 / 4; max-height: 70vh; padding: 0; border: 0; border-radius: var(--radius);
@@ -527,7 +540,7 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 .review-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
 /* Colours for the pencil, and the explanation line for a frame */
-.viewer-palette { position: absolute; inset-inline-start: 74px; top: 50%; transform: translateY(-50%); z-index: 6;
+.viewer-palette { position: absolute; inset-inline-start: 64px; top: 50%; transform: translateY(-50%); z-index: 6;
   display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 30px; background: rgba(0,0,0,.7); }
 .viewer-palette[hidden] { display: none; }
 .viewer-swatch { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; padding: 0; cursor: pointer; }
@@ -624,6 +637,27 @@ main.page.xwide { max-width: 1280px; }
 .crop input[type=range] { width: 100%; accent-color: #fff; }
 .crop .btn.secondary { background: transparent; color: #fff; border-color: #fff; }
 .crop .btn { background: #fff; color: #000; border-color: #fff; }
+
+/* Profile photo editor (avatar-crop.js): a deep screen, the circle stays still and the photo moves under it.
+   On deep, primary turns white and secondary stays mint (brand rule). */
+body.no-scroll { overflow: hidden; }
+.acrop { position: fixed; inset: 0; z-index: 90; background: var(--deep); color: var(--white); display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
+  padding: calc(env(safe-area-inset-top) + var(--space-4)) var(--space-4) calc(env(safe-area-inset-bottom) + var(--space-4)); overflow-y: auto; }
+.acrop > * { width: 100%; max-width: 420px; }
+.acrop:focus { outline: none; }
+.acrop h2 { margin: 0; color: var(--white); }
+.acrop-hint { margin: 0; font-size: 14px; }
+.acrop-stage { position: relative; aspect-ratio: 1; flex: none; overflow: hidden; border-radius: var(--radius); touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+/* Shrinks on short windows so the zoom slider and buttons stay on screen (about 260px for the rest). */
+.acrop > .acrop-stage { width: min(100%, 420px, max(200px, calc(100vh - 260px))); width: min(100%, 420px, max(200px, calc(100dvh - 260px))); }
+.acrop-stage:active { cursor: grabbing; }
+.acrop-stage:focus-visible { outline: 3px solid var(--white); outline-offset: 3px; }
+.acrop-img { position: absolute; left: 0; top: 0; max-width: none; width: auto; height: auto; transform-origin: 0 0; pointer-events: none; -webkit-user-drag: none; }
+.acrop-ring { position: absolute; border-radius: 50%; border: 2px solid var(--white); box-shadow: 0 0 0 9999px var(--scrim); pointer-events: none; }
+.acrop-zoom { display: flex; align-items: center; gap: var(--space-3); font-size: 20px; font-weight: 700; }
+.acrop-zoom input { flex: 1; accent-color: var(--white); min-height: var(--tap-small); }
+.acrop .btn { background: var(--white); color: var(--deep); }
+.acrop .btn.secondary { background: var(--mint); color: var(--deep); }
 
 /* Privacy policy (public/privacy.html), age consent at sign-up */
 .legal h2 { margin-top: var(--space-6); }

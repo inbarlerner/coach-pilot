@@ -39,7 +39,7 @@ export async function uploadPage({ main, query }) {
         h('label', { class: 'choice disabled', 'aria-disabled': 'true' },
           h('input', { type: 'radio', name: 'dest', disabled: true }),
           h('span', null, h('span', { class: 't' }, 'AI virtual coach ', h('span', { class: 'tag' }, 'Soon')),
-            h('span', { class: 'd' }, 'Not available yet. You cannot send videos to it right now.'))),
+            h('span', { class: 'd' }, 'Not available yet. You can\'t send videos to it right now.'))),
         destChoice('coach', 'Human coach', 'An approved coach receives the video and sends an analysis.')),
       h('div', { style: { marginTop: 'var(--space-4)' } },
         h('button', { class: 'btn block', onclick: () => { if (!s.dest) return toast('Choose where the video goes', 'err'); stepForm(); } }, 'Continue')));
@@ -57,7 +57,7 @@ export async function uploadPage({ main, query }) {
     const fileIn = picker.input;
     const fileInfo = h('div', { class: 'hint' });
     const fileErr = h('div', { class: 'error-text hidden', role: 'alert' });
-    const sport = h('select', { id: 'u_sport' }, h('option', { value: '' }, 'Choose a sport…'),
+    const sport = h('select', { id: 'u_sport' }, h('option', { value: '' }, 'Choose a sport...'),
       activeSports().map((sp) => h('option', { value: sp.id }, sp.name)));
     const title = h('input', { type: 'text', id: 'u_title', maxlength: 120, placeholder: 'e.g. Jibe to the left' });
     const desc = h('textarea', { id: 'u_desc', maxlength: 2000, placeholder: 'What\'s in the video, conditions, what you were trying to do' });
@@ -91,7 +91,7 @@ export async function uploadPage({ main, query }) {
       fileErr.classList.add('hidden');
       if (!f) return;
       const t = fileType(f);
-      if (!LIMITS.videoTypes.includes(t)) { fileErr.textContent = `This format is not supported. You can upload ${LIMITS.videoFormats}.`; fileErr.classList.remove('hidden'); picker.reset(); return; }
+      if (!LIMITS.videoTypes.includes(t)) { fileErr.textContent = `This format isn't supported. You can upload ${LIMITS.videoFormats}.`; fileErr.classList.remove('hidden'); picker.reset(); return; }
       s.file = null; cover = null; coverPicked = false; edit = null; clear(fileInfo); clear(coverBox); coverBox.hidden = true;
       if (!(await editClip(f))) picker.reset();
     });
@@ -99,7 +99,7 @@ export async function uploadPage({ main, query }) {
     let coaches = [];
     async function loadCoaches() {
       if (!toCoach) return;
-      clear(coachBox).append(loading('Loading coaches…'));
+      clear(coachBox).append(loading('Loading coaches...'));
       try {
         coaches = await rpc('search_coaches', { p_query: '', p_sport: sport.value ? Number(sport.value) : null });
         coaches = coaches.filter((c) => c.id !== state.user.id);
@@ -139,7 +139,7 @@ export async function uploadPage({ main, query }) {
       h('div', { class: 'field' }, h('div', { class: 'label' }, 'Video file'), picker, fileInfo, fileErr,
         h('div', { class: 'banner', style: { marginTop: 'var(--space-2)', marginBottom: 0 } },
           h('strong', null, `Up to ${MAX_MB}MB per video`), ` · ${LIMITS.videoFormats}. `,
-          'With normal phone recording that is usually under a minute. You can trim a longer video in your gallery before uploading.',
+          'With normal phone recording that\'s usually under a minute. You can trim a longer video in your gallery before uploading.',
           h('br'), h('span', { class: 'small' }, 'When the pilot storage fills up, the oldest videos are removed automatically. Analysis text and messages are kept.'))),
       coverBox,
       h('div', { class: 'field' }, h('label', { for: 'u_sport' }, 'Sport'), sport),
@@ -186,7 +186,7 @@ export async function uploadPage({ main, query }) {
     const bar = h('div');
     const pct = h('strong', null, '0%');
     const cancelBtn = h('button', { class: 'btn secondary', type: 'button' }, 'Cancel upload');
-    clear(body).append(h('h1', null, 'Uploading video…'),
+    clear(body).append(h('h1', null, 'Uploading video...'),
       h('p', null, s.file.name),
       h('div', { class: 'progress', role: 'progressbar', 'aria-label': 'Upload progress' }, bar),
       h('p', { class: 'center' }, pct),
@@ -196,7 +196,7 @@ export async function uploadPage({ main, query }) {
     try {
       if (!s.videoId) {
         const up = await uploadFile(s.file, 'video', (p) => { bar.style.width = Math.round(p * 100) + '%'; pct.textContent = Math.round(p * 100) + '%'; }, ctrl.signal);
-        pct.textContent = 'Saving…';
+        pct.textContent = 'Saving...';
         try {
           s.videoId = await rpc('create_video', {
             p_storage_key: up.key, p_content_type: up.contentType, p_size: up.size,
@@ -283,7 +283,7 @@ export async function sendExistingVideo(video, onDone) {
       } catch (e) { toast(friendlyError(e), 'err'); }
     });
     return [h('h2', null, 'Send video for analysis'), box, h('div', { class: 'field', style: { marginTop: 'var(--space-4)' } }, h('label', null, 'Question for the coach'), qa),
-      h('p', { class: 'hint' }, 'Sending does not change the video\'s privacy.'),
+      h('p', { class: 'hint' }, 'Sending doesn\'t change the video\'s privacy.'),
       h('div', { class: 'btn-row' }, send, h('button', { class: 'btn secondary', onclick: () => close(null) }, 'Cancel'))];
   });
 }

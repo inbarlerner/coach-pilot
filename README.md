@@ -15,6 +15,7 @@
 
 - **Supabase** — התחברות (מייל וסיסמה, שחזור סיסמה), מסד נתונים עם הרשאות בצד השרת, משימה מתוזמנת שסוגרת בקשות שזמנן עבר, ו־**Storage** לסרטונים ולהקלטות.
 - **Cloudflare Pages** — אירוח האתר.
+- **Gmail** (`coachitapp@gmail.com`) — Supabase שולח דרכו את מיילי שחזור הסיסמה. ראו "מיילים" למטה.
 
 ### אחסון הקבצים (Supabase Storage)
 
@@ -64,6 +65,34 @@
    - Authorized redirect URIs: כתובת ה־callback של Supabase מלמעלה.
 4. להעתיק Client ID ו־Client Secret ← Supabase ← Authentication ← Sign In / Providers ← Google ← Enable, להדביק, Save.
 5. כל עוד המסך במצב Testing רק משתמשי בדיקה שהוספתם יכולים להיכנס. כדי לפתוח לכולם: Audience ← Publish app. עם ההרשאות הבסיסיות האלה (ובלי לוגו) לא נדרש תהליך אימות של Google.
+
+## מיילים: שחזור סיסמה ("Forgot password")
+
+שולח המיילים המובנה של Supabase מגיע רק לחברי הצוות בפרויקט (ועד 2 מיילים בשעה), ולכן משתמשים רגילים לא מקבלים את קישור האיפוס. הפתרון: Supabase שולח דרך Gmail של `coachitapp@gmail.com`. חינמי, בלי כרטיס אשראי ובלי דומיין, עד כ־500 מיילים ביום.
+
+**1. סיסמת אפליקציה ב־Gmail** (מחוברים כ־`coachitapp@gmail.com`):
+1. [myaccount.google.com/security](https://myaccount.google.com/security) ← להפעיל 2-Step Verification (אימות דו־שלבי). בלי זה אין סיסמאות אפליקציה.
+2. [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) ← שם: `Supabase` ← Create. מקבלים סיסמה של 16 תווים. להעתיק אותה (רואים אותה רק פעם אחת) ולא לשמור אותה בקוד.
+
+**2. Supabase ← Authentication ← Emails ← SMTP Settings** ← Enable Custom SMTP:
+| שדה | ערך |
+|---|---|
+| Sender email | `coachitapp@gmail.com` |
+| Sender name | `CoachIt` |
+| Host | `smtp.gmail.com` |
+| Port | `587` |
+| Username | `coachitapp@gmail.com` |
+| Password | סיסמת האפליקציה מסעיף 1 (בלי רווחים) |
+
+ואז Save.
+
+**3. Supabase ← Authentication ← Rate Limits:** אחרי חיבור SMTP הגבול הוא 30 מיילים בשעה לכל הפרויקט. לפיילוט זה מספיק. אפשר להעלות אם צריך.
+
+**4. Supabase ← Authentication ← Emails ← Templates ← Reset password:** Subject: `Reset your CoachIt password`, ובגוף ההודעה להדביק את `supabase/email-templates/reset-password.html` (בלי ההערה שבראש הקובץ).
+
+**5. Supabase ← Authentication ← URL Configuration:** לוודא ש־Site URL הוא `https://coach-pilot-5jk.pages.dev` ושהכתובת `https://coach-pilot-5jk.pages.dev/**` נמצאת ב־Redirect URLs. אחרת הקישור במייל מוביל לעמוד שבור. קישור שמבקשים מ־localhost יפתח את האתר החי, כי localhost לא ברשימה.
+
+**לבדוק:** מחלון גלישה בסתר ← Sign in ← Forgot password ← מייל של חשבון בדיקה שאינו בצוות ← לוודא שהמייל הגיע (גם בספאם), שהקישור פותח את "Choose a new password", ושאפשר להיכנס עם הסיסמה החדשה. "Change password" בהגדרות משתמש באותו מסלול.
 
 ## מדיניות פרטיות וגיל 18+
 

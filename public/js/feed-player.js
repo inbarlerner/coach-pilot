@@ -108,7 +108,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   }
   video.addEventListener('play', () => { state.hidden = true; });
   video.addEventListener('pause', () => { state.hidden = panelOpen || !video.src || !message.hidden; });
-  video.addEventListener('error', () => { if (video.src) showMessage('This video cannot play in this browser (the format may not be supported).'); });
+  video.addEventListener('error', () => { if (video.src) showMessage('This video can\'t play in this browser (the format may not be supported).'); });
   video.addEventListener('timeupdate', showProgress);
   video.addEventListener('durationchange', showProgress);
   video.addEventListener('loadedmetadata', () => {

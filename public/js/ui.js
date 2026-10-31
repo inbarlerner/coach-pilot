@@ -36,7 +36,7 @@ export const clear = (el) => { el.replaceChildren(); return el; };
 export const $ = (sel, root = document) => root.querySelector(sel);
 
 // ---------- States ----------
-export const loading = (text = 'Loading…') =>
+export const loading = (text = 'Loading...') =>
   h('div', { class: 'state', role: 'status' }, h('div', { class: 'spinner', 'aria-hidden': 'true' }), h('p', null, text));
 export const empty = (title, text, action) =>
   h('div', { class: 'state empty' }, h('div', { class: 'big', 'aria-hidden': 'true' }, '○'), h('p', null, h('strong', null, title)), text && h('p', null, text), action);
@@ -101,7 +101,7 @@ export async function busy(btn, fn) {
   btn.style.minWidth = btn.offsetWidth + 'px';   // keeps its width; grows only if the busy text would not fit
   btn.disabled = true;
   btn.setAttribute('aria-busy', 'true');
-  btn.replaceChildren(h('span', { class: 'spinner sm', 'aria-hidden': 'true' }), ' One moment…');
+  btn.replaceChildren(h('span', { class: 'spinner sm', 'aria-hidden': 'true' }), ' One moment...');
   try { return await fn(); }
   finally { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.style.minWidth = ''; btn.replaceChildren(...old); }
 }
@@ -141,25 +141,25 @@ const ERR = {
   NOT_AUTHENTICATED: 'Please sign in again.',
   ACCOUNT_DISABLED: 'This account was disabled by an admin.',
   COACH_FULL: 'This coach has no free spot right now. Pick another coach or try later.',
-  COACH_NOT_AVAILABLE: 'This coach is not taking requests.',
-  SELF_REQUEST: 'You cannot send a request to yourself.',
+  COACH_NOT_AVAILABLE: 'This coach isn\'t taking requests.',
+  SELF_REQUEST: 'You can\'t send a request to yourself.',
   EXPIRED: 'The response time for this request has passed. The analysis can no longer be sent.',
   NOT_OPEN: 'This request is no longer open.',
   EMPTY_ANALYSIS: 'Add at least one part to the analysis (text, voice or video).',
-  NOT_FOUND: 'Not found, or you do not have access to it.',
+  NOT_FOUND: 'Not found, or you don\'t have access to it.',
   TOO_LARGE: 'The file is larger than the pilot limit (50MB per video, 2MB per image). You can trim the video in your phone\'s gallery and try again.',
-  BAD_TYPE: 'This file type is not supported. Upload an MP4, MOV or WebM video, a common audio file, or a JPEG/PNG image.',
-  BAD_IMAGE: 'This image could not be read. Try a JPEG or PNG.',
-  FILE_NOT_FOUND: 'The file was not found in storage. Try uploading it again.',
+  BAD_TYPE: 'This file type isn\'t supported. Upload an MP4, MOV or WebM video, a common audio file, or a JPEG/PNG image.',
+  BAD_IMAGE: 'This image couldn\'t be read. Try a JPEG or PNG.',
+  FILE_NOT_FOUND: 'The file wasn\'t found in storage. Try uploading it again.',
   UPLOAD_ABORTED: 'Upload cancelled.',
-  FILE_REMOVED: 'This video was removed automatically to free up storage, so it cannot be sent for analysis.',
+  FILE_REMOVED: 'This video was removed automatically to free up storage, so it can\'t be sent for analysis.',
   BAD_SPORT: 'Choose a sport.',
   TITLE_REQUIRED: 'Enter a name for the drill.',
-  FORBIDDEN: 'You do not have permission to do this.',
-  FORBIDDEN_FIELD: 'You do not have permission to change this field.',
+  FORBIDDEN: 'You don\'t have permission to do this.',
+  FORBIDDEN_FIELD: 'You don\'t have permission to change this field.',
   EMPTY_MESSAGE: 'The message is empty.',
-  CANNOT_DISABLE_SELF: 'You cannot disable your own account.',
-  SERVER_NOT_CONFIGURED: 'The server is not fully set up yet (missing keys). See the setup guide.',
+  CANNOT_DISABLE_SELF: 'You can\'t disable your own account.',
+  SERVER_NOT_CONFIGURED: 'The server isn\'t fully set up yet (missing keys). See the setup guide.',
   ONE_USED: 'You already sent the one follow-up message for this request.',
   ONE_REPLIED: 'You already replied to the follow-up message.',
   WAIT_TRAINEE: 'You can reply only after the trainee sends a follow-up message.',
@@ -176,14 +176,14 @@ const ERR = {
   BAD_PHONE: 'Invalid phone number.',
   ALREADY_SET_UP: 'Your account is already set up.',
   COACH_LEFT: 'This coach has left CoachIt, so follow-up messages are closed.',
-  ADMIN_CANNOT_DELETE: 'Admin accounts cannot be deleted from the app. Email coachitapp@gmail.com.',
-  FILES_REMAIN: 'Some of your files could not be removed yet. Try again, or email coachitapp@gmail.com.',
-  DELETION_NOT_STARTED: 'Account deletion did not start. Try again.',
+  ADMIN_CANNOT_DELETE: 'Admin accounts can\'t be deleted from the app. Email coachitapp@gmail.com.',
+  FILES_REMAIN: 'Some of your files couldn\'t be removed yet. Try again, or email coachitapp@gmail.com.',
+  DELETION_NOT_STARTED: 'Account deletion didn\'t start. Try again.',
   CONSENT_REQUIRED: 'CoachIt is for people 18 or older. Confirm your age and the Privacy Policy to continue.',
   profiles_languages_check: 'Choose languages from the list.',
   NETWORK: 'No network connection. Check your connection and try again.',
   'Invalid login credentials': 'Wrong email or password.',
-  'Email not confirmed': 'Your email is not confirmed yet. Check your inbox.',
+  'Email not confirmed': 'Your email isn\'t confirmed yet. Check your inbox.',
   'User already registered': 'An account with this email already exists.',
 };
 export function friendlyError(e) {
@@ -193,11 +193,15 @@ export function friendlyError(e) {
   if (/exceeded the maximum allowed size|Payload too large|entity too large/i.test(msg)) return ERR.TOO_LARGE;
   if (/mime type|invalid_mime_type/i.test(msg)) return ERR.BAD_TYPE;
   if (/quota|exceed_storage_size/i.test(msg)) return 'The pilot storage (1GB) is full. Please contact the pilot admin.';
-  if (/row-level security|Unauthorized/i.test(msg)) return 'You do not have access to this file.';
+  if (/row-level security|Unauthorized/i.test(msg)) return 'You don\'t have access to this file.';
   if (/Object not found|not_found/i.test(msg)) return ERR.NOT_FOUND;
   for (const [k, v] of Object.entries(ERR)) if (msg.includes(k)) return v;
   if (/Password should be at least/i.test(msg)) return 'The password is too short (at least 8 characters).';
+  // Supabase Auth emails (password reset): too soon after the last link, or the mail sender failed / isn't set up
+  const wait = msg.match(/only request this after (\d+) seconds?/i);
+  if (wait) return `We just sent a link. You can ask for another one in ${wait[1]} seconds.`;
   if (/rate limit/i.test(msg)) return 'Too many attempts. Try again in a few minutes.';
+  if (/Error sending|not authorized|smtp/i.test(msg)) return 'We could not send the email right now. Try again later, or write to coachitapp@gmail.com.';
   if (/duplicate key.*username|profiles_username_key/i.test(msg)) return 'This username is taken.';
   return 'Something went wrong. Please try again. (' + msg.slice(0, 120) + ')';
 }

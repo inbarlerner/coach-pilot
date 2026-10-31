@@ -46,7 +46,7 @@ export async function profilePage({ main, params, query }) {
       h('button', { class: 'btn secondary small', onclick: () => sb.auth.signOut() }, 'Sign out')));
     if (!(p.languages || []).length) main.append(h('div', { class: 'banner' }, 'Add the languages you speak so coaches and trainees know how to talk with you. ', h('a', { href: '#/settings' }, 'Add languages')));
     if (p.role === 'coach' && p.coach_status === 'pending') main.append(h('div', { class: 'banner' }, 'Your coach account is waiting for admin approval. Until then you won\'t appear in search or receive requests.'));
-    if (p.role === 'coach' && p.coach_status === 'rejected') main.append(h('div', { class: 'banner' }, 'Your coach application was not approved. You can still use the site as a trainee.'));
+    if (p.role === 'coach' && p.coach_status === 'rejected') main.append(h('div', { class: 'banner' }, 'Your coach application wasn\'t approved. You can still use the site as a trainee.'));
   }
 
   // Sports
@@ -54,7 +54,7 @@ export async function profilePage({ main, params, query }) {
     const table = p.role === 'coach' ? 'coach_sports' : 'user_sports';
     const col = p.role === 'coach' ? 'coach_id' : 'user_id';
     const rows = await q(sb.from(table).select('sport_id').eq(col, p.id));
-    sportsRow.textContent = (p.role === 'coach' ? 'Coaches: ' : 'Sports: ') + (rows.map((r) => sportName(r.sport_id)).filter(Boolean).join(', ') || '—');
+    sportsRow.textContent = (p.role === 'coach' ? 'Coaches: ' : 'Sports: ') + (rows.map((r) => sportName(r.sport_id)).filter(Boolean).join(', ') || 'none');
   } catch {}
 
   if (p.role === 'coach') return coachProfile(main, p, mine, coachApproved, query);
@@ -123,7 +123,7 @@ async function coachProfile(main, p, mine, approved, query) {
       }
     } catch (e) { info.append(errorState(friendlyError(e))); }
   } else if (!mine) {
-    info.append(h('p', { class: 'banner' }, 'This coach is not approved yet and is not taking requests.'));
+    info.append(h('p', { class: 'banner' }, 'This coach isn\'t approved yet and isn\'t taking requests.'));
   }
 
   let tab = query.get('tab') || 'perf';

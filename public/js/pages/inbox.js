@@ -63,7 +63,7 @@ export function inboxPage({ main, query }) {
               h('div', { class: 'meta' }, 'Sent: ' + fmtDate(r.created_at),
                 box === 'active' ? ' · Deadline: ' + fmtDate(r.deadline_at) + ' (' + timeLeft(r.deadline_at) + ')' : ''),
               r.status === 'declined' && h('div', { class: 'meta' }, 'Reason: ' + (DECLINE[r.decline_reason] || '')),
-              r.status === 'expired' && h('div', { class: 'meta' }, 'Reason: the coach did not respond in time'),
+              r.status === 'expired' && h('div', { class: 'meta' }, 'Reason: the coach didn\'t respond in time'),
               h('div', { class: 'row', style: { marginTop: 'var(--space-1)' } },
                 statusTag(r.status),
                 !read && h('span', { class: 'tag soft' }, 'Unread')))),

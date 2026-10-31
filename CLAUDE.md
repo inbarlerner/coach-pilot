@@ -25,6 +25,7 @@
 | אירוח | Cloudflare Pages | `public/` + שתי פונקציות ב־`functions/api/` |
 | Auth | Supabase Auth | מייל+סיסמה, שחזור סיסמה, Google (OAuth, מופעלים ב־Supabase → Providers; הוראות ב־README) |
 | DB | Supabase Postgres | RLS, פונקציות RPC, pg_cron כל דקה לפקיעת בקשות |
+| מיילים | Gmail SMTP דרך Supabase | מיילי שחזור סיסמה נשלחים מ־`coachitapp@gmail.com` (סיסמת אפליקציה, מוגדר ב־Supabase ← Emails ← SMTP; הוראות ב־README). תבנית המייל: `supabase/email-templates/reset-password.html` |
 | קבצים | Supabase Storage | דלי פרטי `media` (וידאו/קול/קאברים, עד 50MB, קישור חתום לשעה) + דלי ציבורי `avatars` (תמונות פרופיל, עד 2MB) |
 
 משתני סביבה ב־Cloudflare Pages: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (מקבל גם `SUPABASE_ANON_KEY` ישן), ו־`ANTHROPIC_API_KEY` כסוד (Secret) למעבדת ה־AI. `/api/health` מראה אם חסר משהו.
@@ -41,8 +42,9 @@ public/
   js/ui.js, components.js   עזרי DOM ורכיבים (כולל בוחר שפות; analysisItem = תיבות הניתוח, זהות בעמוד הבקשה, בעמוד הסרטון ובשכבה מעל הפיד: ציטוט + שורות עם כפתור ניגון)
   js/theme.js        מראה (הגדרות): בהיר (ברירת מחדל) / כהה, נשמר ב־localStorage; סקריפט קטן ב־index.html מחיל לפני הציור הראשון
   js/images.js       תמונת פרופיל (avatar), קאבר לסרטון: בחירת פריים / העלאת תמונה / פריים אקראי
+  js/avatar-crop.js  עורך תמונת פרופיל אחרי בחירת תמונה: העיגול קבוע, גוררים וממקמים, זום בצביטה/סליידר/גלגלת/מקלדת; נשמר ריבוע JPEG עד 400px
   js/feed-player.js  מסך מלא מהפיד: הקשה עוצרת/ממשיכה, החלקה למטה לסרטון הבא, ימינה לניתוח (תיבות שקופות-כהות מעל הסרטון העצור), שמאלה חזרה לסרטון
-  js/viewer.js       צפייה מלאה של המאמן (מגע: הקפצה, האטה, עיפרון לפריים) + הצגת שרטוטים בניתוח (צפייה: מסילה קטנה מימין — ניגון, מהירות 1×/½×/¼×, צעד ‎0.1s). timeline() = ציר הזמן המשותף לשני הנגנים במסך מלא
+  js/viewer.js       צפייה מלאה של המאמן (מגע: הקפצה, האטה, עיפרון לפריים) + הצגת שרטוטים בניתוח (צפייה: מסילה קטנה מימין — ניגון, מהירות 1×/½×/¼×, צעד ‎0.1s; המאמן מצייר: אותו עיצוב משמאל — ניגון, ½×, עיפרון, טקסט, ביטול; בלי מילוי מסך כדי שלא ייחתך הפריים). timeline() = ציר הזמן המשותף לשני הנגנים במסך מלא
   js/video-editor.js מסך עריכה אחרי בחירת סרטון: חיתוך התחלה/סוף (הקלטה מחדש בדפדפן), קאבר עם מסגרת 3:4 כמו בפרופיל, ✕/✓
   js/pages/          auth, home (פיד), search (מאמנים), upload, inbox,
                      request (מסך בקשה/ניתוח), video, profile, settings,
@@ -64,6 +66,7 @@ supabase/            להריץ לפי הסדר ב־SQL Editor:
   010_analysis_drawings.sql שרטוטי המאמן על הסרטון נשמרים עם הניתוח (סוג פריט 'drawing')
   011_social_login.sql כניסה עם Google: needs_setup + complete_signup; אישור 18+ ומדיניות פרטיות (profile_private.consented_at)
   012_delete_account.sql מחיקת חשבון עצמית (הגדרות): start_account_deletion → מחיקת קבצים בדפדפן → finish_account_deletion
+  email-templates/     תבניות מייל להדבקה ב־Supabase ← Emails ← Templates (לא SQL)
 tests/               בדיקות SQL (stubs ל־Supabase), פונקציות, ו־e2e בדפדפן
 functions/_lib/ai-coach.js  הליבה של מאמן ה־AI (פרומפט, סכמה, קריאה ל־Claude, מחיר)
 functions/api/ai-lab.js     מריץ ניתוח AI במעבדה (מנהלות בלבד, מפתח ה־API סוד ב־Cloudflare)
