@@ -6,6 +6,7 @@ import { h, clear, icon, friendlyError, errorState, loading } from './ui.js';
 import { sb, q, mediaUrl, coverUrl } from './api.js';
 import { holdFeed, analysisItem, REMOVED_TEXT } from './components.js';
 import { personLink, FORMER_COACH } from './images.js';
+import { fillsScreen, timeline } from './viewer.js';
 
 const NEXT_DIRECTION = 1;       // 1: a finger moving down goes to the next video. -1: a finger moving up does.
 const AXIS_PX = 12;             // how far a finger moves before the swipe's direction is decided
@@ -36,9 +37,8 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   const owner = h('span', { class: 'fp-owner' });
   const soundBtn = h('button', { type: 'button', class: 'viewer-round', onclick: () => setMuted(!muted) });
   const analysisBtn = h('button', { type: 'button', class: 'viewer-top-btn', onclick: () => openPanel() }, 'Analysis');
-  const fill = h('div', { class: 'viewer-fill' });
-  const track = h('div', { class: 'viewer-track', role: 'slider', 'aria-label': 'Video position', tabindex: '0' }, fill);
-  const time = h('span', { class: 'viewer-time' }, '0:00 / 0:00');
+  const tl = timeline();
+  const { track } = tl;
   const hint = h('div', { class: 'fp-hint', hidden: true }, 'Swipe right for the analysis. Swipe down for the next video.');
   // Title box and close button on top, the analysis itself at the bottom.
   const panelHead = h('div', { class: 'card fp-head' });
@@ -54,10 +54,14 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
       h('div', { class: 'fp-heading' }, title, owner),
       soundBtn, analysisBtn),
     h('div', { class: 'viewer-bottom' }, hint,
-      h('div', { class: 'viewer-scrub' }, h('div', { class: 'viewer-track-wrap' }, track), time)),
+      tl.el),
     panel);
 
   // ---------- The current video ----------
+  // No black bars when the clip's shape is close to the screen's (see fillsScreen).
+  function fit() { video.classList.toggle('fp-fill', fillsScreen(video.videoWidth, video.videoHeight, el.clientWidth, el.clientHeight)); }
+  video.addEventListener('loadedmetadata', fit);
+
   async function load(from = 0) {
     const r = rows[i], mine = ++seq;
     if (panelOpen) renderPanel();
@@ -68,6 +72,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     video.pause();
     video.removeAttribute('src');
     video.removeAttribute('poster');
+    video.classList.remove('fp-fill');
     video.load();
     showProgress();
     if (r.cover_key) coverUrl(r.cover_key).then((u) => { if (u && mine === seq) video.poster = u; });
@@ -115,12 +120,8 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   });
 
   const duration = () => (Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0);
-  function showProgress() {
-    const d = duration();
-    fill.style.width = d ? `${(video.currentTime / d) * 100}%` : '0%';
-    time.textContent = `${clock(video.currentTime || 0)} / ${clock(d)}`;
-    track.setAttribute('aria-valuetext', time.textContent);
-  }
+  function showProgress() { tl.set(video.currentTime || 0, duration()); }
+
   const seekFromX = (e) => {
     const r = track.getBoundingClientRect();
     if (duration()) video.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration();
@@ -317,6 +318,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     closed = true;
     seq++;
     window.removeEventListener('popstate', onPop);
+    window.removeEventListener('resize', fit);
     document.removeEventListener('keydown', onKey);
     document.body.style.overflow = prevOverflow;
     document.documentElement.classList.remove('fp-open');
@@ -334,6 +336,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   holdFeed(true);
   history.pushState({ feedPlayer: true }, '');
   window.addEventListener('popstate', onPop);
+  window.addEventListener('resize', fit);
   setMuted(false);
   document.body.append(el);
   soundBtn.focus({ preventScroll: true });
