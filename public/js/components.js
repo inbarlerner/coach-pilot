@@ -2,7 +2,7 @@
 import { h, clear, friendlyError, icon, toast, filePicker, confirmDanger } from './ui.js';
 import { mediaUrl, coverUrl, uploadFile, discardUpload, LIMITS, fileType, sizeMB, LANGUAGES, languageNames } from './api.js';
 import { coverImg } from './images.js';
-import { drawingsReview } from './viewer.js';
+import { readDrawings, isEmptyDrawings, watchAnalysis } from './viewer.js';
 
 /**
  * Video player for a protected file.
@@ -97,28 +97,50 @@ export function holdFeed(on) {
 
 export const REMOVED_TEXT = 'This video was removed automatically to free up storage. The analysis text and messages were kept.';
 
-// One analysis item (text / audio / video)
+// One analysis item, the same everywhere (request page, video page, full-screen overlay):
+// the coach's words as a quote, recordings and drawings as a box with a play button on the right.
+function playRow(label, onclick) {
+  return h('button', { type: 'button', class: 'card an-play', onclick },
+    h('span', null, label), h('span', { class: 'an-play-btn', 'aria-hidden': 'true' }, icon('play')));
+}
+// Rounded "66" marks that sit on the top edge of the coach's quote, like a piece of tape.
+function quoteMarks() {
+  const el = h('span', { class: 'an-marks', 'aria-hidden': 'true' });
+  el.innerHTML = '<svg viewBox="0 0 34 26" fill="currentColor">'
+    + '<circle cx="8" cy="18" r="7"/><path d="M2.2 17C2.2 9 6 4 13 2.5" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round"/>'
+    + '<circle cx="26" cy="18" r="7"/><path d="M20.2 17C20.2 9 24 4 31 2.5" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round"/></svg>';
+  return el;
+}
 export function analysisItem(item, videoId) {
-  if (item.kind === 'drawing') return drawingsReview(item, videoId) || h('div');
-  if (item.kind === 'text') return h('div', { class: 'card' }, h('div', { class: 'label' }, 'Text'), h('div', { class: 'pre' }, item.body));
-  const box = h('div', { class: 'card' }, h('div', { class: 'label' }, item.kind === 'audio' ? 'Voice recording' : 'Video recording'));
-  if (item.file_deleted_at) { box.append(h('p', { class: 'muted' }, 'This recording was removed automatically to free up storage.')); return box; }
-  const slot = h('div', null, h('button', { class: 'btn secondary small', onclick: load }, item.kind === 'audio' ? 'Listen' : 'Watch'));
+  if (item.kind === 'text') return h('div', { class: 'card an-quote' }, quoteMarks(), h('blockquote', { class: 'pre' }, item.body));
+  if (item.kind === 'drawing') {
+    const d = readDrawings(item.body);
+    return isEmptyDrawings(d) ? h('div', { hidden: true })
+      : playRow('Watch play by play analysis', () => watchAnalysis({ videoId, title: 'Play by play analysis', drawings: d }));
+  }
+  const audio = item.kind === 'audio';
+  const name = audio ? 'Voice recording' : 'Video recording';
+  if (item.file_deleted_at) {
+    return h('div', { class: 'card' }, h('div', { class: 'label' }, name),
+      h('p', { class: 'muted' }, 'This recording was removed automatically to free up storage.'));
+  }
+  const slot = h('div');
+  const row = playRow(audio ? 'Listen to voice recording' : 'Watch video recording', load);
+  slot.append(row);
   async function load() {
-    clear(slot).append(h('span', { class: 'spinner sm' }));
+    clear(slot).append(h('div', { class: 'card' }, h('span', { class: 'spinner sm' })));
     try {
       const url = await mediaUrl('item', item.id);
-      const el = item.kind === 'audio'
+      const el = audio
         ? h('audio', { src: url, controls: true, style: { width: '100%' } })
-        : h('video', { src: url, controls: true, playsInline: true, style: { width: '100%', maxHeight: '60vh', borderRadius: 'var(--radius)' } });
-      clear(slot).append(el);
+        : h('video', { src: url, controls: true, playsInline: true, class: 'an-rec-video' });
+      clear(slot).append(h('div', { class: 'card' }, h('div', { class: 'label' }, name), el));
       el.play().catch(() => {});
     } catch (e) {
-      clear(slot).append(h('p', { class: 'error-text' }, friendlyError(e)), h('button', { class: 'btn secondary small', onclick: load }, 'Try again'));
+      clear(slot).append(row, h('p', { class: 'error-text' }, friendlyError(e)));
     }
   }
-  box.append(slot);
-  return box;
+  return slot;
 }
 
 /**

@@ -1,10 +1,11 @@
 // Full-screen player for the feed. A tap plays or pauses. Swiping down goes to the next video and up to the
-// previous one. Swiping right brings in the video's analysis; swiping left goes back to the video.
+// previous one. Swiping right lays the video's analysis over it in floating boxes; swiping left takes them away.
 // Keyboard: space plays or pauses, the arrows do the same as the swipes, Escape goes back.
 // One <video> is reused for all the videos, so iPhones keep the sound on from one video to the next.
 import { h, clear, icon, friendlyError, errorState, loading } from './ui.js';
 import { sb, q, mediaUrl, coverUrl } from './api.js';
-import { analysisItem, holdFeed, REMOVED_TEXT } from './components.js';
+import { holdFeed, analysisItem, REMOVED_TEXT } from './components.js';
+import { personLink, FORMER_COACH } from './images.js';
 import { fillsScreen, timeline } from './viewer.js';
 
 const NEXT_DIRECTION = 1;       // 1: a finger moving down goes to the next video. -1: a finger moving up does.
@@ -39,9 +40,12 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   const tl = timeline();
   const { track } = tl;
   const hint = h('div', { class: 'fp-hint', hidden: true }, 'Swipe right for the analysis. Swipe down for the next video.');
-  const panelBody = h('div');
+  // Title box and close button on top, the analysis itself at the bottom.
+  const panelHead = h('div', { class: 'card fp-head' });
+  const panelBody = h('div', { class: 'fp-boxes' });
   const panel = h('div', { class: 'fp-panel', role: 'region', 'aria-label': 'Analysis', hidden: true },
-    h('button', { type: 'button', class: 'btn ghost small', onclick: () => closePanel() }, icon('back'), 'Back to video'),
+    h('div', { class: 'fp-top' }, panelHead,
+      h('button', { type: 'button', class: 'fp-close', 'aria-label': 'Back to video', title: 'Back to video', onclick: () => closePanel() }, icon('close'))),
     panelBody);
   const el = h('div', { class: 'viewer fp', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Video player' },
     video, tap, state, message,
@@ -170,6 +174,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
       renderPanel();
     }
     panel.hidden = false;
+    el.classList.add('fp-analysis-open');
     if (!fromDrag) panel.getBoundingClientRect();
     panel.classList.add('fp-sliding');
     panel.style.transform = 'translateX(0)';
@@ -180,6 +185,7 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
     panel.classList.add('fp-sliding');
     panel.style.transform = '';
     panelOpen = false;
+    el.classList.remove('fp-analysis-open');
     panel.querySelectorAll('video, audio').forEach((m) => m.pause());
     setTimeout(() => { panel.classList.remove('fp-sliding'); if (!panelOpen) panel.hidden = true; }, SLIDE_MS);
     if (resumeAfterPanel) play();
@@ -188,8 +194,11 @@ export function openFeedPlayer({ rows, index, startAt = 0, more, onClose }) {
   async function renderPanel() {
     const r = rows[i], forIndex = i;
     clear(panelBody);
-    if (!r.request_id) return panelBody.append(h('h2', null, r.title), h('p', { class: 'muted' }, 'No analysis'));
-    panelBody.append(h('h2', null, 'Analysis from ' + r.coach_name), h('p', { class: 'meta' }, r.title));
+    if (!r.request_id) return clear(panelHead).append(h('h2', null, r.title), h('p', { class: 'muted' }, 'No analysis'));
+    // The coach as in the feed: "Analysis by", photo, name (not a link here, so the player stays open).
+    const [first_name, ...rest] = (r.coach_name || '').split(' ');
+    const coach = r.coach_name ? { first_name, last_name: rest.join(' '), avatar_key: r.coach_avatar } : FORMER_COACH;
+    clear(panelHead).append(h('div', { class: 'row' }, 'Analysis by ', personLink(coach, { size: 26 })), h('p', { class: 'meta' }, r.title));
     const list = h('div', { class: 'stack' }, loading());
     panelBody.append(list);
     try {
