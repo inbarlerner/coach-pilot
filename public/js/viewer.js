@@ -44,10 +44,41 @@ export function readDrawings(raw) {
 }
 export const isEmptyDrawings = (d) => !d.strokes.length && !d.notes.length;
 
-// Where the video picture sits inside its box (object-fit: contain).
-export function contentBox(cw, ch, vw, vh) {
+// Timeline of the full-screen players: a thin line, a scrub circle with a soft glow, the times under its ends,
+// and a time bubble above the circle while dragging. Frame marks (play by play) go in `marks`.
+export function timeline() {
+  const fill = h('div', { class: 'viewer-fill' });
+  const thumb = h('span', { class: 'viewer-thumb' });
+  const bubble = h('span', { class: 'viewer-bubble', 'aria-hidden': 'true' });
+  const track = h('div', { class: 'viewer-track', role: 'slider', 'aria-label': 'Video position', tabindex: '0' }, fill, thumb);
+  const marks = h('div', { class: 'viewer-marks' });
+  const now = h('span', null, '0:00'), total = h('span', null, '0:00');
+  const el = h('div', { class: 'viewer-scrub' },
+    h('div', { class: 'viewer-track-wrap' }, track, marks, bubble), h('div', { class: 'viewer-times' }, now, total));
+  const scrubbing = (on) => el.classList.toggle('scrubbing', on);
+  track.addEventListener('pointerdown', () => scrubbing(true));
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) track.addEventListener(ev, () => scrubbing(false));
+  function set(t, d) {
+    const at = `${d ? Math.min(100, (t / d) * 100) : 0}%`;
+    fill.style.width = at; thumb.style.left = at; bubble.style.left = at;
+    now.textContent = bubble.textContent = clock(t || 0);
+    total.textContent = clock(d);
+    track.setAttribute('aria-valuetext', `${now.textContent} of ${total.textContent}`);
+  }
+  return { el, track, marks, set };
+}
+
+// Full-screen players fill the screen (no black bars) when the clip's shape is close to the screen's,
+// cropping at most a quarter of it; a clip of a very different shape (a wide one on a phone) is shown whole.
+export function fillsScreen(vw, vh, sw, sh) {
+  const ratio = vw && vh && sw && sh ? (vw / vh) / (sw / sh) : 0;
+  return ratio > 0.75 && ratio < 4 / 3;
+}
+
+// Where the video picture sits inside its box (object-fit: contain, or cover when it fills the screen).
+export function contentBox(cw, ch, vw, vh, cover = false) {
   if (!vw || !vh) return { x: 0, y: 0, w: cw, h: ch };
-  const s = Math.min(cw / vw, ch / vh), w = vw * s, hh = vh * s;
+  const s = (cover ? Math.max : Math.min)(cw / vw, ch / vh), w = vw * s, hh = vh * s;
   return { x: (cw - w) / 2, y: (ch - hh) / 2, w, h: hh };
 }
 
@@ -105,6 +136,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   sheetTitle = 'Your response', sheetButton = null }) {
   const video = h('video', { class: 'viewer-video', src, playsInline: true, preload: 'auto' });
   const ink = h('canvas', { class: 'viewer-ink', 'aria-hidden': 'true' });
+  let cover = false;   // the video fills the screen (object-fit: cover); see fitVideo
   const tap = h('div', { class: 'viewer-tap', 'aria-hidden': 'true' });
   const hint = h('div', { class: 'viewer-hint', 'aria-live': 'polite' });
   const caption = captionBar(video);
@@ -137,7 +169,13 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
       type: 'button', class: 'viewer-swatch', 'aria-label': `Colour ${c}`, style: { background: c },
       onclick: () => pickColor(c),
     })));
-  const rail = readOnly ? null : h('div', { class: 'viewer-rail' }, playBtn, speedBtn, pencilBtn, textBtn, undoBtn);
+  // Watching (read only): a small rail on the right with play, speed (1× → ½× → ¼×) and a step back or forward.
+  const rateBtn = roundButton('Speed: normal', '1×', () => setBase(base === 1 ? HALF_RATE : base === HALF_RATE ? SLOW_RATE : 1));
+  const rail = readOnly
+    ? h('div', { class: 'viewer-rail watch' }, playBtn, rateBtn,
+      roundButton('Back 0.1 seconds', icon('stepBack'), () => step(-0.1)),
+      roundButton('Forward 0.1 seconds', icon('stepForward'), () => step(0.1)))
+    : h('div', { class: 'viewer-rail' }, playBtn, speedBtn, pencilBtn, textBtn, undoBtn);
   const top = h('div', { class: 'viewer-top' },
     roundButton('Back', icon('back'), () => onClose()),
     h('span', { class: 'title' }, title),
@@ -149,13 +187,9 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
       h('button', { type: 'button', class: 'btn ghost small', onclick: closeSheet }, 'Close')),
     sheetBody);
 
-  // Progress bar: where we are in the video, with a dot for every frame that has drawings or a note.
-  const track = h('div', { class: 'viewer-track', role: 'slider', 'aria-label': 'Video position', tabindex: '0' },
-    h('div', { class: 'viewer-fill' }));
-  const marks = h('div', { class: 'viewer-marks' });
-  const timeLabel = h('span', { class: 'viewer-time' }, '0:00 / 0:00');
-  const scrub = h('div', { class: 'viewer-scrub' },
-    h('div', { class: 'viewer-track-wrap' }, track, marks), timeLabel);
+  // Progress bar: where we are in the video, with a mark for every frame that has drawings or a note.
+  const tl = timeline();
+  const { track, marks } = tl;
   // Grows with the text, so everything typed stays visible.
   const noteInput = h('textarea', { class: 'viewer-note-input', maxlength: NOTE_MAX, rows: 1,
     placeholder: 'Why did you mark this frame?', 'aria-label': 'Explanation for this frame' });
@@ -168,20 +202,11 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   const undoText = h('span');
   const undoBar = h('div', { class: 'viewer-undo-bar', hidden: true, role: 'status' }, undoText,
     h('button', { type: 'button', onclick: () => undoDelete() }, 'Undo'));
-  // Read only: the same playback buttons as the video player elsewhere in the app.
-  const playbarPlay = h('button', { type: 'button', onclick: () => togglePlay() }, 'Play / pause');
-  const rateBtns = [[1, 'Normal speed'], [HALF_RATE, 'Half speed'], [SLOW_RATE, 'Quarter speed']].map(([rate, label]) =>
-    h('button', { type: 'button', 'data-rate': rate, 'aria-pressed': String(rate === 1), onclick: () => setBase(rate) }, label));
   const step = (d) => { video.pause(); seekTo(video.currentTime + d); };
-  const actions = readOnly
-    ? h('div', { class: 'viewer-playbar', role: 'group', 'aria-label': 'Playback' }, playbarPlay,
-      h('button', { type: 'button', title: 'Back 0.1 seconds', onclick: () => step(-0.1) }, '−0.1s'),
-      h('button', { type: 'button', title: 'Forward 0.1 seconds', onclick: () => step(0.1) }, '+0.1s'),
-      rateBtns)
-    : respond ? h('div', { class: 'viewer-actions' },
-      [['write', 'Write', 'text'], ['voice', 'Voice', 'mic'], ['video', 'Video', 'camera']].map(([kind, label, ic]) =>
-        h('button', { type: 'button', onclick: () => openSheet(kind) }, icon(ic), label))) : null;
-  const bottom = h('div', { class: 'viewer-bottom' }, readOnly ? null : [undoBar, noteRow], caption, scrub, actions);
+  const actions = !readOnly && respond ? h('div', { class: 'viewer-actions' },
+    [['write', 'Write', 'text'], ['voice', 'Voice', 'mic'], ['video', 'Video', 'camera']].map(([kind, label, ic]) =>
+      h('button', { type: 'button', onclick: () => openSheet(kind) }, icon(ic), label))) : null;
+  const bottom = h('div', { class: 'viewer-bottom' }, readOnly ? null : [undoBar, noteRow], caption, tl.el, actions);
   const el = h('div', { class: 'viewer' + (readOnly ? ' read-only' : ''), role: 'dialog', 'aria-label': 'Video viewer' },
     video, ink, tap, hint, top, rail, readOnly ? null : palette, bottom, sheet);
 
@@ -196,6 +221,14 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   vv?.addEventListener('resize', fitViewport);
   vv?.addEventListener('scroll', fitViewport);
   fitViewport();
+  // Watching (read only) fills the screen like the feed. While the coach draws, the whole picture stays visible.
+  const fitVideo = () => {
+    cover = readOnly && fillsScreen(video.videoWidth, video.videoHeight, el.clientWidth, el.clientHeight);
+    video.classList.toggle('fill', cover);
+    paint();
+  };
+  window.addEventListener('resize', fitVideo);
+  video.addEventListener('loadedmetadata', fitVideo);
   video.addEventListener('play', () => { syncPlay(); hideNote(); });
   video.addEventListener('pause', syncPlay);
   video.addEventListener('timeupdate', () => { paint(); showProgress(); });
@@ -214,16 +247,10 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   function togglePlay() { if (video.paused) video.play().catch(() => {}); else video.pause(); }
 
   // ---------- Progress bar and frame marks ----------
-  const fill = track.firstChild;
   const duration = () => (Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0);
-  function showProgress() {
-    const d = duration();
-    fill.style.width = d ? `${(video.currentTime / d) * 100}%` : '0%';
-    timeLabel.textContent = `${clock(video.currentTime)} / ${clock(d)}`;
-    track.setAttribute('aria-valuetext', timeLabel.textContent);
-  }
+  function showProgress() { tl.set(video.currentTime, duration()); }
   function markTimes() { return [...new Set([...strokes, ...notes].map((s) => frameKey(s.t)))].sort((a, b) => a - b); }
-  // A dot per frame: yellow = drawing, white with T = text, yellow with T = both.
+  // A mark per frame: a short line = drawing, a dark circle with T = text, a mint circle with T = both.
   function renderMarks() {
     const d = duration();
     clear(marks).append(markTimes().map((t) => {
@@ -352,7 +379,9 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   function setBase(rate) {
     base = rate;
     speedBtn.setAttribute('aria-pressed', String(base === HALF_RATE));
-    rateBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.rate) === base)));
+    rateBtn.textContent = { 1: '1×', [HALF_RATE]: '½×', [SLOW_RATE]: '¼×' }[base];
+    const name = { 1: 'normal', [HALF_RATE]: 'half', [SLOW_RATE]: 'quarter' }[base];
+    rateBtn.setAttribute('aria-label', `Speed: ${name}`); rateBtn.title = `Speed: ${name}`;
     applyRate();
   }
 
@@ -378,7 +407,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   // Position as a fraction of the video picture (not of the screen), so it matches on every device.
   const pointOf = (e) => {
     const r = ink.getBoundingClientRect();
-    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
+    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight, cover);
     return [round((e.clientX - r.left - b.x) / b.w), round((e.clientY - r.top - b.y) / b.h)];
   };
   ink.addEventListener('pointerdown', (e) => { capture(ink, e); stroke = { t: round(video.currentTime, 100), c: color, pts: [pointOf(e)] }; });
@@ -415,7 +444,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
   function paint() {
     const r = ink.getBoundingClientRect();
     const ctx = fitCanvas(ink, r);
-    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight);
+    const b = contentBox(r.width, r.height, video.videoWidth, video.videoHeight, cover);
     paintStrokes(ctx, stroke ? [...strokes, stroke] : strokes, video.currentTime, b);
     caption.update(notes, video.currentTime, noteAt !== null);   // while editing, the edit line shows the text
   }
@@ -438,6 +467,7 @@ export function coachViewer({ src, title, onClose, onAction, respond = true, rea
     video.load();
     document.body.style.overflow = prevOverflow;
     vv?.removeEventListener('resize', fitViewport);
+    window.removeEventListener('resize', fitVideo);
     vv?.removeEventListener('scroll', fitViewport);
     el.remove();
   }
