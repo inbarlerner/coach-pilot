@@ -12,7 +12,7 @@ Visual reference: the CoachIt Brand Book, https://claude.ai/artifact/LHEc3UopKoF
 - UI copy, except the name (see "The name"). Status labels stay as they are in `STATUS` in `public/js/ui.js`.
 - Behavior, routes, database, permissions, RPCs.
 - The video viewer and editor (`viewer.js`, `video-editor.js`, `ai-player.js` and their CSS). Video surfaces stay black, and their yellow and drawing colors are functional. Only their buttons outside the video take the new button styles, if that doesn't disturb them.
-- Dark mode: not defined, don't add it.
+- Dark mode: a proposal is in "Dark theme (proposal)" below, waiting for Inbar's approval. Don't extend it until she decides.
 - The logo: no symbol exists yet. Don't draw one.
 
 **Project rules still apply** (see `CLAUDE.md`): no build step, no dependencies, no CDN, plain HTML/CSS/JS. Interface in English, LTR.
@@ -115,6 +115,24 @@ Convert these to variables (`--space-1` and so on). Keep `--tap: 52px`.
 - Filter chips, inactive: mint fill, deep text.
 - `.banner`: mint, deep bold text. `.banner.strong`: deep, white text.
 
+## Dark theme (proposal)
+
+Not in the brand book yet. Built on branch `feature/dark-mode` for Inbar to approve. Same six colors, no new ones.
+
+| Role | Light (unchanged) | Dark |
+|---|---|---|
+| Screen, top bar, bottom nav | white | `--deep` |
+| Cards | `--mint` | `--bottle` |
+| Text | `--deep` | white |
+| Secondary text | `--bottle` | `--mint` |
+| Primary button | `--bottle`, white text | white, `--deep` text |
+| Secondary button | `--mint`, `--deep` text | `--mint`, `--deep` text |
+| Selected item | `--deep`, white text | white, `--deep` text |
+| Errors | `--red` on `--pale-red` | same |
+| Video surfaces | black | same |
+
+How it works: styles in `app.css` use role tokens (`--bg`, `--surface`, `--text`, `--strong`, `--primary`, `--fill`...), and the dark blocks at the top of `app.css` remap them. Light values equal the old ones exactly. **Settings → Appearance** offers Light (the default) / Dark, kept in the browser (`localStorage.theme`, see `public/js/theme.js`); an inline script in `index.html` applies it before the first paint. New styles should use the role tokens, not `--deep`/`--mint`/... directly, or they won't follow dark mode.
+
 ## Status tags
 
 `.tag` becomes a pill. Status labels keep their words.
@@ -172,4 +190,4 @@ Work on a feature branch. Don't push or merge until Inbar says so. Show her the 
 
 - Logo and app icon.
 - Voice examples on page 3 of the book: not yet approved, so don't rewrite copy to match them.
-- Dark mode.
+- Dark mode (now a separate proposal, see above).

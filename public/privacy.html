@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#FFFFFF">
+  <!-- Settings → Appearance, applied before the first paint so the screen never flashes. Same logic: js/theme.js -->
+  <script>try{if(localStorage.getItem('theme')==='dark'){document.documentElement.dataset.theme='dark';document.querySelector('meta[name=theme-color]').content='#00432F'}}catch(e){}</script>
   <title>Privacy Policy — CoachIt</title>
   <meta name="description" content="How CoachIt collects, uses, shares and deletes your data.">
   <link rel="stylesheet" href="/app.css">
@@ -36,7 +38,7 @@
     <li><strong>Profile photo</strong>, if you add one.</li>
     <li><strong>Your content:</strong> videos you upload and their cover images, the questions you send with them, comments, and reports about content.</li>
     <li><strong>Coaching content:</strong> coaches' analyses (text, voice recordings, video recordings and drawings on the video) and the follow-up messages between a trainee and a coach.</li>
-    <li><strong>Technical data:</strong> your sign-in session is kept in your browser's local storage so you stay signed in.
+    <li><strong>Technical data:</strong> your sign-in session is kept in your browser's local storage so you stay signed in, along with display choices such as light or dark mode.
       Our hosting providers keep standard server logs, such as IP addresses and request times, for security and operation.</li>
   </ul>
   <p>We do not use advertising or analytics cookies, and we do not sell your data.</p>
