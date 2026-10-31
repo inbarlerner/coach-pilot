@@ -2,7 +2,7 @@
 
 For a coding session. Apply the decided brand to the whole app. Every value you need is here.
 
-Visual reference: the CoachIt Brand Book, https://claude.ai/artifact/LHEc3UopKoFBJrAmAcf9Pq (pages 6, 7, 8, 11, 12, 13, 14). Where the book's mockups and this file differ, this file wins. The older CoachIt design system artifact is out of date: don't use it.
+Visual reference: the CoachIt Brand Book, https://claude.ai/artifact/LHEc3UopKoFBJrAmAcf9Pq (pages 6, 7, 8, 11, 12, 13, 14). A text copy of the whole book is in `docs/brand-book.md`. Where the book's mockups and this file differ, this file wins. The older CoachIt design system artifact is out of date: don't use it.
 
 ## Scope
 
