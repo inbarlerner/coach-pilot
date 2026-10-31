@@ -3,6 +3,7 @@ import { h, clear, loading, errorState, friendlyError, busy, toast, POLICY, icon
 import { sb, state, q, rpc, activeSports, loadProfile, isCoach, isAdmin, uploadFile, discardUpload, deleteAccount, AVATARS } from '../api.js';
 import { avatar, imageFileToJpeg } from '../images.js';
 import { languagePicker } from '../components.js';
+import { getTheme, setTheme } from '../theme.js';
 
 export async function settingsPage({ main }) {
   const title = h('h1', null, 'Settings');
@@ -137,12 +138,25 @@ export async function settingsPage({ main }) {
       toast('Details saved');
     } catch (e) { toast(friendlyError(e), 'err'); }
   });
-  main.append(card,
+  main.append(card, appearanceCard(),
     h('div', { class: 'btn-row', style: { marginTop: 'var(--space-4)' } },
       h('a', { class: 'btn secondary', href: '#/me' }, 'Back to profile'),
       h('a', { class: 'btn secondary', href: '#/forgot' }, 'Change password'),
       h('button', { class: 'btn secondary', onclick: () => sb.auth.signOut() }, 'Sign out')),
     deleteCard());
+}
+
+// ---------- Appearance (kept on this device, no save button) ----------
+function appearanceCard() {
+  const cur = getTheme();
+  const opts = [['light', 'Light'], ['dark', 'Dark']];
+  const group = h('div', { class: 'choices', role: 'radiogroup', 'aria-label': 'Appearance' }, opts.map(([v, l]) =>
+    h('label', { class: 'choice' },
+      h('input', { type: 'radio', name: 'theme', value: v, checked: cur === v, onchange: () => setTheme(v) }),
+      h('span', { class: 't' }, l))));
+  return h('div', { class: 'card', style: { marginTop: 'var(--space-4)' } },
+    h('h2', { style: { marginTop: 0 } }, 'Appearance'), group,
+    h('p', { class: 'hint' }, 'Saved on this device.'));
 }
 
 // ---------- Delete account (privacy policy: "Deleting your account and data") ----------

@@ -54,7 +54,7 @@ export async function videoPage({ main, params, query }) {
           if (r.status === 'completed') {
             const items = await q(sb.from('analysis_items').select('*').eq('request_id', r.id).order('created_at'));
             const order = { text: 0, video: 1, audio: 2, drawing: 3 };
-            items.sort((a, b) => order[a.kind] - order[b.kind]).forEach((it) => card.append(analysisItem(it, v.id)));
+            card.append(h('div', { class: 'stack an-list' }, ...items.sort((a, b) => order[a.kind] - order[b.kind]).map((it) => analysisItem(it, v.id))));
           }
           reqBox.append(card);
         }

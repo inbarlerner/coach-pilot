@@ -2,7 +2,7 @@
 import { h, clear, friendlyError, icon, toast, filePicker, confirmDanger } from './ui.js';
 import { mediaUrl, coverUrl, uploadFile, discardUpload, LIMITS, fileType, sizeMB, LANGUAGES, languageNames } from './api.js';
 import { coverImg } from './images.js';
-import { drawingsReview } from './viewer.js';
+import { readDrawings, isEmptyDrawings, watchAnalysis } from './viewer.js';
 
 /**
  * Video player for a protected file.
@@ -97,28 +97,50 @@ export function holdFeed(on) {
 
 export const REMOVED_TEXT = 'This video was removed automatically to free up storage. The analysis text and messages were kept.';
 
-// One analysis item (text / audio / video)
+// One analysis item, the same everywhere (request page, video page, full-screen overlay):
+// the coach's words as a quote, recordings and drawings as a box with a play button on the right.
+function playRow(label, onclick) {
+  return h('button', { type: 'button', class: 'card an-play', onclick },
+    h('span', null, label), h('span', { class: 'an-play-btn', 'aria-hidden': 'true' }, icon('play')));
+}
+// Rounded "66" marks that sit on the top edge of the coach's quote, like a piece of tape.
+function quoteMarks() {
+  const el = h('span', { class: 'an-marks', 'aria-hidden': 'true' });
+  el.innerHTML = '<svg viewBox="0 0 34 26" fill="currentColor">'
+    + '<circle cx="8" cy="18" r="7"/><path d="M2.2 17C2.2 9 6 4 13 2.5" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round"/>'
+    + '<circle cx="26" cy="18" r="7"/><path d="M20.2 17C20.2 9 24 4 31 2.5" fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round"/></svg>';
+  return el;
+}
 export function analysisItem(item, videoId) {
-  if (item.kind === 'drawing') return drawingsReview(item, videoId) || h('div');
-  if (item.kind === 'text') return h('div', { class: 'card' }, h('div', { class: 'label' }, 'Text'), h('div', { class: 'pre' }, item.body));
-  const box = h('div', { class: 'card' }, h('div', { class: 'label' }, item.kind === 'audio' ? 'Voice recording' : 'Video recording'));
-  if (item.file_deleted_at) { box.append(h('p', { class: 'muted' }, 'This recording was removed automatically to free up storage.')); return box; }
-  const slot = h('div', null, h('button', { class: 'btn secondary small', onclick: load }, item.kind === 'audio' ? 'Listen' : 'Watch'));
+  if (item.kind === 'text') return h('div', { class: 'card an-quote' }, quoteMarks(), h('blockquote', { class: 'pre' }, item.body));
+  if (item.kind === 'drawing') {
+    const d = readDrawings(item.body);
+    return isEmptyDrawings(d) ? h('div', { hidden: true })
+      : playRow('Watch play by play analysis', () => watchAnalysis({ videoId, title: 'Play by play analysis', drawings: d }));
+  }
+  const audio = item.kind === 'audio';
+  const name = audio ? 'Voice recording' : 'Video recording';
+  if (item.file_deleted_at) {
+    return h('div', { class: 'card' }, h('div', { class: 'label' }, name),
+      h('p', { class: 'muted' }, 'This recording was removed automatically to free up storage.'));
+  }
+  const slot = h('div');
+  const row = playRow(audio ? 'Listen to voice recording' : 'Watch video recording', load);
+  slot.append(row);
   async function load() {
-    clear(slot).append(h('span', { class: 'spinner sm' }));
+    clear(slot).append(h('div', { class: 'card' }, h('span', { class: 'spinner sm' })));
     try {
       const url = await mediaUrl('item', item.id);
-      const el = item.kind === 'audio'
+      const el = audio
         ? h('audio', { src: url, controls: true, style: { width: '100%' } })
-        : h('video', { src: url, controls: true, playsInline: true, style: { width: '100%', maxHeight: '60vh', background: '#000', borderRadius: 'var(--radius)' } });
-      clear(slot).append(el);
+        : h('video', { src: url, controls: true, playsInline: true, class: 'an-rec-video' });
+      clear(slot).append(h('div', { class: 'card' }, h('div', { class: 'label' }, name), el));
       el.play().catch(() => {});
     } catch (e) {
-      clear(slot).append(h('p', { class: 'error-text' }, friendlyError(e)), h('button', { class: 'btn secondary small', onclick: load }, 'Try again'));
+      clear(slot).append(row, h('p', { class: 'error-text' }, friendlyError(e)));
     }
   }
-  box.append(slot);
-  return box;
+  return slot;
 }
 
 /**
@@ -266,12 +288,76 @@ export function recorder(kind, { onSaved, onRemove, item = null } = {}) {
   return box;
 }
 
-// Spoken languages: a chip per language. el.value() returns the picked codes.
+// Spoken languages: pills for the common ones, a search box for the rest. A language picked from the search
+// joins the pills already selected; tapping it again removes it. el.value() returns the picked codes.
+const COMMON_LANGUAGES = ['en', 'he', 'ru', 'ar', 'nl', 'es'];
+let pickerCount = 0;
 export function languagePicker(selected = [], name = 'langs') {
-  const el = h('div', { class: 'chips', role: 'group', 'aria-label': 'Languages I speak' },
-    Object.entries(LANGUAGES).map(([code, label]) => h('label', { class: 'chip' },
-      h('input', { type: 'checkbox', name, value: code, checked: selected.includes(code) }), label)));
-  el.value = () => [...el.querySelectorAll(`input[name="${name}"]:checked`)].map((i) => i.value);
+  const listId = 'langlist' + (++pickerCount);
+  const pill = (code, on) => h('label', { class: 'chip', 'data-code': code },
+    h('input', { type: 'checkbox', name, value: code, checked: on }), LANGUAGES[code] || code.toUpperCase());
+  const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Languages I speak' },
+    COMMON_LANGUAGES.map((c) => pill(c, selected.includes(c))),
+    selected.filter((c) => !COMMON_LANGUAGES.includes(c)).map((c) => pill(c, true)));
+  // An extra language that gets unticked leaves the row.
+  chips.addEventListener('change', (e) => {
+    const box = e.target.closest('.chip');
+    if (box && !e.target.checked && !COMMON_LANGUAGES.includes(box.dataset.code)) box.remove();
+  });
+
+  const input = h('input', { type: 'text', class: 'lang-input', role: 'combobox', autocomplete: 'off', spellcheck: false,
+    placeholder: 'Search other languages', 'aria-label': 'Search other languages', 'aria-expanded': 'false', 'aria-controls': listId, 'aria-autocomplete': 'list' });
+  const list = h('ul', { class: 'lang-list', id: listId, role: 'listbox', 'aria-label': 'Other languages', hidden: true });
+  let options = [], active = -1;
+
+  const picked = () => new Set([...chips.querySelectorAll('input:checked')].map((i) => i.value));
+  function render() {
+    const q = input.value.trim().toLowerCase(), have = picked();
+    options = Object.entries(LANGUAGES)
+      .filter(([c, l]) => !COMMON_LANGUAGES.includes(c) && !have.has(c) && (!q || l.toLowerCase().includes(q)))
+      .sort((x, y) => x[1].localeCompare(y[1]));
+    active = q && options.length ? 0 : -1;
+    clear(list).append(...(options.length
+      ? options.map(([c, l], k) => h('li', { role: 'option', id: `${listId}-${c}`, 'aria-selected': String(k === active),
+          onpointerdown: (e) => e.preventDefault(), onclick: () => choose(c) }, l))
+      : [h('li', { class: 'lang-empty', role: 'presentation' }, 'No language found')]));
+    mark();
+  }
+  function mark() {
+    [...list.querySelectorAll('[role=option]')].forEach((li, k) => li.setAttribute('aria-selected', String(k === active)));
+    const cur = active >= 0 && list.querySelectorAll('[role=option]')[active];
+    if (cur) { input.setAttribute('aria-activedescendant', cur.id); cur.scrollIntoView({ block: 'nearest' }); }
+    else input.removeAttribute('aria-activedescendant');
+  }
+  function open() { render(); list.hidden = false; input.setAttribute('aria-expanded', 'true'); }
+  function shut() { list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); }
+  function choose(code) {
+    chips.append(pill(code, true));
+    input.value = '';
+    shut();
+  }
+  input.addEventListener('focus', open);
+  input.addEventListener('click', () => { if (list.hidden) open(); });
+  input.addEventListener('input', open);
+  input.addEventListener('blur', shut);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (list.hidden) return open();
+      if (!options.length) return;
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+      mark();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();   // never submits the sign-up form
+      if (!list.hidden && active >= 0) choose(options[active][0]);
+    } else if (e.key === 'Escape' && !list.hidden) {
+      e.preventDefault(); e.stopPropagation(); shut();
+    }
+  });
+
+  const el = h('div', { class: 'lang-picker' }, chips,
+    h('div', { class: 'lang-search' }, icon('search'), input), list);
+  el.value = () => [...picked()];
   return el;
 }
 

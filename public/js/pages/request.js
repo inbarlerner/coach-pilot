@@ -252,9 +252,9 @@ export async function requestPage({ main, params }) {
       if (!r.video.file_deleted_at) {
         player.replaceWith(analysisWatchCard(r.video, { drawings: drawingItem?.body, parts: h('div', { class: 'stack' }, parts()) }));
       }
-      clear(itemsBox).append(
-        drawingItem && !r.video.file_deleted_at && h('p', { class: 'muted small' }, 'Open the video to see the coach\'s drawings and notes at their moments.'),
-        ...(items.length ? parts() : [h('p', { class: 'muted' }, 'No analysis parts.')]));
+      // Same boxes as the video page and the feed overlay; the drawings box is left out of the viewer's own panel.
+      const shown = [...parts(), drawingItem && !r.video.file_deleted_at && analysisItem(drawingItem, r.video.id)].filter(Boolean);
+      clear(itemsBox).append(h('div', { class: 'stack' }, ...(shown.length ? shown : [h('p', { class: 'muted' }, 'No analysis parts.')])));
     } catch (e) {
       clear(itemsBox).append(errorState(friendlyError(e)));
       player.replaceWith(protectedVideo('video', r.video.id, { autoplay: true, cover: r.video.cover_key }));
