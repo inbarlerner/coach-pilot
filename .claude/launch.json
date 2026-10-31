@@ -1,0 +1,55 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "coach-pilot",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        ".claude/dev-server.mjs"
+      ],
+      "port": 8788
+    },
+    {
+      "name": "lab",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "lab/server.mjs"
+      ],
+      "port": 8790
+    },
+    {
+      "name": "lab-mock",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "lab/server.mjs"
+      ],
+      "env": {
+        "LAB_MOCK": "1",
+        "PORT": "8791",
+        "LAB_RUNS_DIR": "/private/tmp/claude-501/-Users-jenni-CLAUDE-projects-coach-pilot/63769d0c-fda5-49f1-bf86-28f53181e8c7/scratchpad/mock-runs"
+      },
+      "port": 8791
+    },
+    {
+      "name": "e2e-lab",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tests/e2e/server.mjs"
+      ],
+      "env": {
+        "ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6ImUyZSIsImV4cCI6MjAwMDAwMDAwMH0.2revuYnU1qyA-mk5LBk0u3J15uzGBOmVWXCrYG_qn4g",
+        "E2E_PSQL": "docker exec -i cp-pgtest psql -U postgres -d e2e",
+        "E2E_AI_REPLY": "/Users/jenni/CLAUDE/projects/coach-pilot/lab/runs/20261025-150740-kite-jump-1-opus/analysis.json"
+      },
+      "port": 8788
+    },
+    {
+      "name": "rail-mock",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-jenni-CLAUDE-projects-coach-pilot/44c742c9-bc95-4ffc-af70-504f562cbad2/scratchpad/rail-mock.mjs"
+      ],
+      "port": 8797
+    }
+  ]
+}
