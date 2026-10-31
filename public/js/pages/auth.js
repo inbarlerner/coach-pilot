@@ -1,5 +1,5 @@
 // Login, signup (trainee / coach), forgot and reset password.
-import { h, clear, busy, friendlyError, successState } from '../ui.js';
+import { h, clear, busy, friendlyError, successState, icon } from '../ui.js';
 import { sb, state, activeSports, rpc, loadProfile } from '../api.js';
 import { go, defaultRoute } from '../app.js';
 import { languagePicker } from '../components.js';
@@ -9,12 +9,27 @@ function field(label, input, hint) {
   input.id = id;
   const err = h('div', { class: 'error-text hidden', id: id + '_e', role: 'alert' });
   input.setAttribute('aria-describedby', id + '_e');
-  const wrap = h('div', { class: 'field' }, h('label', { for: id }, label), input, hint && h('div', { class: 'hint' }, hint), err);
+  const box = input.type === 'password' ? withShowButton(input) : input;
+  const wrap = h('div', { class: 'field' }, h('label', { for: id }, label), box, hint && h('div', { class: 'hint' }, hint), err);
   wrap.setError = (msg) => {
     err.textContent = msg || ''; err.classList.toggle('hidden', !msg);
     input.setAttribute('aria-invalid', msg ? 'true' : 'false');
   };
   return wrap;
+}
+// Password box with an eye button inside it, so people can check what they typed.
+// Open eye while hidden (tap to show), crossed-out eye while shown (tap to hide).
+function withShowButton(input) {
+  const btn = h('button', { type: 'button', class: 'pw-toggle', 'aria-controls': input.id });
+  const sync = () => {
+    const shown = input.type === 'text';
+    btn.replaceChildren(icon(shown ? 'eyeOff' : 'eye'));
+    btn.setAttribute('aria-label', shown ? 'Hide password' : 'Show password');
+    btn.title = shown ? 'Hide password' : 'Show password';
+  };
+  btn.onclick = () => { input.type = input.type === 'password' ? 'text' : 'password'; sync(); };
+  sync();
+  return h('div', { class: 'pw' }, input, btn);
 }
 const formError = () => h('div', { class: 'banner error hidden', role: 'alert' });
 const showFormError = (el, msg) => { el.textContent = msg; el.classList.remove('hidden'); el.scrollIntoView({ block: 'center' }); };
