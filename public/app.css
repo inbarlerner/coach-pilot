@@ -501,13 +501,18 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 .viewer-sheet[hidden] { display: none; }
 .viewer-top-btn { margin-inline-start: auto; flex: none; min-height: 40px; padding: 0 1rem; border: 0; border-radius: 20px; background: #fff; color: #000;
   font: inherit; font-weight: 700; cursor: pointer; }
-/* Watching a finished analysis: a small rail on the right (play, speed, step back, step forward) */
-.viewer-rail.watch { inset-inline-start: auto; inset-inline-end: 10px; gap: 10px; align-items: center; }
-.viewer-rail.watch .viewer-round { width: 36px; height: 36px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.16);
+/* Both rails (coach drawing on the left, watching a finished analysis on the right): small glass buttons, play larger and white */
+.viewer-rail { gap: 10px; align-items: center; }
+.viewer-rail .viewer-round { width: 36px; height: 36px; background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.16);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); font: 800 13px/1 var(--font-head); }
-.viewer-rail.watch .viewer-round svg { width: 18px; height: 18px; fill: currentColor; }
-.viewer-rail.watch .viewer-round:first-child { width: 44px; height: 44px; background: var(--white); color: var(--deep); border: 0; }
-.viewer-rail.watch .viewer-round:first-child svg { width: 20px; height: 20px; }
+.viewer-rail .viewer-round svg { width: 18px; height: 18px; }
+.viewer-rail.watch .viewer-round svg, .viewer-rail .viewer-round:first-child svg { fill: currentColor; }
+.viewer-rail .viewer-round:first-child { width: 44px; height: 44px; background: var(--white); color: var(--deep); border: 0; }
+.viewer-rail .viewer-round:first-child svg { width: 20px; height: 20px; }
+/* On (pencil drawing, half speed): brand "selected" green, so it never looks like the white play button */
+.viewer-rail .viewer-round[aria-pressed=true] { background: var(--bottle); color: var(--white); border-color: var(--mint); }
+.viewer-rail .viewer-undo { font-size: 18px; }
+.viewer-rail.watch { inset-inline-start: auto; inset-inline-end: 10px; }
 
 /* Cover that opens the viewer (coach request page) */
 .viewer-card { position: relative; display: block; text-decoration: none; width: 100%; aspect-ratio: 3 / 4; max-height: 70vh; padding: 0; border: 0; border-radius: var(--radius);
@@ -523,7 +528,7 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 .review-ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
 /* Colours for the pencil, and the explanation line for a frame */
-.viewer-palette { position: absolute; inset-inline-start: 74px; top: 50%; transform: translateY(-50%); z-index: 6;
+.viewer-palette { position: absolute; inset-inline-start: 64px; top: 50%; transform: translateY(-50%); z-index: 6;
   display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 30px; background: rgba(0,0,0,.7); }
 .viewer-palette[hidden] { display: none; }
 .viewer-swatch { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #fff; padding: 0; cursor: pointer; }
