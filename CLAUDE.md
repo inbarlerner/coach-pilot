@@ -124,6 +124,7 @@ python3 tests/e2e/acceptance_ui.py   # Supabase Auth + PostgREST מקומיים 
 ## השלבים הבאים (פתוח)
 - ניתוח סרטונים בעזרת AI.
 - תשלומים (לפי הכלל העסקי למעלה).
+- **שחזור סיסמה ("Forgot password") ואיפוס סיסמה ("Choose a new password"):** הקוד מוכן בענף `feature/reset-email`, אבל מיילי האיפוס עדיין לא מגיעים למשתמשים רגילים, כי השולח המובנה של Supabase שולח רק לחברי הצוות. נשאר: להגדיר Gmail SMTP ב־Supabase (סיסמת אפליקציה לחשבון `coachitapp@gmail.com`), להדביק את תבנית המייל `supabase/email-templates/reset-password.html`, ולבדוק מקצה לקצה עם חשבון רגיל: המייל מגיע, הקישור פותח את מסך הסיסמה החדשה, והכניסה עם הסיסמה החדשה עובדת (לכל התפקידים: מתאמן, מאמן, מנהלת). יעד: 2.11.2026.
 
 ### כשנעבור למסלולים בתשלום (כשתהיה תנועה)
 - **מסך הכניסה של Google מציג את כתובת Supabase** ("continue to rrtdfvzoqlrsgxyuqeke.supabase.co") במקום CoachIt. הפתרון: Custom Domain ב־Supabase (מסלול Pro + תוסף, בערך $35 לחודש), ואז Branding verification ב־Google Cloud כדי שיופיעו השם והלוגו. חלופה חינמית, אם נרצה לפני כן: להעביר את הכניסה עם Google דרך האתר שלנו (`id_token` → `signInWithIdToken`) כדי שיוצג `coach-pilot-5jk.pages.dev`.
