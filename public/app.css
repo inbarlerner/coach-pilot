@@ -252,6 +252,20 @@ input[type=file] { font: inherit; width: 100%; padding: var(--space-3); border-r
 /* Cards & lists */
 .card { --fill: var(--fill-on-surface); border: 2px solid transparent; border-radius: var(--radius); padding: 14px; background: var(--surface); }   /* 14 + 2 border = 16 */
 .card + .card, .card + .state, .state + .card { margin-top: var(--space-3); }
+/* Analysis boxes (request page, video page, feed overlay): the coach's words in big quotation marks,
+   recordings and drawings as a box with a play button on the right */
+.an-quote { position: relative; margin-top: 30px; padding-top: 26px; }
+.an-quote blockquote { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 600; }
+.an-marks { position: absolute; top: -19px; left: 18px; width: 44px; height: 34px; color: var(--muted, var(--bottle)); }
+.an-marks svg { display: block; width: 100%; height: 100%; }
+.an-play { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 76px;
+  font: inherit; font-size: 17px; font-weight: 700; text-align: start; color: inherit; cursor: pointer; }
+.an-play-btn { flex: none; width: 48px; height: 48px; border-radius: 50%; background: var(--strong, var(--deep)); color: var(--on-strong, var(--white)); display: grid; place-items: center; }
+.an-play-btn svg { width: 22px; height: 22px; margin-left: 3px; fill: currentColor; }
+.an-rec-video { display: block; width: 100%; max-height: 60vh; border-radius: var(--radius); }
+/* Inside another card (video page): white boxes, like other fills on a card */
+.card .an-list { margin-top: var(--space-3); }
+.card .an-list .card { background: var(--fill); }
 .card.link { display: block; text-decoration: none; }
 .card.unread { border-color: var(--text); }
 .list-item { display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; }
@@ -335,12 +349,35 @@ html.fp-open, html.fp-open body { overscroll-behavior: none; }
 .fp-state svg { width: 36px; height: 36px; }
 .fp-message { position: absolute; top: 50%; inset-inline: var(--space-4); transform: translateY(-50%); z-index: 3; text-align: center; pointer-events: none; }
 .fp-hint { align-self: center; padding: var(--space-2) var(--space-3); border-radius: var(--pill); background: rgba(0,0,0,.7); font-size: 14px; text-align: center; pointer-events: none; }
+/* Analysis over the video: see-through dark boxes stacked at the bottom, the paused frame stays visible behind.
+   Dark-on-video like the other video overlays, so black is allowed here. */
 .fp-panel { position: absolute; inset: 0; z-index: 6; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; transform: translateX(-100%);
-  padding: calc(env(safe-area-inset-top) + var(--space-3)) var(--space-4) calc(env(safe-area-inset-bottom) + var(--space-5));
-  background: var(--bg); color: var(--text); user-select: text; -webkit-user-select: text; }
-.fp-panel > * { max-width: 720px; margin-inline: auto; }
-.fp-panel > .btn { display: flex; width: fit-content; margin-inline: max(0px, calc((100% - 720px) / 2)) 0; }
-.fp-panel h2 { margin-top: var(--space-3); }
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: calc(env(safe-area-inset-top) + var(--space-7)) var(--space-4) calc(env(safe-area-inset-bottom) + var(--space-5));
+  background: linear-gradient(rgba(0,0,0,.15), rgba(0,0,0,.45)); color: var(--white); user-select: text; -webkit-user-select: text; }
+.fp-panel > * { width: 100%; max-width: 720px; margin-inline: auto; flex: none; }
+.fp-top { display: flex; gap: var(--space-2); align-items: flex-start; }
+.fp-top .fp-head { flex: 1; min-width: 0; }
+.fp-close { flex: none; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: rgba(0,0,0,.62); color: var(--white); border: 1px solid rgba(255,255,255,.16); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.fp-close svg { width: 22px; height: 22px; }
+.fp-close:focus-visible { outline-color: var(--white); }
+.fp-boxes { margin-top: auto; display: grid; gap: var(--space-3); }
+.fp-boxes .stack > * + * { margin-top: var(--space-3); }
+.fp-panel .card { --fill: var(--white); background: rgba(0,0,0,.62); color: var(--white); border: 1px solid rgba(255,255,255,.16);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.fp-panel h2 { margin: 0 0 var(--space-1); }
+.fp-head .meta { margin: var(--space-2) 0 0; }
+.fp-head .person { color: inherit; }
+/* Analysis boxes in the overlay: white play button, mint quotation marks */
+.fp-panel .an-marks { color: var(--mint); }
+.fp-panel .an-play-btn { background: var(--white); color: var(--deep); }
+.fp-panel .an-play:focus-visible { outline-color: var(--white); }
+.fp-panel .muted, .fp-panel .meta { color: var(--mint); }
+.fp-panel .spinner { border-color: rgba(255,255,255,.3); border-top-color: var(--white); }
+/* While the analysis is open the video's own controls step aside. */
+.fp .viewer-top, .fp .viewer-bottom { transition: opacity .18s, visibility .18s; }
+.fp.fp-analysis-open .viewer-top, .fp.fp-analysis-open .viewer-bottom, .fp.fp-analysis-open .fp-state { opacity: 0; visibility: hidden; }
 
 /* Video settings: closed until asked for */
 .video-settings { margin-top: var(--space-5); }
